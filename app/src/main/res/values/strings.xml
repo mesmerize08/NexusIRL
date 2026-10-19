@@ -2,5 +2,11 @@
 <resources>
     <string name="app_name">NexusIRL</string>
     <string name="attribution">Based on Moblin by Erik Moqvist (MIT License). Not affiliated with or endorsed by the Moblin project.</string>
-    <string name="status_phase0">Development build — streaming is not implemented yet.</string>
+    <string name="stream_url">Stream URL (srt://, srtla://, rtmp://, rtmps://)</string>
+    <string name="go_live">Go live</string>
+    <string name="end_stream">End stream</string>
+    <string name="show">Show</string>
+    <string name="hide">Hide</string>
+    <string name="notification_channel">Streaming</string>
+    <string name="notification_streaming">Camera and microphone are streaming</string>
 </resources>

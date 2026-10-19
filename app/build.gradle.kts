@@ -32,6 +32,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -43,6 +44,11 @@ dependencies {
     implementation(project(":core:codable"))
     implementation(project(":core:clock"))
     implementation(project(":core:secrets"))
+    implementation(project(":media:mux"))
+    implementation(project(":media:pipeline"))
+    implementation(project(":transport:srt"))
+    implementation(project(":transport:rtmp"))
+    implementation(project(":transport:abr"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

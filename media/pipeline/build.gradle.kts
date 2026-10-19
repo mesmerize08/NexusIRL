@@ -1,0 +1,35 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "io.github.mesmerize08.nexusirl.media.pipeline"
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+dependencies {
+    api(project(":core:clock"))
+    api(project(":media:mux"))
+    testImplementation(kotlin("test"))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
