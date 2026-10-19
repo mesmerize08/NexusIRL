@@ -1,6 +1,8 @@
 package io.github.mesmerize08.nexusirl.stream
 
 import android.content.Context
+import android.view.Surface
+import io.github.mesmerize08.nexusirl.core.clock.Cancellable
 import io.github.mesmerize08.nexusirl.core.clock.HostClock
 import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
@@ -15,28 +17,49 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtFight
+import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpCode
 import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpMetadata
 import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtAdaptiveBitrateDriver
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStreamConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
-import android.view.Surface
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
+/** Stream state shown to the user (upstream `StreamState`). */
+enum class StreamState { IDLE, CONNECTING, LIVE, RECONNECTING, STOPPED }
 
 /** Snapshot of the live state for the UI (upstream: the status bar sub-models). */
 data class StreamStatus(
-    val state: String = "Idle",
-    val live: Boolean = false,
+    val state: StreamState = StreamState.IDLE,
     val fps: Int = 0,
     val videoBitrateKbps: Long = 0,
     val rttMs: Double = 0.0,
     val audioLevelDbfs: Float = -160f,
+    /** Seconds since this connection went live (upstream stream uptime). */
+    val uptimeSeconds: Long = 0,
+    val reconnects: Int = 0,
     val detail: String = "",
-)
+) {
+    val live: Boolean
+        get() = state == StreamState.LIVE
+
+    /** True while the user wants to be live (connecting, live or retrying). */
+    val active: Boolean
+        get() = state == StreamState.CONNECTING || state == StreamState.LIVE || state == StreamState.RECONNECTING
+}
 
 /**
- * One streaming session: capture + encode (video and audio), and one destination (SRT/SRTLA or
- * RTMP(S)). Upstream equivalent: Media.swift's srtStartStream/rtmpStartStream with the Processor.
+ * One streaming session: capture + encode (video and audio) for its whole lifetime, and a
+ * destination (SRT/SRTLA or RTMP(S)) that is recreated on every reconnect.
+ *
+ * Upstream equivalents: Media.swift's srtStartStream/rtmpStartStream with the Processor, and
+ * ModelStream.swift's onConnected/onDisconnected: on a disconnect or failed connect the network
+ * stream is stopped and started again after 5 seconds, while capture keeps running.
+ *
+ * Destination state is confined to [executor], which is also where the transports deliver
+ * their callbacks.
  */
 class StreamSession(
     private val context: Context,
@@ -50,9 +73,15 @@ class StreamSession(
     private val executor = SerialExecutor.create("stream")
     private val clock = HostClock.system
     private var destination: Destination? = null
+    private var generation = 0
+    private var reconnectTimer: Cancellable? = null
+    private var stopped = false
+    private var liveSince: Long? = null
+    private var reconnects = 0
+    private var lastEncodedFrames = 0L
 
     @Volatile
-    private var status = StreamStatus(state = "Starting")
+    private var status = StreamStatus(state = StreamState.CONNECTING)
 
     private interface Destination : MediaSink {
         fun stop()
@@ -62,19 +91,10 @@ class StreamSession(
         fun debugStats(): String = ""
     }
 
-    private var lastEncodedFrames = 0L
-
     fun start() {
         video.start()
         audio.start()
-        destination = when (url.substringBefore("://").lowercase()) {
-            "srt", "srtla" -> startSrt()
-            "rtmp", "rtmps" -> startRtmp()
-            else -> {
-                report("Unsupported URL scheme")
-                null
-            }
-        }
+        executor.execute { startDestination() }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
     }
 
@@ -85,24 +105,96 @@ class StreamSession(
     }
 
     fun stop() {
-        destination?.stop()
-        destination = null
+        val done = CountDownLatch(1)
+        executor.execute {
+            stopped = true
+            reconnectTimer?.cancel()
+            stopDestination()
+            done.countDown()
+        }
+        done.await(3, TimeUnit.SECONDS)
         audio.stop()
         video.stop()
         executor.shutdown()
-        update(status.copy(state = "Stopped", live = false))
+        update(status.copy(state = StreamState.STOPPED))
     }
 
-    private fun startSrt(): Destination {
+    // Destination lifecycle (executor)
+
+    private fun startDestination() {
+        if (stopped) {
+            return
+        }
+        generation += 1
+        val current = generation
+        update(status.copy(state = if (reconnects == 0) StreamState.CONNECTING else StreamState.RECONNECTING))
+        destination = try {
+            when (url.substringBefore("://").lowercase()) {
+                "srt", "srtla" -> startSrt(current)
+                "rtmp", "rtmps" -> startRtmp(current)
+                else -> {
+                    report("Unsupported URL scheme")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            // E.g. an invalid passphrase: configuration errors are not retried.
+            report(e.message ?: "Invalid stream settings")
+            update(status.copy(state = StreamState.STOPPED))
+            null
+        }
+    }
+
+    private fun stopDestination() {
+        destination?.let {
+            fanOut.remove(it)
+            it.stop()
+        }
+        destination = null
+        liveSince = null
+    }
+
+    private fun handleConnected(eventGeneration: Int) {
+        if (eventGeneration != generation || stopped) {
+            return
+        }
+        // Like processor.startEncoding(stream): attach, replay formats, and start on a key frame.
+        destination?.let { fanOut.add(it) }
+        video.encoder?.requestKeyFrame()
+        liveSince = clock.nanoTime()
+        update(status.copy(state = StreamState.LIVE, detail = ""))
+    }
+
+    private fun handleDisconnected(eventGeneration: Int, message: String) {
+        // Transports may report one failure more than once; only act on the current destination.
+        if (eventGeneration != generation || stopped || reconnectTimer != null) {
+            return
+        }
+        stopDestination()
+        reconnects += 1
+        update(
+            status.copy(
+                state = StreamState.RECONNECTING,
+                reconnects = reconnects,
+                detail = REDACTOR.redact(message) + " - attempting again in 5 seconds",
+            ),
+        )
+        reconnectTimer = executor.schedule(RECONNECT_DELAY_NANOS) {
+            reconnectTimer = null
+            startDestination()
+        }
+    }
+
+    private fun startSrt(eventGeneration: Int): Destination {
         val stream = SrtStream(
             SrtStreamConfig(url = url, latency = 2000),
             DatagramUdpLinkFactory(),
             executor,
             clock,
             object : SrtStream.Listener {
-                override fun onConnected() = handleConnected()
+                override fun onConnected() = handleConnected(eventGeneration)
 
-                override fun onDisconnected(message: String) = handleDisconnected(message)
+                override fun onDisconnected(message: String) = handleDisconnected(eventGeneration, message)
             },
         )
         val adaptiveBitrate = AdaptiveBitrateSrtFight(settings.bitrate, { video.encoder?.setBitrate(it) }, clock)
@@ -142,19 +234,19 @@ class StreamSession(
         }
     }
 
-    private fun startRtmp(): Destination {
+    private fun startRtmp(eventGeneration: Int): Destination {
         val stream = RtmpStream(
             url,
             executor,
             clock,
             object : RtmpStream.Listener {
                 override fun onStatus(code: String) {
-                    if (code.endsWith("Failed") || code.endsWith("Closed") || code.endsWith("Rejected")) {
-                        handleDisconnected(code)
+                    if (code == RtmpCode.CONNECT_FAILED || code == RtmpCode.CONNECT_CLOSED || code == RtmpCode.CONNECT_REJECTED) {
+                        handleDisconnected(eventGeneration, "RTMP disconnected with message $code")
                     }
                 }
 
-                override fun onConnected() = handleConnected()
+                override fun onConnected() = handleConnected(eventGeneration)
             },
         )
         stream.setMetadata(RtmpMetadata(settings.width, settings.height, settings.fps.toDouble(), settings.hevc, settings.bitrate, 128_000, 48_000.0))
@@ -176,25 +268,13 @@ class StreamSession(
         }
     }
 
-    private fun handleConnected() {
-        // Like processor.startEncoding(stream): attach, replay formats, and start on a key frame.
-        destination?.let { fanOut.add(it) }
-        video.encoder?.requestKeyFrame()
-        update(status.copy(state = "Live", live = true, detail = ""))
-    }
-
-    private fun handleDisconnected(message: String) {
-        destination?.let { fanOut.remove(it) }
-        update(status.copy(state = "Disconnected", live = false, detail = REDACTOR.redact(message)))
-    }
-
     private fun report(message: String) {
         update(status.copy(detail = REDACTOR.redact(message)))
     }
 
     private fun publishStatus() {
         val encoded = video.encoder?.encodedFrames ?: 0
-        android.util.Log.d("StreamSession", "Encoded ${encoded - lastEncodedFrames} frames/s ${destination?.debugStats() ?: ""}")
+        android.util.Log.d("StreamSession", "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} ${destination?.debugStats() ?: ""}")
         lastEncodedFrames = encoded
         update(
             status.copy(
@@ -202,6 +282,7 @@ class StreamSession(
                 videoBitrateKbps = (video.encoder?.currentBitrate ?: 0) / 1000,
                 rttMs = destination?.rttMs() ?: 0.0,
                 audioLevelDbfs = audio.levelDbfs,
+                uptimeSeconds = liveSince?.let { (clock.nanoTime() - it) / 1_000_000_000 } ?: 0,
             ),
         )
     }
@@ -213,5 +294,8 @@ class StreamSession(
 
     private companion object {
         val REDACTOR = Redactor()
+
+        /** Upstream: "Attempting again in 5 seconds." */
+        const val RECONNECT_DELAY_NANOS = 5_000_000_000L
     }
 }

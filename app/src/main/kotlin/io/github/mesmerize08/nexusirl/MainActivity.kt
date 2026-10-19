@@ -136,18 +136,18 @@ private fun StreamScreen() {
         }
         Button(
             onClick = {
-                if (status.live || status.state == "Starting") {
+                if (status.active) {
                     StreamController.stop(context)
                 } else {
                     StreamController.goLive(context, url, MainActivity.DEFAULT_SETTINGS)
                 }
             },
-            enabled = url.isNotEmpty() || status.live,
+            enabled = url.isNotEmpty() || status.active,
         ) {
-            Text(stringResource(if (status.live) R.string.end_stream else R.string.go_live))
+            Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
         }
         Text(
-            "${status.state}  ${status.fps} fps  ${status.videoBitrateKbps} kbps  RTT ${status.rttMs.toInt()} ms  " +
+            "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  RTT ${status.rttMs.toInt()} ms  " +
                 "audio ${status.audioLevelDbfs.toInt()} dBFS",
             style = MaterialTheme.typography.bodyMedium,
         )
