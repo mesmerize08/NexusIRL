@@ -151,6 +151,17 @@ It must reproduce Swift `JSONEncoder` defaults:
 
 ## 5. Phased execution plan
 
+> **Progress (2026-10-19):**
+> - Phase 0 is done, except tooling extras (ktlint/detekt, licence check, AboutLibraries,
+>   dependency verification, release/F-Droid workflows, Pages, icon).
+> - Phase 1 is done. Its gate was met with ffmpeg/libsrt as the reference receivers instead of
+>   mediamtx:
+>   - The CLI streams over RTMP, SRT and SRTLA (via the ported SRTLA relay).
+>   - Recordings decode strictly.
+>   - ABR reacts correctly under a shaped bottleneck.
+>   - SRT AES encryption is included.
+
+
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.
 
 ### Phase 0 — Bootstrap

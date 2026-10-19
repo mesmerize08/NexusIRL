@@ -14,7 +14,7 @@ matches=$(grep -rnIE "$PATTERN" \
     --include='*.kt' --include='*.kts' --include='*.java' --include='*.xml' \
     --include='*.json' --include='*.properties' --include='*.html' --include='*.js' --include='*.mjs' \
     --exclude-dir=upstream --exclude-dir=build --exclude-dir=.git --exclude-dir=.gradle \
-    --exclude-dir=docs --exclude-dir=tools \
+    --exclude-dir=docs \
     . | grep -vE "$ALLOWLIST" || true)
 
 if [ -n "$matches" ]; then
