@@ -12,7 +12,8 @@ class SettingsStoreTest {
     @TempDir
     lateinit var directory: File
 
-    private val key = "live_123456_abcdefghijklmnop"
+    // Obviously fake, low-entropy value so secret scanners (gitleaks) do not flag the test.
+    private val key = "fakekey-aaaaaaaaaaaa"
     private val url = "rtmp://live.twitch.tv/app/$key"
 
     @Test
@@ -64,8 +65,8 @@ class SettingsStoreTest {
         val store = SettingsStore(File(directory, "settings.json"), secrets)
         store.update { it.addStream(SettingsStream(name = "A", url = url)) }
         val stream = store.current.streams.single()
-        store.update { it.updateStream(stream.copy(url = "rtmp://live.twitch.tv/app/other_key_0987654321")) }
-        assertEquals(listOf("/app/other_key_0987654321"), secrets.values().toList())
+        store.update { it.updateStream(stream.copy(url = "rtmp://live.twitch.tv/app/fakekey-bbbbbbbbbbbb")) }
+        assertEquals(listOf("/app/fakekey-bbbbbbbbbbbb"), secrets.values().toList())
         store.update { it.removeStream(stream.id) }
         assertTrue(secrets.values().isEmpty())
     }
