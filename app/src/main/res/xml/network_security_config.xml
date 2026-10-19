@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Cleartext HTTP is denied for HTTP stacks (OkHttp, WebView, URLConnection). Streaming protocols
+    (rtmp://, srt://, ...) use raw sockets and are unaffected; the UI warns when they are
+    unencrypted (docs/PORT_PLAN.md §9.5). localhost is allowed for the in-app OAuth fallback.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- Intentional: lets users trust their own CA for self-hosted relays and RTMPS/WHIP
+                 servers (PORT_PLAN.md §9.5). There is never a "trust all" option. -->
+            <certificates src="user" tools:ignore="AcceptsUserCertificates" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

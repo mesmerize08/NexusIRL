@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NexusIRL</string>
+    <string name="attribution">Based on Moblin by Erik Moqvist (MIT License). Not affiliated with or endorsed by the Moblin project.</string>
+    <string name="status_phase0">Development build — streaming is not implemented yet.</string>
+</resources>
