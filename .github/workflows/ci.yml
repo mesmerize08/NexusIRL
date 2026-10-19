@@ -23,7 +23,18 @@ jobs:
       - name: Independence check
         run: sh tools/check-independence.sh
       - name: Style, unit tests, lint, licence check and debug build
-        run: ./gradlew ktlintCheck test lint :app:licensee assembleDebug --console=plain
+        run: |
+          set -o pipefail
+          ./gradlew ktlintCheck test lint :app:licensee assembleDebug --console=plain 2>&1 | tee gradle-build.log
+      - name: Summarise the Gradle failure
+        if: failure()
+        # Annotations are visible without signing in, unlike job logs.
+        run: |
+          summary=$(grep -A40 -E "What went wrong|Dependency verification failed" gradle-build.log | head -60 || true)
+          summary="${summary//'%'/'%25'}"
+          summary="${summary//$'
+'/'%0A'}"
+          echo "::error title=Gradle failure::${summary}"
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
