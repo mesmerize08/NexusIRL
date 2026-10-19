@@ -18,6 +18,16 @@ private const val MAXIMUM_FLOW_WINDOW_SIZE_IN_PACKETS = 8192L
 private const val IP_UDP_HEADER_SIZE = 28L
 private const val HANDSHAKE_TYPE_CONCLUSION = 0xFFFF_FFFFL
 private const val HANDSHAKE_TYPE_INDUCTION = 0x0000_0001L
+private const val HANDSHAKE_REJECTION_FIRST = 1000L
+private const val HANDSHAKE_REJECTION_LAST = 1999L
+
+/** Human-readable libsrt rejection reasons (SRT_REJ_*). */
+private fun rejectionReason(code: Int): String = when (code) {
+    10 -> "SRT rejected: wrong passphrase"
+    11 -> "SRT rejected: the server requires encryption"
+    2 -> "SRT rejected by peer"
+    else -> "SRT rejected (reason $code)"
+}
 private const val NANOS_PER_MILLI = 1_000_000L
 private const val NANOS_PER_MICRO = 1_000L
 
@@ -53,11 +63,17 @@ class SrtDataPacket internal constructor(payload: ByteArray, offset: Int, length
         payload.copyInto(data, DATA_PACKET_HEADER_SIZE, offset, offset + length)
     }
 
-    internal fun setHeader(sequenceNumber: Long, now: Long, timestamp: Long, destinationSrtSocketId: Long) {
+    internal fun setHeader(
+        sequenceNumber: Long,
+        now: Long,
+        timestamp: Long,
+        destinationSrtSocketId: Long,
+        messageNumberFlags: Long = 0,
+    ) {
         this.sequenceNumber = sequenceNumber
         createdAt = now
         data.setUInt32Be(sequenceNumber, 0)
-        data.setUInt32Be(0xE000_0001L, 4)
+        data.setUInt32Be(0xE000_0001L or messageNumberFlags, 4)
         data.setUInt32Be(timestamp, 8)
         data.setUInt32Be(destinationSrtSocketId, 12)
     }
@@ -82,6 +98,8 @@ class SrtSender(
     private val executor: SerialExecutor,
     private val hostClock: HostClock,
     private val listener: Listener,
+    /** Optional payload encryption (an addition over upstream; see [SrtCrypto]). */
+    private val crypto: SrtCrypto? = null,
 ) {
     interface Listener {
         fun onConnected()
@@ -158,7 +176,13 @@ class SrtSender(
         if (!experimental) {
             packet.containsAudio = true
         }
-        packet.setHeader(getNextSequenceNumber(), now, timestamp(now), peerDestinationSrtSocketId)
+        val sequenceNumber = getNextSequenceNumber()
+        if (crypto != null) {
+            // Encrypted once here; retransmissions resend the same ciphertext.
+            crypto.encrypt(packet.data, DATA_PACKET_HEADER_SIZE, packet.data.size - DATA_PACKET_HEADER_SIZE, sequenceNumber)
+        }
+        val flags = if (crypto != null) SrtCrypto.KK_EVEN_KEY else 0
+        packet.setHeader(sequenceNumber, now, timestamp(now), peerDestinationSrtSocketId, flags)
         packetsToSend.addLast(packet)
     }
 
@@ -184,6 +208,11 @@ class SrtSender(
 
     fun getPerformanceData(): SrtPerformanceData = performanceData
 
+    /** Why the sender disconnected, when known (e.g. a rejected passphrase). */
+    @Volatile
+    var disconnectReason: String? = null
+        private set
+
     val isConnected: Boolean
         get() = state == State.CONNECTED
 
@@ -207,10 +236,11 @@ class SrtSender(
         }
     }
 
-    private fun setDisconnected() {
+    private fun setDisconnected(reason: String? = null) {
         if (state == State.DISCONNECTED) {
             return
         }
+        disconnectReason = reason
         connectTimer?.cancel()
         state = State.DISCONNECTED
         listener.onDisconnected()
@@ -303,8 +333,9 @@ class SrtSender(
         val writer = ByteWriter(128)
         writer.writeBytes(createCommonControlPacketHeader(SrtPacketType.HANDSHAKE, 0, timestamp(), DESTINATION_SOCKET))
         writer.writeUInt32(HANDSHAKE_VERSION_5)
-        writer.writeUInt16(0)
-        writer.writeUInt16(5)
+        // Encryption field (key length advertisement) and extension flags HSREQ | CONFIG (| KMREQ).
+        writer.writeUInt16(crypto?.handshakeEncryptionField ?: 0)
+        writer.writeUInt16(if (crypto != null) 7 else 5)
         writer.writeUInt32(nextSequenceNumber)
         writer.writeUInt32(MAXIMUM_TRANSMISSION_UNIT_SIZE)
         writer.writeUInt32(MAXIMUM_FLOW_WINDOW_SIZE_IN_PACKETS)
@@ -324,6 +355,12 @@ class SrtSender(
             writer.writeUInt16(5)
             writer.writeUInt16(encoded.size / 4)
             writer.writeBytes(encoded)
+        }
+        if (crypto != null) {
+            val keyingMaterial = crypto.keyingMaterial
+            writer.writeUInt16(SrtCrypto.EXT_KMREQ)
+            writer.writeUInt16(keyingMaterial.size / 4)
+            writer.writeBytes(keyingMaterial)
         }
         return writer.toByteArray()
     }
@@ -360,9 +397,45 @@ class SrtSender(
         reader.readBytes(16)
         when (handshakeType) {
             HANDSHAKE_TYPE_INDUCTION -> outputPacket(createConclusionHandshakePacket(peerSocketId, synCookie))
-            HANDSHAKE_TYPE_CONCLUSION -> handleHandshakeConclusion(peerSocketId)
+            HANDSHAKE_TYPE_CONCLUSION -> {
+                val keyingMaterialError = checkKeyingMaterialResponse(reader)
+                if (keyingMaterialError != null) {
+                    setDisconnected(keyingMaterialError)
+                } else {
+                    handleHandshakeConclusion(peerSocketId)
+                }
+            }
+            in HANDSHAKE_REJECTION_FIRST..HANDSHAKE_REJECTION_LAST ->
+                setDisconnected(rejectionReason((handshakeType - HANDSHAKE_REJECTION_FIRST).toInt()))
             else -> throw SrtException("Unsupported handshake type")
         }
+    }
+
+    /** With encryption, the listener must answer KMREQ with the same keying material (KMRSP). */
+    private fun checkKeyingMaterialResponse(reader: io.github.mesmerize08.nexusirl.media.mux.ByteReader): String? {
+        if (crypto == null) {
+            return null
+        }
+        while (reader.bytesAvailable >= 4) {
+            val type = reader.readUInt16()
+            val words = reader.readUInt16()
+            if (reader.bytesAvailable < words * 4) {
+                break
+            }
+            val content = reader.readBytes(words * 4)
+            if (type != SrtCrypto.EXT_KMRSP) {
+                continue
+            }
+            if (words == 1) {
+                return when (content.getUInt32Be(0)) {
+                    3L -> "SRT encryption: the server has no passphrase"
+                    4L -> "SRT encryption: wrong passphrase"
+                    else -> "SRT encryption failed (status ${content.getUInt32Be(0)})"
+                }
+            }
+            return null
+        }
+        return "SRT encryption: the server did not accept the key"
     }
 
     private fun handleHandshakeConclusion(peerSocketId: Long) {

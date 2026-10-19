@@ -43,3 +43,4 @@ git -C upstream diff <old>..<new> -- <path>
 | `Rtmp/RtmpStreamInfo.swift`, `Util/BitrateStats.swift` | `transport/rtmp/.../RtmpStreamInfo.kt` | Injected clock |
 | `AmfSuite`, `RtmpSuite`, `RtmpStreamInfoSuite` | `transport/rtmp/src/test/.../UpstreamRtmpSuitesTest.kt` | The SRS `_result` vector is abridged; the others are verbatim |
 | — | `RtmpInteropTest` | New: publish H.264 and enhanced-RTMP HEVC to ffmpeg's RTMP server, then strict decode; all 90 frames must arrive |
+| — (not in upstream's own sender) | `transport/srt/.../SrtCrypto.kt` + `SrtSender` KMREQ/KMRSP | New: SRT AES-CTR encryption (HaiCrypt scheme: PBKDF2-HMAC-SHA1, RFC 3394 key wrap, even key). Tested with RFC vectors and live against libsrt (AES-128/256, wrong passphrase, wire tap). No key refresh yet (libsrt refreshes after 2^25 packets). |

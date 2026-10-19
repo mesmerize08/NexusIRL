@@ -20,7 +20,15 @@ import java.net.URI
 import java.net.URLDecoder
 
 /** Parsed `srt://` or `srtla://` stream URL. */
-data class SrtUrl(val isSrtla: Boolean, val host: String, val port: Int, val streamId: String?, val passphrase: String?) {
+data class SrtUrl(
+    val isSrtla: Boolean,
+    val host: String,
+    val port: Int,
+    val streamId: String?,
+    val passphrase: String?,
+    /** libsrt `pbkeylen`: AES key length in bytes (16, 24 or 32). */
+    val keyLength: Int = 16,
+) {
     companion object {
         fun parse(url: String): SrtUrl {
             val uri = try {
@@ -37,7 +45,11 @@ data class SrtUrl(val isSrtla: Boolean, val host: String, val port: Int, val str
                 throw SrtException("Malformed URL")
             }
             val query = parseQuery(uri.rawQuery)
-            return SrtUrl(scheme == "srtla", host, uri.port, query["streamid"], query["passphrase"])
+            val keyLength = query["pbkeylen"]?.toIntOrNull() ?: 16
+            if (keyLength !in setOf(16, 24, 32)) {
+                throw SrtException("pbkeylen must be 16, 24 or 32")
+            }
+            return SrtUrl(scheme == "srtla", host, uri.port, query["streamid"], query["passphrase"], keyLength)
         }
 
         private fun parseQuery(rawQuery: String?): Map<String, String> {
@@ -103,10 +115,11 @@ class SrtStream(
     private var interfaces: List<BondingInterface> = emptyList()
 
     init {
-        if (url.passphrase != null) {
-            // Moblin's own sender has no SRT encryption; never stream unencrypted when a passphrase
-            // was requested (docs/PORT_PLAN.md §9.5). Encryption support is a Phase 1 item.
-            throw SrtException("SRT passphrase encryption is not supported yet")
+        // Validate early so a bad passphrase fails at configuration time, not mid-handshake.
+        url.passphrase?.let {
+            if (it.length !in 10..79) {
+                throw SrtException("SRT passphrase must be 10 to 79 characters")
+            }
         }
     }
 
@@ -221,7 +234,9 @@ class SrtStream(
             if (stopped) {
                 return
             }
-            val newSender = SrtSender(url.streamId, config.latency.coerceIn(0, 0xFFFF), config.experimental, executor, clock, senderListener)
+            // A fresh salt and stream key for every connection.
+            val crypto = url.passphrase?.let { SrtCrypto(it, url.keyLength) }
+            val newSender = SrtSender(url.streamId, config.latency.coerceIn(0, 0xFFFF), config.experimental, executor, clock, senderListener, crypto)
             sender = newSender
             newSender.start()
         }
@@ -244,7 +259,7 @@ class SrtStream(
         override fun onDisconnected() {
             stopWriter()
             if (!stopped) {
-                listener.onDisconnected("SRT error: SRT disconnected")
+                listener.onDisconnected("SRT error: " + (sender?.disconnectReason ?: "SRT disconnected"))
             }
         }
 
