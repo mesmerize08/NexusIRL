@@ -25,3 +25,10 @@ git -C upstream diff <old>..<new> -- <path>
 | `Mpeg/Avc/*.swift`, `Mpeg/Hevc/*.swift` | `media/mux/.../nal/AvcHevc.kt` | Header, raw parameter sets and timecode SEI |
 | `MpegTsSuite`, `TSTimestampSuite`, `NalUnitReaderSuite`, `NalUnitWriterSuite`, `NalUnitSeiSuite`, `MpegTsTimecodeGeneratorSuite` | `media/mux/src/test/.../Upstream*Test.kt` | All vectors copied verbatim |
 | — | `MpegTsWriterTest`, `FfmpegInteropTest` | New: an independent demuxer, plus an ffmpeg strict-decode check (skipped when ffmpeg is absent) |
+| `Moblin/Media/Srtla/Common/Srt.swift`, `Srtla.swift`, `HaishinKit/Srt/SrtPerformanceData.swift` | `transport/srt/.../Srt.kt` | 32-bit sequence numbers held in `Long` |
+| `Moblin/Media/HaishinKit/Srt/SrtSender.swift` | `transport/srt/.../SrtSender.kt` | Injected `HostClock` and `SerialExecutor` (instead of `srtlaClientQueue`) for deterministic tests. Quirks kept: no shutdown is sent; a received shutdown is only logged. |
+| `Moblin/Media/HaishinKit/Srt/SrtStreamMoblin.swift` + SRT parts of `Various/Media.swift` | `transport/srt/.../SrtStream.kt` | Rejects `passphrase` until SRT encryption lands (plan §9.5) |
+| `Moblin/Media/Srtla/Client/RemoteConnection.swift` | `transport/srt/.../srtla/RemoteConnection.kt` | `NWConnection` replaced by `UdpLink`/`BondingInterface` (Android binds the socket to a `Network`) |
+| `Moblin/Media/Srtla/Client/SrtlaClient.swift` | `transport/srt/.../srtla/SrtlaClient.kt` | `NWPathMonitor` replaced by `setInterfaces()`. The interface sort is a stable rank, because upstream's comparator isn't a strict ordering. The libsrt `LocalListener` path is deferred to post-v1. |
+| `SrtSenderSuite`, `SrtSuite` | `transport/srt/src/test/.../SrtSenderTest.kt` | Golden handshake vectors copied verbatim, plus pacing, retransmit, ACK and drop tests |
+| — | `SrtInteropTest` | New: a live stream into ffmpeg's libsrt listener, with a strict decode of the recording |
