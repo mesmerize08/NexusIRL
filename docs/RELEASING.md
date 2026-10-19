@@ -41,3 +41,17 @@ Set the same variables, with `NEXUSIRL_KEYSTORE` pointing at the `.jks` file, th
 
 `./gradlew :app:licensee` (also part of `check`) fails the build if a dependency is not under an
 allowed permissive licence (Apache-2.0, MIT, BSD). See docs/PORT_PLAN.md §8.4.
+
+## Dependency verification
+
+`gradle/verification-metadata.xml` pins the SHA-256 of every downloaded dependency and plugin, so
+a tampered or swapped artifact fails the build. After adding or upgrading a dependency, regenerate
+it and review the diff:
+
+```sh
+./gradlew --write-verification-metadata sha256 ktlintCheck test lint :app:licensee assembleDebug assembleRelease
+```
+
+`aapt2` is published per operating system and Gradle only records the jar for the machine it runs
+on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync by hand
+(download each from Google Maven and run `sha256sum`).
