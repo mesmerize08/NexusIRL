@@ -36,3 +36,10 @@ git -C upstream diff <old>..<new> -- <path>
 | — | `SrtlaInteropTest` | New: bonded stream over 2 paths → ported SRTLA server → ffmpeg libsrt, checking per-path usage and a strict decode |
 | `Moblin/Media/AdaptiveBitrate/AdaptiveBitrate.swift`, `AdaptiveBitrateSrtFight.swift`, `AdaptiveBitrateSrtBelabox.swift` | `transport/abr/` | Injected `HostClock`. The 20/200 ms driver and the transport-bitrate EWMA (from `Media.swift`) arrive with the Phase 2 pipeline. The RIST experiment comes post-v1. |
 | `AdaptiveBitrateSuite` | `transport/abr/src/test/.../AdaptiveBitrateTest.kt` | Vectors kept; a fake clock replaces the 20 ms sleeps. Adds behaviour tests for both algorithms. |
+| `Moblin/Media/HaishinKit/Rtmp/Amf/Amf.swift` | `transport/rtmp/.../Amf.kt` | `AsObject` keeps insertion order (`LinkedHashMap`); upstream uses a hash-ordered Swift `Dictionary` |
+| `Rtmp/RtmpChunk.swift`, `RtmpChunkReader.swift`, `Rtmp/Message/*.swift` | `transport/rtmp/.../RtmpChunk.kt` | Messages are plain type + payload, with typed command/user-control helpers |
+| `Rtmp/RtmpStream.swift`, `RtmpConnection.swift`, `RtmpSocket.swift`, `RtmpHandshake.swift` | `transport/rtmp/.../RtmpStream.kt` | One class with a blocking socket plus a writer thread (replacing `NWConnection`). Handshake consumes exactly S2. RTMPS adds hostname verification. Annex-B is converted to AVCC. |
+| `Flv/Flv.swift` + FLV tag building in `RtmpStream.swift` | `transport/rtmp/.../Flv.kt` | Adds `avcC`/`hvcC` builders, because MediaCodec gives raw parameter sets |
+| `Rtmp/RtmpStreamInfo.swift`, `Util/BitrateStats.swift` | `transport/rtmp/.../RtmpStreamInfo.kt` | Injected clock |
+| `AmfSuite`, `RtmpSuite`, `RtmpStreamInfoSuite` | `transport/rtmp/src/test/.../UpstreamRtmpSuitesTest.kt` | The SRS `_result` vector is abridged; the others are verbatim |
+| — | `RtmpInteropTest` | New: publish H.264 and enhanced-RTMP HEVC to ffmpeg's RTMP server, then strict decode; all 90 frames must arrive |

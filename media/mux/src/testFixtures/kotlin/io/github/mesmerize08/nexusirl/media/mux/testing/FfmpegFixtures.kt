@@ -18,7 +18,16 @@ object Ffmpeg {
         return process.exitValue() to output
     }
 
-    fun start(vararg command: String): Process = ProcessBuilder(*command).redirectErrorStream(true).start()
+    /**
+     * Starts a long-running process (e.g. an ffmpeg receiver). Output goes to a log file, not a
+     * pipe, so a chatty process can never block on a full pipe buffer.
+     */
+    fun start(vararg command: String): BackgroundProcess {
+        val logFile = File.createTempFile("ffmpeg-", ".log")
+        logFile.deleteOnExit()
+        val process = ProcessBuilder(*command).redirectErrorStream(true).redirectOutput(logFile).start()
+        return BackgroundProcess(process, logFile)
+    }
 
     val available: Boolean by lazy {
         try {
@@ -45,16 +54,49 @@ object Ffmpeg {
         check(audioExit == 0) { audioLog }
         return ElementaryStreams.from(videoFile.readBytes(), audioFile.readBytes())
     }
+
+    /** Like [generateElementaryStreams] but HEVC (x265, Main profile, access unit delimiters). */
+    fun generateHevcElementaryStreams(directory: File, seconds: Int = 3): ElementaryStreams {
+        val videoFile = File(directory, "video.hevc")
+        val audioFile = File(directory, "audio.aac")
+        val (videoExit, videoLog) = run(
+            "ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30", "-t", "$seconds",
+            "-c:v", "libx265", "-pix_fmt", "yuv420p", "-x265-params", "aud=1:bframes=0:keyint=30:log-level=error",
+            "-f", "hevc", videoFile.path,
+        )
+        check(videoExit == 0) { videoLog }
+        val (audioExit, audioLog) = run(
+            "ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "$seconds",
+            "-ac", "2", "-c:a", "aac", "-b:a", "128k", "-f", "adts", audioFile.path,
+        )
+        check(audioExit == 0) { audioLog }
+        return ElementaryStreams.fromHevc(videoFile.readBytes(), audioFile.readBytes())
+    }
+}
+
+class BackgroundProcess(val process: Process, private val logFile: File) {
+    fun waitFor(timeout: Long, unit: TimeUnit): Boolean = process.waitFor(timeout, unit)
+
+    fun destroy() {
+        process.destroy()
+    }
+
+    val log: String
+        get() = logFile.readText()
 }
 
 class AccessUnit(val data: ByteArray, val isIdr: Boolean)
 
-/** H.264 access units (Annex-B, no AUD/SPS/PPS) and raw AAC frames, 30 fps and 1024-sample frames. */
+/**
+ * Video access units (Annex-B, without AUD and parameter sets) plus raw AAC frames, at 30 fps and
+ * 1024-sample frames. [vps] is set for HEVC streams.
+ */
 class ElementaryStreams(
     val sps: ByteArray,
     val pps: ByteArray,
     val accessUnits: List<AccessUnit>,
     val audioFrames: List<ByteArray>,
+    val vps: ByteArray? = null,
 ) {
     /** Calls [video] and [audio] interleaved in timestamp order, with times in seconds from 0. */
     fun forEachInterleaved(video: (AccessUnit, Double) -> Unit, audio: (ByteArray, Double) -> Unit) {
@@ -75,32 +117,69 @@ class ElementaryStreams(
         fun from(video: ByteArray, audio: ByteArray): ElementaryStreams {
             var sps: ByteArray? = null
             var pps: ByteArray? = null
+            val units = splitAccessUnits(video, typeOf = { it[0].toInt() and 0x1F }, aud = 9, isKey = { it == 5 }) { type, data ->
+                when (type) {
+                    7 -> sps = sps ?: data
+                    8 -> pps = pps ?: data
+                    else -> return@splitAccessUnits false
+                }
+                true
+            }
+            return ElementaryStreams(sps!!, pps!!, units, splitAdts(audio))
+        }
+
+        fun fromHevc(video: ByteArray, audio: ByteArray): ElementaryStreams {
+            var vps: ByteArray? = null
+            var sps: ByteArray? = null
+            var pps: ByteArray? = null
+            val units = splitAccessUnits(video, typeOf = { (it[0].toInt() ushr 1) and 0x3F }, aud = 35, isKey = { it in 16..23 }) { type, data ->
+                when (type) {
+                    32 -> vps = vps ?: data
+                    33 -> sps = sps ?: data
+                    34 -> pps = pps ?: data
+                    else -> return@splitAccessUnits false
+                }
+                true
+            }
+            return ElementaryStreams(sps!!, pps!!, units, splitAdts(audio), vps!!)
+        }
+
+        /** Splits on AUD NAL units; [parameterSet] returns true for NAL units it consumed. */
+        private fun splitAccessUnits(
+            video: ByteArray,
+            typeOf: (ByteArray) -> Int,
+            aud: Int,
+            isKey: (Int) -> Boolean,
+            parameterSet: (Int, ByteArray) -> Boolean,
+        ): List<AccessUnit> {
             val units = ArrayList<AccessUnit>()
             var current = ByteArrayOutputStream()
-            var isIdr = false
+            var key = false
             fun finish() {
                 if (current.size() > 0) {
-                    units.add(AccessUnit(current.toByteArray(), isIdr))
+                    units.add(AccessUnit(current.toByteArray(), key))
                 }
                 current = ByteArrayOutputStream()
-                isIdr = false
+                key = false
             }
             for (nal in getNalUnits(video)) {
                 val data = video.copyOfRange(nal.dataOffset(), nal.dataOffset() + nal.dataLength)
-                when (data[0].toInt() and 0x1F) {
-                    9 -> finish()
-                    7 -> sps = sps ?: data
-                    8 -> pps = pps ?: data
-                    else -> {
-                        if (data[0].toInt() and 0x1F == 5) {
-                            isIdr = true
-                        }
-                        current.write(byteArrayOf(0, 0, 0, 1))
-                        current.write(data)
+                val type = typeOf(data)
+                if (type == aud) {
+                    finish()
+                } else if (!parameterSet(type, data)) {
+                    if (isKey(type)) {
+                        key = true
                     }
+                    current.write(byteArrayOf(0, 0, 0, 1))
+                    current.write(data)
                 }
             }
             finish()
+            return units
+        }
+
+        private fun splitAdts(audio: ByteArray): List<ByteArray> {
             val frames = ArrayList<ByteArray>()
             var offset = 0
             while (offset < audio.size) {
@@ -108,7 +187,7 @@ class ElementaryStreams(
                 frames.add(audio.copyOfRange(offset + AdtsHeader.SIZE, offset + length))
                 offset += length
             }
-            return ElementaryStreams(sps!!, pps!!, units, frames)
+            return frames
         }
     }
 }

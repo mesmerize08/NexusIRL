@@ -85,7 +85,7 @@ class SrtInteropTest {
         stream.stop()
         // The sender, like upstream, sends no shutdown; ffmpeg ends on its 3 s I/O timeout.
         assertTrue(receiver.waitFor(30, TimeUnit.SECONDS), "ffmpeg did not finish")
-        val receiverLog = receiver.inputStream.bufferedReader().readText()
+        val receiverLog = receiver.log
         executor.shutdown()
 
         assertTrue(recording.exists() && recording.length() > 100_000, "nothing recorded: $receiverLog")
