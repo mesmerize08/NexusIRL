@@ -22,8 +22,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Independence check
         run: sh tools/check-independence.sh
-      - name: Unit tests, lint and debug build
-        run: ./gradlew test lint assembleDebug --console=plain
+      - name: Unit tests, lint, licence check and debug build
+        run: ./gradlew test lint :app:licensee assembleDebug --console=plain
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4

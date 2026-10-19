@@ -152,8 +152,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 ## 5. Phased execution plan
 
 > **Progress (2026-10-19):**
-> - Phase 0 is done, except tooling extras (ktlint/detekt, licence check, AboutLibraries,
->   dependency verification, release/F-Droid workflows, Pages, icon).
+> - Phase 0 is done, including the app icon, the licence check and the signed-release workflow.
+>   Still to do: ktlint/detekt, AboutLibraries, dependency verification, F-Droid metadata text
+>   and Pages.
 > - Phase 1 is done. Its gate was met with ffmpeg/libsrt as the reference receivers instead of
 >   mediamtx:
 >   - The CLI streams over RTMP, SRT and SRTLA (via the ported SRTLA relay).

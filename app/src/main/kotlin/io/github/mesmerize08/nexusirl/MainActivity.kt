@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -119,11 +122,11 @@ private fun StreamScreen() {
             Toast.makeText(context, R.string.thermal_critical, Toast.LENGTH_LONG).show()
         }
     }
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+    // Landscape: preview on the left (as large as fits at 16:9), controls scroll on the right.
+    Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
             AndroidView(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.aspectRatio(16f / 9f),
                 factory = { viewContext ->
                     SurfaceView(viewContext).apply {
                         holder.addCallback(object : SurfaceHolder.Callback {
@@ -137,47 +140,55 @@ private fun StreamScreen() {
                 },
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = url,
-                onValueChange = { url = it.trim() },
-                label = { Text(stringResource(R.string.stream_url)) },
-                singleLine = true,
-                visualTransformation = if (revealUrl) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                modifier = Modifier.weight(1f),
+        Column(
+            modifier = Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it.trim() },
+                    label = { Text(stringResource(R.string.stream_url)) },
+                    singleLine = true,
+                    visualTransformation = if (revealUrl) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { revealUrl = !revealUrl }) {
+                    Text(stringResource(if (revealUrl) R.string.hide else R.string.show))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = {
+                        if (status.active) {
+                            StreamController.stop(context)
+                        } else {
+                            StreamController.goLive(context, url, MainActivity.DEFAULT_SETTINGS.copy(hevc = hevc))
+                        }
+                    },
+                    enabled = url.isNotEmpty() || status.active,
+                ) {
+                    Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(if (hevcSupported) R.string.hevc else R.string.hevc_unsupported))
+                Switch(checked = hevc, onCheckedChange = { hevc = it }, enabled = hevcSupported && !status.active)
+            }
+            Text(
+                "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  RTT ${status.rttMs.toInt()} ms  " +
+                    "audio ${status.audioLevelDbfs.toInt()} dBFS  mic ${status.microphone}  thermal ${status.thermal}",
+                style = MaterialTheme.typography.bodyMedium,
             )
-            TextButton(onClick = { revealUrl = !revealUrl }) {
-                Text(stringResource(if (revealUrl) R.string.hide else R.string.show))
+            if (status.encoder.isNotEmpty()) {
+                Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = {
-                    if (status.active) {
-                        StreamController.stop(context)
-                    } else {
-                        StreamController.goLive(context, url, MainActivity.DEFAULT_SETTINGS.copy(hevc = hevc))
-                    }
-                },
-                enabled = url.isNotEmpty() || status.active,
-            ) {
-                Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
+            if (status.detail.isNotEmpty()) {
+                Text(status.detail, style = MaterialTheme.typography.bodySmall)
             }
-            Text(stringResource(if (hevcSupported) R.string.hevc else R.string.hevc_unsupported))
-            Switch(checked = hevc, onCheckedChange = { hevc = it }, enabled = hevcSupported && !status.active)
+            Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
         }
-        Text(
-            "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  RTT ${status.rttMs.toInt()} ms  " +
-                "audio ${status.audioLevelDbfs.toInt()} dBFS  mic ${status.microphone}  thermal ${status.thermal}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        if (status.encoder.isNotEmpty()) {
-            Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)
-        }
-        if (status.detail.isNotEmpty()) {
-            Text(status.detail, style = MaterialTheme.typography.bodySmall)
-        }
-        Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -1,0 +1,48 @@
+name: Release
+
+# Builds a signed APK when a version tag (v*) is pushed and attaches it, with its SHA-256,
+# to a GitHub Release. See docs/RELEASING.md for the signing secrets.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Independence check
+        run: sh tools/check-independence.sh
+      - name: Tests and lint
+        run: ./gradlew test lint :app:licensee --console=plain
+      - name: Signed release build
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NEXUSIRL_KEYSTORE_BASE64 }}
+          NEXUSIRL_KEYSTORE_PASSWORD: ${{ secrets.NEXUSIRL_KEYSTORE_PASSWORD }}
+          NEXUSIRL_KEY_ALIAS: ${{ secrets.NEXUSIRL_KEY_ALIAS }}
+          NEXUSIRL_KEY_PASSWORD: ${{ secrets.NEXUSIRL_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "NEXUSIRL_KEYSTORE_BASE64 secret is not set"; exit 1; }
+          export NEXUSIRL_KEYSTORE="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$NEXUSIRL_KEYSTORE"
+          ./gradlew assembleRelease --console=plain
+          rm -f "$NEXUSIRL_KEYSTORE"
+      - name: Package
+        run: |
+          mkdir dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/NexusIRL-${GITHUB_REF_NAME}.apk"
+          cd dist && sha256sum *.apk > SHA256SUMS
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "NexusIRL $GITHUB_REF_NAME" --generate-notes --prerelease
