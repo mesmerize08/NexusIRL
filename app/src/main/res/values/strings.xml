@@ -9,4 +9,7 @@
     <string name="hide">Hide</string>
     <string name="notification_channel">Streaming</string>
     <string name="notification_streaming">Camera and microphone are streaming</string>
+    <string name="hevc">HEVC</string>
+    <string name="hevc_unsupported">HEVC (not supported)</string>
+    <string name="thermal_critical">Device is critically hot. Lower resolution or bitrate, or let it cool.</string>
 </resources>

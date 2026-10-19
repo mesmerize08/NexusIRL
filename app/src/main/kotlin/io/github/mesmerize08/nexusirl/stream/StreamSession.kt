@@ -1,6 +1,7 @@
 package io.github.mesmerize08.nexusirl.stream
 
 import android.content.Context
+import android.os.PowerManager
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.core.clock.Cancellable
 import io.github.mesmerize08.nexusirl.core.clock.HostClock
@@ -12,6 +13,7 @@ import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
 import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
+import io.github.mesmerize08.nexusirl.media.pipeline.MicrophoneManager
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
@@ -27,6 +29,20 @@ import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+/** Device thermal state (upstream `ProcessInfo.ThermalState`), from PowerManager's status. */
+enum class ThermalState {
+    NORMAL, FAIR, SERIOUS, CRITICAL;
+
+    companion object {
+        fun fromPowerManager(status: Int): ThermalState = when {
+            status >= PowerManager.THERMAL_STATUS_CRITICAL -> CRITICAL
+            status >= PowerManager.THERMAL_STATUS_SEVERE -> SERIOUS
+            status >= PowerManager.THERMAL_STATUS_MODERATE -> FAIR
+            else -> NORMAL
+        }
+    }
+}
+
 /** Stream state shown to the user (upstream `StreamState`). */
 enum class StreamState { IDLE, CONNECTING, LIVE, RECONNECTING, STOPPED }
 
@@ -40,6 +56,11 @@ data class StreamStatus(
     /** Seconds since this connection went live (upstream stream uptime). */
     val uptimeSeconds: Long = 0,
     val reconnects: Int = 0,
+    val thermal: ThermalState = ThermalState.NORMAL,
+    /** Selected microphone name. */
+    val microphone: String = "",
+    /** Video encoder in use, e.g. "c2.qti.avc.encoder (HW)". */
+    val encoder: String = "",
     val detail: String = "",
 ) {
     val live: Boolean
@@ -79,6 +100,11 @@ class StreamSession(
     private var liveSince: Long? = null
     private var reconnects = 0
     private var lastEncodedFrames = 0L
+    private val microphones = MicrophoneManager(context)
+    private val powerManager = context.getSystemService(PowerManager::class.java)
+    private val thermalListener = PowerManager.OnThermalStatusChangedListener { thermalStatus ->
+        update(status.copy(thermal = ThermalState.fromPowerManager(thermalStatus)))
+    }
 
     @Volatile
     private var status = StreamStatus(state = StreamState.CONNECTING)
@@ -93,7 +119,12 @@ class StreamSession(
 
     fun start() {
         video.start()
+        microphones.start { _, selected ->
+            audio.setPreferredDevice(selected?.device)
+            update(status.copy(microphone = selected?.name ?: ""))
+        }
         audio.start()
+        powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
         executor.execute { startDestination() }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
     }
@@ -113,6 +144,8 @@ class StreamSession(
             done.countDown()
         }
         done.await(3, TimeUnit.SECONDS)
+        powerManager.removeThermalStatusListener(thermalListener)
+        microphones.stop()
         audio.stop()
         video.stop()
         executor.shutdown()
@@ -274,7 +307,7 @@ class StreamSession(
 
     private fun publishStatus() {
         val encoded = video.encoder?.encodedFrames ?: 0
-        android.util.Log.d("StreamSession", "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} ${destination?.debugStats() ?: ""}")
+        android.util.Log.d("StreamSession", "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats() ?: ""}")
         lastEncodedFrames = encoded
         update(
             status.copy(
@@ -283,6 +316,7 @@ class StreamSession(
                 rttMs = destination?.rttMs() ?: 0.0,
                 audioLevelDbfs = audio.levelDbfs,
                 uptimeSeconds = liveSince?.let { (clock.nanoTime() - it) / 1_000_000_000 } ?: 0,
+                encoder = video.encoder?.info?.let { it.name + if (it.hardware) " (HW)" else " (SW)" } ?: "",
             ),
         )
     }

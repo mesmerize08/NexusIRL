@@ -13,6 +13,7 @@ import android.os.PowerManager
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.MainActivity
 import io.github.mesmerize08.nexusirl.R
+import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,8 +59,10 @@ object StreamController {
 
     internal fun start(context: Context) {
         val url = pendingUrl ?: return
-        val settings = pendingSettings ?: return
+        val requested = pendingSettings ?: return
         pendingUrl = null
+        // No HEVC encoder (common on low-end SoCs): fall back to H.264 (docs/PORT_PLAN.md §6).
+        val settings = if (requested.hevc && !EncoderCapabilities.supportsHevc()) requested.copy(hevc = false) else requested
         val newSession = StreamSession(context, url, settings) { mutableStatus.value = it }
         session = newSession
         newSession.setDisplayRotation(displayRotationDegrees)

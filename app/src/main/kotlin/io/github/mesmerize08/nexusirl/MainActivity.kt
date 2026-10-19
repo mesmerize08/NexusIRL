@@ -23,12 +23,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import android.widget.Toast
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -38,8 +42,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.stream.StreamController
+import io.github.mesmerize08.nexusirl.stream.ThermalState
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,7 +63,9 @@ class MainActivity : ComponentActivity() {
         }
         // Debug builds only: allow automated tests to start a stream via an intent extra.
         if (BuildConfig.DEBUG) {
-            intent.getStringExtra(EXTRA_DEBUG_URL)?.let { StreamController.goLive(this, it, DEFAULT_SETTINGS) }
+            intent.getStringExtra(EXTRA_DEBUG_URL)?.let {
+                StreamController.goLive(this, it, DEFAULT_SETTINGS.copy(hevc = intent.getBooleanExtra(EXTRA_DEBUG_HEVC, false)))
+            }
         }
     }
 
@@ -92,6 +100,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_DEBUG_URL = "debug_url"
+        const val EXTRA_DEBUG_HEVC = "debug_hevc"
         val DEFAULT_SETTINGS = VideoEncoderSettings(width = 1280, height = 720, fps = 30, bitrate = 3_000_000)
     }
 }
@@ -102,6 +111,14 @@ private fun StreamScreen() {
     val status by StreamController.status.collectAsState()
     var url by remember { mutableStateOf("") }
     var revealUrl by remember { mutableStateOf(false) }
+    val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
+    var hevc by remember { mutableStateOf(false) }
+    // Upstream makeFlameRedToast(): warn once the device reaches the critical thermal state.
+    LaunchedEffect(status.thermal) {
+        if (status.thermal == ThermalState.CRITICAL) {
+            Toast.makeText(context, R.string.thermal_critical, Toast.LENGTH_LONG).show()
+        }
+    }
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
         Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
@@ -134,23 +151,30 @@ private fun StreamScreen() {
                 Text(stringResource(if (revealUrl) R.string.hide else R.string.show))
             }
         }
-        Button(
-            onClick = {
-                if (status.active) {
-                    StreamController.stop(context)
-                } else {
-                    StreamController.goLive(context, url, MainActivity.DEFAULT_SETTINGS)
-                }
-            },
-            enabled = url.isNotEmpty() || status.active,
-        ) {
-            Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                onClick = {
+                    if (status.active) {
+                        StreamController.stop(context)
+                    } else {
+                        StreamController.goLive(context, url, MainActivity.DEFAULT_SETTINGS.copy(hevc = hevc))
+                    }
+                },
+                enabled = url.isNotEmpty() || status.active,
+            ) {
+                Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
+            }
+            Text(stringResource(if (hevcSupported) R.string.hevc else R.string.hevc_unsupported))
+            Switch(checked = hevc, onCheckedChange = { hevc = it }, enabled = hevcSupported && !status.active)
         }
         Text(
             "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  RTT ${status.rttMs.toInt()} ms  " +
-                "audio ${status.audioLevelDbfs.toInt()} dBFS",
+                "audio ${status.audioLevelDbfs.toInt()} dBFS  mic ${status.microphone}  thermal ${status.thermal}",
             style = MaterialTheme.typography.bodyMedium,
         )
+        if (status.encoder.isNotEmpty()) {
+            Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)
+        }
         if (status.detail.isNotEmpty()) {
             Text(status.detail, style = MaterialTheme.typography.bodySmall)
         }

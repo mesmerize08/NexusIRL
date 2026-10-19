@@ -160,6 +160,16 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - Recordings decode strictly.
 >   - ABR reacts correctly under a shaped bottleneck.
 >   - SRT AES encryption is included.
+> - Phase 2 is in progress. Verified on the emulator:
+>   - capture → encode → SRT/SRTLA/RTMP at 720p30
+>   - SRTLA bonding over cellular + Wi-Fi, with failover
+>   - automatic reconnect
+>   - encoder probe (hardware preferred; HEVC offered only with a hardware encoder, otherwise H.264)
+>   - thermal status with a critical warning
+>   - microphone selection with auto-switch to external mics
+>
+>   Still needs a physical phone: the 60-minute soak, A/V sync, thermal behaviour and OEM encoder
+>   quirks.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

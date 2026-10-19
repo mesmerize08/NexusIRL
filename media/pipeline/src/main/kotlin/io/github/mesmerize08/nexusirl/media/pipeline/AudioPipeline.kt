@@ -42,6 +42,15 @@ class AudioPipeline(
     @Volatile
     var gain = 1.0f
 
+    @Volatile
+    private var preferredDevice: android.media.AudioDeviceInfo? = null
+
+    /** Routes capture to [device] (null: system default). Works while recording. */
+    fun setPreferredDevice(device: android.media.AudioDeviceInfo?) {
+        preferredDevice = device
+        record?.setPreferredDevice(device)
+    }
+
     /** Peak level in dBFS over the latest buffer (upstream level meter), for the UI. */
     @Volatile
     var levelDbfs = -160f
@@ -58,6 +67,7 @@ class AudioPipeline(
             max(minimum, sampleRate * channels * 2 / 10),
         )
         check(record.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord init failed (permission?)" }
+        preferredDevice?.let { record.setPreferredDevice(it) }
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channels).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
