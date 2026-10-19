@@ -181,8 +181,7 @@ class UpstreamNalUnitSuitesTest {
         return Instant.ofEpochSecond(startOfDay + 3600L * hours + 60L * minutes + seconds)
     }
 
-    private fun timeCode(hours: Int, minutes: Int, seconds: Int, frame: Long) =
-        SeiTimecode.fromClock(clock(hours, minutes, seconds), frame)
+    private fun timeCode(hours: Int, minutes: Int, seconds: Int, frame: Long) = SeiTimecode.fromClock(clock(hours, minutes, seconds), frame)
 
     @Test
     fun hevcTimeCodePayloadEncodeAndDecode() {
@@ -193,7 +192,13 @@ class UpstreamNalUnitSuitesTest {
 
     @Test
     fun hevcTimeCodePayloadRoundTrip() {
-        for ((h, m, s, f) in listOf(listOf(0, 0, 0, 0), listOf(23, 59, 59, 59), listOf(12, 34, 56, 7), listOf(1, 2, 3, 255), listOf(9, 8, 7, 511))) {
+        for ((h, m, s, f) in listOf(
+            listOf(0, 0, 0, 0),
+            listOf(23, 59, 59, 59),
+            listOf(12, 34, 56, 7),
+            listOf(1, 2, 3, 255),
+            listOf(9, 8, 7, 511),
+        )) {
             val encoded = timeCode(h, m, s, f.toLong()).encode()
             assertEquals(SeiTimecode(h, m, s, f.toLong()), SeiTimecode.decode(NalUnitReader(encoded)))
         }

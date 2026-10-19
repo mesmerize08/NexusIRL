@@ -129,7 +129,8 @@ class AdaptiveBitrateSrtFight(
         val decrease = maxOf((currentMaximumBitrate * (1 - factor)).toLong(), minimumDecrease)
         currentMaximumBitrate -= decrease
         logAdaptiveAction(
-            "RTT: Decreasing bitrate by ${decrease / 1000}k, ${stats.rttMs.toInt()} > avg + allow ${avgRtt.toInt()} + ${rttSpikeAllowed.toInt()}",
+            "RTT: Decreasing bitrate by ${decrease / 1000}k, " +
+                "${stats.rttMs.toInt()} > avg + allow ${avgRtt.toInt()} + ${rttSpikeAllowed.toInt()}",
         )
     }
 

@@ -86,10 +86,21 @@ class VideoPipeline(
         }
         val size = camera.chooseSize(cameraId, settings.width, settings.height)
         cameraAspect = size.width.toFloat() / size.height
-        android.util.Log.i(TAG, "Camera $cameraId size ${size.width}x${size.height} orientation ${camera.sensorOrientation(cameraId)} for ${settings.width}x${settings.height}@${settings.fps}")
-        camera.open(cameraId, texture, size, settings.fps, object : CameraSource.Listener {
-            override fun onError(message: String) = this@VideoPipeline.onError(message)
-        })
+        android.util.Log.i(
+            TAG,
+            "Camera $cameraId size ${size.width}x${size.height} orientation ${camera.sensorOrientation(
+                cameraId,
+            )} for ${settings.width}x${settings.height}@${settings.fps}",
+        )
+        camera.open(
+            cameraId,
+            texture,
+            size,
+            settings.fps,
+            object : CameraSource.Listener {
+                override fun onError(message: String) = this@VideoPipeline.onError(message)
+            },
+        )
     }
 
     /** Sets (or clears, with null) the on-screen preview surface. */

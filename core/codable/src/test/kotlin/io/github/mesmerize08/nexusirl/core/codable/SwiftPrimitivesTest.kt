@@ -11,10 +11,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class SwiftPrimitivesTest {
-    private fun <T> roundTrip(serializer: KSerializer<T>, value: T): String =
-        SwiftJson.encodeToString(serializer, value).also {
-            assertEquals(value, SwiftJson.decodeFromString(serializer, it))
-        }
+    private fun <T> roundTrip(serializer: KSerializer<T>, value: T): String = SwiftJson.encodeToString(serializer, value).also {
+        assertEquals(value, SwiftJson.decodeFromString(serializer, it))
+    }
 
     @Test
     fun numbersFormatLikeSwift() {

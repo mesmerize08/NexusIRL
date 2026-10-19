@@ -132,15 +132,16 @@ class ElementaryStreams(
             var vps: ByteArray? = null
             var sps: ByteArray? = null
             var pps: ByteArray? = null
-            val units = splitAccessUnits(video, typeOf = { (it[0].toInt() ushr 1) and 0x3F }, aud = 35, isKey = { it in 16..23 }) { type, data ->
-                when (type) {
-                    32 -> vps = vps ?: data
-                    33 -> sps = sps ?: data
-                    34 -> pps = pps ?: data
-                    else -> return@splitAccessUnits false
+            val units =
+                splitAccessUnits(video, typeOf = { (it[0].toInt() ushr 1) and 0x3F }, aud = 35, isKey = { it in 16..23 }) { type, data ->
+                    when (type) {
+                        32 -> vps = vps ?: data
+                        33 -> sps = sps ?: data
+                        34 -> pps = pps ?: data
+                        else -> return@splitAccessUnits false
+                    }
+                    true
                 }
-                true
-            }
             return ElementaryStreams(sps!!, pps!!, units, splitAdts(audio), vps!!)
         }
 

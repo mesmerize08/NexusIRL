@@ -122,8 +122,18 @@ class UpstreamAmfSuiteTest {
         val encoder = Amf0Encoder()
         encoder.encode(AsValue.Str("_result"))
         encoder.encode(AsValue.Number(1.0))
-        encoder.encode(AsValue.Object(linkedMapOf("fmsVer" to AsValue.Str("FMS/3,5,3,888"), "capabilities" to AsValue.Number(127.0), "mode" to AsValue.Number(1.0))))
-        encoder.encode(AsValue.Object(linkedMapOf("level" to AsValue.Str("status"), "code" to AsValue.Str("NetConnection.Connect.Success"))))
+        encoder.encode(
+            AsValue.Object(
+                linkedMapOf(
+                    "fmsVer" to AsValue.Str("FMS/3,5,3,888"),
+                    "capabilities" to AsValue.Number(127.0),
+                    "mode" to AsValue.Number(1.0),
+                ),
+            ),
+        )
+        encoder.encode(
+            AsValue.Object(linkedMapOf("level" to AsValue.Str("status"), "code" to AsValue.Str("NetConnection.Connect.Success"))),
+        )
         val command = RtmpCommand.decode(encoder.data)!!
         assertEquals(RtmpCommand.RESULT, command.name)
         assertEquals(1L, command.transactionId)
@@ -163,7 +173,8 @@ class UpstreamRtmpSuiteTest {
     }
 
     private fun connectResultChunkData(): ByteArray {
-        val command = RtmpCommand(RtmpCommand.RESULT, 1, null, listOf(AsValue.Object(mapOf("code" to AsValue.Str("NetConnection.Connect.Success")))))
+        val command =
+            RtmpCommand(RtmpCommand.RESULT, 1, null, listOf(AsValue.Object(mapOf("code" to AsValue.Str("NetConnection.Connect.Success")))))
         return encodeChunks(0, RtmpChunkStreamId.COMMAND, RtmpMessage(RtmpMessageType.AMF0_COMMAND, 0, 0, command.encode()), 128).single()
     }
 
@@ -332,6 +343,9 @@ class RtmpChunkTest {
 
     @Test
     fun emulationPreventionIsRemovedForHvcC() {
-        assertContentEquals(bytes(0x00, 0x00, 0x01, 0x00, 0x00, 0x00), Flv.removeEmulationPrevention(bytes(0x00, 0x00, 0x03, 0x01, 0x00, 0x00, 0x03, 0x00)))
+        assertContentEquals(
+            bytes(0x00, 0x00, 0x01, 0x00, 0x00, 0x00),
+            Flv.removeEmulationPrevention(bytes(0x00, 0x00, 0x03, 0x01, 0x00, 0x00, 0x03, 0x00)),
+        )
     }
 }

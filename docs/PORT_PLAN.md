@@ -156,7 +156,7 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   F-Droid metadata text, the privacy policy and the in-app licences screen. The licences
 >   screen uses the licensee report bundled in the APK instead of AboutLibraries, which avoids
 >   a runtime dependency.
->   Still to do: ktlint/detekt and dependency verification.
+>   ktlint runs in CI (detekt dropped as redundant for now). Still to do: dependency verification.
 > - Phase 1 is done. Its gate was met with ffmpeg/libsrt as the reference receivers instead of
 >   mediamtx:
 >   - The CLI streams over RTMP, SRT and SRTLA (via the ported SRTLA relay).

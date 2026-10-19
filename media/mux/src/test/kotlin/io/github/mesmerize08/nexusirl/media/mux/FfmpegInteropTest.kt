@@ -107,7 +107,14 @@ class FfmpegInteropTest {
         val videoFrames = videoLine.substringAfterLast(',').trim().toInt()
         assertTrue(videoFrames in 87..89, "decoded video frames: $videoFrames")
         val (flagsExit, flags) = run(
-            "ffprobe", "-v", "error", "-show_entries", "packet=flags", "-of", "csv=p=0", tsFile.path,
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "packet=flags",
+            "-of",
+            "csv=p=0",
+            tsFile.path,
         )
         assertEquals(0, flagsExit, flags)
         assertTrue(flags.lines().none { 'C' in it }, "packets flagged corrupt:\n$flags")

@@ -90,15 +90,26 @@ class AdaptiveBitrateSrtBelabox(
         if (bitrate > settings.minimumBitrate && (rtt >= srtLatency / 3 || sendBufferSize > sendBufferSizeTh3)) {
             bitrate = settings.minimumBitrate
             nextBitrateDecrTime = currentTime + BITRATE_DECR_INTERVAL_NANOS
-            logAdaptiveAction("Set min: ${bitrate / 1000}, rtt: $rtt >= latency / 3: ${srtLatency / 3} or bs: $sendBufferSize > bs_th3: ${"%.2f".format(sendBufferSizeTh3)}")
+            logAdaptiveAction(
+                "Set min: ${bitrate / 1000}, rtt: $rtt >= latency / 3: ${srtLatency / 3} or bs: $sendBufferSize > bs_th3: ${"%.2f".format(
+                    sendBufferSizeTh3,
+                )}",
+            )
         } else if (currentTime > nextBitrateDecrTime && (rtt > srtLatency / 5 || sendBufferSize > sendBufferSizeTh2)) {
             bitrate -= BITRATE_DECR_MIN + bitrate / BITRATE_DECR_SCALE
             nextBitrateDecrTime = currentTime + BITRATE_DECR_FAST_INTERVAL_NANOS
-            logAdaptiveAction("Fast decr: ${(BITRATE_DECR_MIN + bitrate / BITRATE_DECR_SCALE) / 1000}, rtt: $rtt > latency / 5: ${srtLatency / 5} or bs: $sendBufferSize > bs_th2: ${"%.2f".format(sendBufferSizeTh2)}")
+            logAdaptiveAction(
+                "Fast decr: ${(BITRATE_DECR_MIN + bitrate / BITRATE_DECR_SCALE) / 1000}, rtt: $rtt > latency / 5: ${srtLatency / 5} " +
+                    "or bs: $sendBufferSize > bs_th2: ${"%.2f".format(sendBufferSizeTh2)}",
+            )
         } else if (currentTime > nextBitrateDecrTime && (rtt > rttThMax || sendBufferSize > sendBufferSizeTh1)) {
             bitrate -= BITRATE_DECR_MIN
             nextBitrateDecrTime = currentTime + BITRATE_DECR_INTERVAL_NANOS
-            logAdaptiveAction("Decr: ${BITRATE_DECR_MIN / 1000}, rtt: $rtt > rtt_th_max: ${"%.2f".format(rttThMax)} or bs: $sendBufferSize > bs_th1: ${"%.2f".format(sendBufferSizeTh1)}")
+            logAdaptiveAction(
+                "Decr: ${BITRATE_DECR_MIN / 1000}, rtt: $rtt > rtt_th_max: ${"%.2f".format(
+                    rttThMax,
+                )} or bs: $sendBufferSize > bs_th1: ${"%.2f".format(sendBufferSizeTh1)}",
+            )
         } else if (currentTime > nextBitrateIncrTime && rtt < rttThMin && rttAverageDelta < 0.01) {
             bitrate += BITRATE_INCR_MIN + bitrate / BITRATE_INCR_SCALE
             nextBitrateIncrTime = currentTime + BITRATE_INCR_INTERVAL_NANOS

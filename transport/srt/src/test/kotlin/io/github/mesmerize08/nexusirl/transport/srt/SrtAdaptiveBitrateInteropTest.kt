@@ -62,7 +62,9 @@ class SrtAdaptiveBitrateInteropTest {
         val algorithm = makeAlgorithm { requestedBitrate.set(it) }
         val driver = SrtAdaptiveBitrateDriver(stream, algorithm, executor, targetBitrate = 6_000_000)
         stream.setAudioConfig(MpegTsAudioConfig.aacLc(48000, 2))
-        stream.setVideoConfig(MpegTsVideoConfig.Avc(byteArrayOf(0x67, 0x42, 0, 0x1F), byteArrayOf(0x68, 0xCE.toByte(), 0x3C, 0x80.toByte())))
+        stream.setVideoConfig(
+            MpegTsVideoConfig.Avc(byteArrayOf(0x67, 0x42, 0, 0x1F), byteArrayOf(0x68, 0xCE.toByte(), 0x3C, 0x80.toByte())),
+        )
         stream.start()
         assertTrue(connected.await(10, TimeUnit.SECONDS), "connect failed: $disconnects")
         driver.start()
@@ -107,7 +109,8 @@ class SrtAdaptiveBitrateInteropTest {
         val trace = samples.joinToString(" ") { "%.1f:%d".format(it.seconds, it.bitrate / 1000) }
         assertTrue(
             disconnects.isEmpty(),
-            "disconnected during the test: $disconnects (relay drops ${relay.droppedPackets.get()}) $trace\nreceiver: ${receiver.log.takeLast(2000)}",
+            "disconnected during the test: $disconnects (relay drops ${relay.droppedPackets.get()}) $trace\n" +
+                "receiver: ${receiver.log.takeLast(2000)}",
         )
         return samples
     }

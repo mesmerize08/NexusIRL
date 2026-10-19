@@ -72,7 +72,11 @@ object SwiftFloatSerializer : KSerializer<Float> {
 }
 
 /** Swift `Double`. Use instead of `Double` in wire types so integral values encode as `1`. */
-typealias SDouble = @Serializable(with = SwiftDoubleSerializer::class) Double
+typealias SDouble =
+    @Serializable(with = SwiftDoubleSerializer::class)
+    Double
 
 /** Swift `Float`. Use instead of `Float` in wire types so integral values encode as `1`. */
-typealias SFloat = @Serializable(with = SwiftFloatSerializer::class) Float
+typealias SFloat =
+    @Serializable(with = SwiftFloatSerializer::class)
+    Float

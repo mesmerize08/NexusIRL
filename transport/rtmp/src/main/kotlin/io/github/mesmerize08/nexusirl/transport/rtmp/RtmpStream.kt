@@ -231,7 +231,11 @@ class RtmpStream(
         when (code) {
             RtmpCode.CONNECT_SUCCESS -> {
                 maximumChunkSizeToServer = 8 * 1024
-                writeChunk(0, RtmpChunkStreamId.CONTROL, RtmpMessage(RtmpMessageType.CHUNK_SIZE, 0, 0, uint32Payload(maximumChunkSizeToServer.toLong())))
+                writeChunk(
+                    0,
+                    RtmpChunkStreamId.CONTROL,
+                    RtmpMessage(RtmpMessageType.CHUNK_SIZE, 0, 0, uint32Payload(maximumChunkSizeToServer.toLong())),
+                )
             }
             RtmpCode.CONNECT_REJECTED -> handleConnectRejected(data)
             RtmpCode.CONNECT_CLOSED -> disconnectInternal()
@@ -499,9 +503,17 @@ class RtmpStream(
             }
             RtmpMessageType.USER -> if (message.payload.size >= 6 && (message.payload[1].toInt() and 0xFF) == RtmpUserControlEvent.PING) {
                 val value = readUInt32(message.payload, 2).toInt()
-                writeChunk(0, RtmpChunkStreamId.CONTROL, RtmpMessage(RtmpMessageType.USER, 0, 0, userControlPayload(RtmpUserControlEvent.PONG, value)))
+                writeChunk(
+                    0,
+                    RtmpChunkStreamId.CONTROL,
+                    RtmpMessage(RtmpMessageType.USER, 0, 0, userControlPayload(RtmpUserControlEvent.PONG, value)),
+                )
             }
-            RtmpMessageType.WINDOW_ACK -> writeChunk(0, RtmpChunkStreamId.CONTROL, RtmpMessage(RtmpMessageType.WINDOW_ACK, 0, 0, uint32Payload(100_000)))
+            RtmpMessageType.WINDOW_ACK -> writeChunk(
+                0,
+                RtmpChunkStreamId.CONTROL,
+                RtmpMessage(RtmpMessageType.WINDOW_ACK, 0, 0, uint32Payload(100_000)),
+            )
             RtmpMessageType.AMF0_COMMAND, RtmpMessageType.AMF3_COMMAND -> {
                 val command = RtmpCommand.decode(message.payload, message.type == RtmpMessageType.AMF3_COMMAND) ?: return
                 val completion = callCompletions.remove(command.transactionId)
@@ -742,8 +754,7 @@ class RtmpStream(
     }
 
     /** Test hook: feed raw server bytes as if received after the handshake. */
-    internal fun handleChunkDataForTesting(data: ByteArray, onMessage: (RtmpMessage) -> Unit): ByteArray =
-        chunkReader.read(data, onMessage)
+    internal fun handleChunkDataForTesting(data: ByteArray, onMessage: (RtmpMessage) -> Unit): ByteArray = chunkReader.read(data, onMessage)
 
     companion object {
         private fun parseUri(value: String): URI = try {
@@ -752,7 +763,14 @@ class RtmpStream(
             throw IllegalArgumentException("Malformed RTMP URL")
         }
 
-        private fun uriWithoutUserInfo(uri: URI): String =
-            URI(uri.scheme, null, uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
+        private fun uriWithoutUserInfo(uri: URI): String = URI(
+            uri.scheme,
+            null,
+            uri.host,
+            uri.port,
+            uri.path,
+            uri.query,
+            uri.fragment,
+        ).toString()
     }
 }

@@ -32,8 +32,10 @@ object Flv {
     const val AAC_SOUND_FLAGS = (AUDIO_CODEC_AAC shl 4) or (3 shl 2) or (1 shl 1) or 1
     const val OPUS_SEQUENCE_START_FLAGS = (AUDIO_CODEC_EX_HEADER shl 4) or OPUS_PACKET_TYPE_SEQUENCE_START
 
-    fun avcVideoTagHeader(frameType: Int, avcPacketType: Int): ByteArray =
-        byteArrayOf(((frameType shl 4) or VIDEO_CODEC_AVC).toByte(), avcPacketType.toByte())
+    fun avcVideoTagHeader(frameType: Int, avcPacketType: Int): ByteArray = byteArrayOf(
+        ((frameType shl 4) or VIDEO_CODEC_AVC).toByte(),
+        avcPacketType.toByte(),
+    )
 
     /** Enhanced RTMP extended header for HEVC: `0x80 | frameType << 4 | packetType`, FourCC `hvc1`. */
     fun hevcExtendedTagHeader(frameType: Int, videoPacketType: Int): ByteArray {

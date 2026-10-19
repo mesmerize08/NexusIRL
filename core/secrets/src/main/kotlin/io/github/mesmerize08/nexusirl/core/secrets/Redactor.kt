@@ -1,3 +1,6 @@
+// Long regex / golden JSON literals are clearer unsplit.
+@file:Suppress("ktlint:standard:max-line-length")
+
 package io.github.mesmerize08.nexusirl.core.secrets
 
 import java.net.URI

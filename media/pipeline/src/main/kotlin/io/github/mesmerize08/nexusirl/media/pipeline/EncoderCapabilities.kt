@@ -32,10 +32,9 @@ object EncoderCapabilities {
     }
 
     /** The best encoder for the type: hardware first, then one that can do 1080p30. */
-    fun best(mimeType: String): VideoEncoderInfo? =
-        all.filter { it.mimeType == mimeType }
-            .sortedWith(compareByDescending<VideoEncoderInfo> { it.hardware }.thenByDescending { it.supports1080p30 })
-            .firstOrNull()
+    fun best(mimeType: String): VideoEncoderInfo? = all.filter { it.mimeType == mimeType }
+        .sortedWith(compareByDescending<VideoEncoderInfo> { it.hardware }.thenByDescending { it.supports1080p30 })
+        .firstOrNull()
 
     /** Only a hardware HEVC encoder counts: software ones can't keep up in real time (~20 fps at 720p). */
     fun supportsHevc(): Boolean = best(MediaFormat.MIMETYPE_VIDEO_HEVC)?.hardware == true
@@ -44,12 +43,11 @@ object EncoderCapabilities {
         val capabilities = info.getCapabilitiesForType(type)
         val video = capabilities.videoCapabilities
         val encoder = capabilities.encoderCapabilities
-        fun supports(width: Int, height: Int, fps: Int): Boolean =
-            try {
-                video.areSizeAndRateSupported(width, height, fps.toDouble())
-            } catch (e: IllegalArgumentException) {
-                false
-            }
+        fun supports(width: Int, height: Int, fps: Int): Boolean = try {
+            video.areSizeAndRateSupported(width, height, fps.toDouble())
+        } catch (e: IllegalArgumentException) {
+            false
+        }
         return VideoEncoderInfo(
             name = info.name,
             mimeType = type,

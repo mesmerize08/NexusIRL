@@ -46,11 +46,17 @@ data class MpegTsAudioConfig(val objectType: Int, val frequency: SamplingFrequen
         const val OBJECT_TYPE_AAC_LC = 2
         const val OBJECT_TYPE_OPUS = 10
 
-        fun aacLc(sampleRate: Int, channels: Int) =
-            MpegTsAudioConfig(OBJECT_TYPE_AAC_LC, SamplingFrequency.fromSampleRate(sampleRate), channels)
+        fun aacLc(sampleRate: Int, channels: Int) = MpegTsAudioConfig(
+            OBJECT_TYPE_AAC_LC,
+            SamplingFrequency.fromSampleRate(sampleRate),
+            channels,
+        )
 
-        fun opus(sampleRate: Int, channels: Int) =
-            MpegTsAudioConfig(OBJECT_TYPE_OPUS, SamplingFrequency.fromSampleRate(sampleRate), channels)
+        fun opus(sampleRate: Int, channels: Int) = MpegTsAudioConfig(
+            OBJECT_TYPE_OPUS,
+            SamplingFrequency.fromSampleRate(sampleRate),
+            channels,
+        )
 
         /** Parses a two-byte AudioSpecificConfig (e.g. MediaCodec `csd-0`). */
         fun decode(data: ByteArray): MpegTsAudioConfig? {

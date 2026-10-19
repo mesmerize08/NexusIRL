@@ -135,9 +135,8 @@ class SrtInteropTest {
     }
 
     /** True if a data packet's payload looks like plaintext MPEG-TS (sync byte every 188 bytes). */
-    private fun looksLikePlainMpegTs(packet: ByteArray): Boolean =
-        isSrtDataPacket(packet) && packet.size >= 16 + 188 * 2 &&
-            packet[16].toInt() == 0x47 && packet[16 + 188].toInt() == 0x47
+    private fun looksLikePlainMpegTs(packet: ByteArray): Boolean = isSrtDataPacket(packet) && packet.size >= 16 + 188 * 2 &&
+        packet[16].toInt() == 0x47 && packet[16 + 188].toInt() == 0x47
 
     @Test
     fun libsrtReceivesStreamFromMoblinSender() {
@@ -237,7 +236,10 @@ class SrtInteropTest {
 
     @Test
     fun parsesSrtUrls() {
-        assertEquals(SrtUrl(false, "example.com", 4000, "publish:live/key", null), SrtUrl.parse("srt://example.com:4000?streamid=publish%3Alive%2Fkey"))
+        assertEquals(
+            SrtUrl(false, "example.com", 4000, "publish:live/key", null),
+            SrtUrl.parse("srt://example.com:4000?streamid=publish%3Alive%2Fkey"),
+        )
         assertEquals(SrtUrl(true, "10.0.0.1", 5000, null, null), SrtUrl.parse("srtla://10.0.0.1:5000"))
         assertEquals(32, SrtUrl.parse("srt://h:1?passphrase=abcdefghijk&pbkeylen=32").keyLength)
         assertTrue(runCatching { SrtUrl.parse("srt://h:1?pbkeylen=20") }.isFailure)

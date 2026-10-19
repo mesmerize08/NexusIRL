@@ -118,11 +118,7 @@ class MpegTsPacketizedElementaryStream(
         return writer.toByteArray()
     }
 
-    fun arrayOfPackets(
-        packetId: Int,
-        randomAccessIndicator: Boolean,
-        programClockReference: Long?,
-    ): List<MpegTsPacket> {
+    fun arrayOfPackets(packetId: Int, randomAccessIndicator: Boolean, programClockReference: Long?): List<MpegTsPacket> {
         val payload = encode()
         val packets = ArrayList<MpegTsPacket>(payload.size / 184 + 2)
         var payloadOffset: Int

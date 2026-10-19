@@ -144,12 +144,7 @@ class MpegTsWriter(
      * Writes one Annex-B access unit. [decodeTimeStamp] is null when frame reordering (B-frames) is
      * off, which yields PTS-only PES headers like upstream.
      */
-    fun writeVideo(
-        accessUnit: ByteArray,
-        presentationTimeStamp: MediaTime,
-        decodeTimeStamp: MediaTime?,
-        isSync: Boolean,
-    ) {
+    fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) {
         val config = videoConfig
         if (!canWrite() || config == null) {
             return
@@ -184,12 +179,7 @@ class MpegTsWriter(
         return output.toByteArray()
     }
 
-    private fun packH265(
-        isSync: Boolean,
-        config: MpegTsVideoConfig.Hevc,
-        timecode: MpegTsTimecode?,
-        accessUnit: ByteArray,
-    ): ByteArray {
+    private fun packH265(isSync: Boolean, config: MpegTsVideoConfig.Hevc, timecode: MpegTsTimecode?, accessUnit: ByteArray): ByteArray {
         val output = ByteArrayOutputStream(accessUnit.size + 128)
         if (isSync) {
             for (parameterSet in listOf(config.videoParameterSet, config.sequenceParameterSet, config.pictureParameterSet)) {

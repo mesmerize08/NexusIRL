@@ -18,15 +18,13 @@ value class SecretRef(val id: String) {
         fun random(): SecretRef = SecretRef(UUID.randomUUID().toString())
 
         /** Finds every secret placeholder in [text]. */
-        fun findAll(text: String): List<SecretRef> =
-            placeholderPattern.findAll(text).map { SecretRef(it.groupValues[1]) }.toList()
+        fun findAll(text: String): List<SecretRef> = placeholderPattern.findAll(text).map { SecretRef(it.groupValues[1]) }.toList()
 
         /** Replaces every placeholder in [text] with its value from [store] (in memory only). */
-        fun resolve(text: String, store: SecretStore): String =
-            placeholderPattern.replace(text) { match ->
-                store.get(SecretRef(match.groupValues[1]))
-                    ?: throw MissingSecretException(SecretRef(match.groupValues[1]))
-            }
+        fun resolve(text: String, store: SecretStore): String = placeholderPattern.replace(text) { match ->
+            store.get(SecretRef(match.groupValues[1]))
+                ?: throw MissingSecretException(SecretRef(match.groupValues[1]))
+        }
     }
 }
 

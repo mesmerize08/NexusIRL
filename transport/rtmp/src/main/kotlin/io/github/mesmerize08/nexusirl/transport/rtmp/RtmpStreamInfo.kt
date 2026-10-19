@@ -92,6 +92,5 @@ class RtmpStreamInfo(private val clock: HostClock) {
 
     private fun latestAckedSequence(): Long = latestAckedSequenceHigh + latestAckedSequenceLow
 
-    private fun packetsInFlight(): Long =
-        (latestWrittenSequence - latestAckedSequence()).coerceIn(0, 0xFFFF_FFFFL) / 1400
+    private fun packetsInFlight(): Long = (latestWrittenSequence - latestAckedSequence()).coerceIn(0, 0xFFFF_FFFFL) / 1400
 }

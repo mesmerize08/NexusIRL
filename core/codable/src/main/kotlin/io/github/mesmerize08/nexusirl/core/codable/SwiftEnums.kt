@@ -56,6 +56,7 @@ abstract class SwiftEnumSerializer<T : Any>(
             ?: throw SerializationException("${descriptor.serialName} supports JSON only")
         val case = casesByType[value::class]
             ?: throw SerializationException("${value::class} is not a case of ${descriptor.serialName}")
+
         @Suppress("UNCHECKED_CAST")
         val payload = jsonEncoder.json.encodeToJsonElement(case.serializer as KSerializer<T>, value)
         jsonEncoder.encodeJsonElement(JsonObject(mapOf(case.name to payload)))

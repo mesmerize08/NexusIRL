@@ -218,10 +218,9 @@ class SrtlaClient(
     }
 
     /** Statistics per enabled path; must be called on the executor. */
-    fun connectionStatistics(): List<BondingConnection> =
-        remoteConnections.filter { it.isEnabled() }.mapNotNull { connection ->
-            connection.getDataSentDelta()?.let { BondingConnection(connection.typeString, it, connection.rtt) }
-        }
+    fun connectionStatistics(): List<BondingConnection> = remoteConnections.filter { it.isEnabled() }.mapNotNull { connection ->
+        connection.getDataSentDelta()?.let { BondingConnection(connection.typeString, it, connection.rtt) }
+    }
 
     fun getTotalByteCount(): Long = totalByteCount
 

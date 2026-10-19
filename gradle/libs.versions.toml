@@ -13,6 +13,7 @@ junit4 = "4.13.2"
 androidx-test-ext = "1.2.1"
 androidx-test-runner = "1.6.2"
 licensee = "1.13.0"
+ktlint-gradle = "12.1.2"
 
 [libraries]
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
@@ -41,3 +42,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 licensee = { id = "app.cash.licensee", version.ref = "licensee" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }

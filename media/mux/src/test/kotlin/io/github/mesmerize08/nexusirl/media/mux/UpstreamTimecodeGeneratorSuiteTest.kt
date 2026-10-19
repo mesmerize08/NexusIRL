@@ -18,17 +18,12 @@ class UpstreamTimecodeGeneratorSuiteTest {
 
     private fun pts(frameNumber: Int, fps: Int) = MediaTime(frameNumber.toLong(), fps)
 
-    private fun makeTimecodes(
-        generator: MpegTsTimecodeGenerator,
-        fps: Int,
-        count: Int,
-        firstFrameNumber: Int = 0,
-    ): List<MpegTsTimecode> = (firstFrameNumber until firstFrameNumber + count).mapNotNull {
-        generator.makeTimecode(pts(it, fps), pts(it, fps))
-    }
+    private fun makeTimecodes(generator: MpegTsTimecodeGenerator, fps: Int, count: Int, firstFrameNumber: Int = 0): List<MpegTsTimecode> =
+        (firstFrameNumber until firstFrameNumber + count).mapNotNull {
+            generator.makeTimecode(pts(it, fps), pts(it, fps))
+        }
 
-    private fun makeGenerator(base: Double = noon) =
-        MpegTsTimecodeGenerator().apply { setReference(base, 0.0) }
+    private fun makeGenerator(base: Double = noon) = MpegTsTimecodeGenerator().apply { setReference(base, 0.0) }
 
     /** Seconds of the UTC day from whole-second clock plus frame, like upstream's calendar components. */
     private fun timeOfDay(timecode: MpegTsTimecode, fps: Int): Double {

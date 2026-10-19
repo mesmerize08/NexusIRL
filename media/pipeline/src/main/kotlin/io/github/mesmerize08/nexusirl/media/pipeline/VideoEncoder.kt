@@ -26,6 +26,7 @@ data class VideoEncoderSettings(
  */
 class VideoEncoder(private val settings: VideoEncoderSettings, private val sink: MediaSink) {
     private val mimeType = if (settings.hevc) MediaFormat.MIMETYPE_VIDEO_HEVC else MediaFormat.MIMETYPE_VIDEO_AVC
+
     /** The encoder in use (hardware preferred), from [EncoderCapabilities]. */
     val info: VideoEncoderInfo? = EncoderCapabilities.best(mimeType)
     private val codec: MediaCodec = info?.let { MediaCodec.createByCodecName(it.name) } ?: MediaCodec.createEncoderByType(mimeType)

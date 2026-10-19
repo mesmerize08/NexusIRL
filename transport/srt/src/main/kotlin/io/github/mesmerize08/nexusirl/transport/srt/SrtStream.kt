@@ -105,7 +105,12 @@ class SrtStream(
     private val url = SrtUrl.parse(config.url)
     private val payloadSize = config.mpegtsPacketsPerPacket * MpegTsPacket.SIZE
     private val writerLock = Any()
-    private val writer = MpegTsWriter({ data, containsAudio -> executor.execute { write(data, containsAudio) } }, payloadSize = payloadSize, timecodeClock = timecodeClock)
+    private val writer =
+        MpegTsWriter({ data, containsAudio ->
+            executor.execute {
+                write(data, containsAudio)
+            }
+        }, payloadSize = payloadSize, timecodeClock = timecodeClock)
     private var audioConfig: MpegTsAudioConfig? = null
     private var videoConfig: MpegTsVideoConfig? = null
     private var writerRunning = false
@@ -204,12 +209,13 @@ class SrtStream(
         }
     }
 
-    fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) =
-        synchronized(writerLock) {
-            if (writerRunning) {
-                writer.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
-            }
+    fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) = synchronized(
+        writerLock,
+    ) {
+        if (writerRunning) {
+            writer.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
         }
+    }
 
     /** Like `processor.startEncoding(writer)`: the encoders' current formats are re-applied. */
     private fun startWriter() = synchronized(writerLock) {
@@ -247,7 +253,8 @@ class SrtStream(
             }
             // A fresh salt and stream key for every connection.
             val crypto = url.passphrase?.let { SrtCrypto(it, url.keyLength) }
-            val newSender = SrtSender(url.streamId, config.latency.coerceIn(0, 0xFFFF), config.experimental, executor, clock, senderListener, crypto)
+            val newSender =
+                SrtSender(url.streamId, config.latency.coerceIn(0, 0xFFFF), config.experimental, executor, clock, senderListener, crypto)
             sender = newSender
             newSender.start()
         }

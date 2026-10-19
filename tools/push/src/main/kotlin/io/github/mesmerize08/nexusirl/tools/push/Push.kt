@@ -250,7 +250,13 @@ fun main(args: Array<String>) {
                     val p = stream.getPerformanceData() ?: return "connecting"
                     val abr = if (algorithm != null) " abr=${requested.get() / 1000}kbps" else ""
                     return "rtt=%.0fms pif=%d send=%.2fMbps retrans=%d nak=%d drop=%d%s".format(
-                        p.msRtt, p.pktFlightSize, p.mbpsSendRate, p.pktRetransTotal, p.pktRecvNakTotal, p.pktSndDropTotal, abr,
+                        p.msRtt,
+                        p.pktFlightSize,
+                        p.mbpsSendRate,
+                        p.pktRetransTotal,
+                        p.pktRecvNakTotal,
+                        p.pktSndDropTotal,
+                        abr,
                     )
                 }
 
@@ -280,7 +286,9 @@ fun main(args: Array<String>) {
                     }
                 },
             )
-            stream.setMetadata(RtmpMetadata(options.width, options.height, options.fps.toDouble(), false, options.bitrate, 128_000, 48_000.0))
+            stream.setMetadata(
+                RtmpMetadata(options.width, options.height, options.fps.toDouble(), false, options.bitrate, 128_000, 48_000.0),
+            )
             stream.setAudioConfig(MpegTsAudioConfig.aacLc(48000, 2), 48000)
             stream.setVideoConfig(MpegTsVideoConfig.Avc(media.sps, media.pps))
             stream.connect()
@@ -291,7 +299,11 @@ fun main(args: Array<String>) {
 
                 override fun stats(): String {
                     val s = stream.info.stats
-                    return "rtt=%.0fms inflight=%d speed=%dkbps".format(s.rttMs, s.packetsInFlight, stream.info.bitrateStats.latestSpeed * 8 / 1000)
+                    return "rtt=%.0fms inflight=%d speed=%dkbps".format(
+                        s.rttMs,
+                        s.packetsInFlight,
+                        stream.info.bitrateStats.latestSpeed * 8 / 1000,
+                    )
                 }
 
                 override fun stop() = stream.disconnect()

@@ -24,7 +24,7 @@ jobs:
       - name: Independence check
         run: sh tools/check-independence.sh
       - name: Tests and lint
-        run: ./gradlew test lint :app:licensee --console=plain
+        run: ./gradlew ktlintCheck test lint :app:licensee --console=plain
       - name: Signed release build
         env:
           KEYSTORE_BASE64: ${{ secrets.NEXUSIRL_KEYSTORE_BASE64 }}

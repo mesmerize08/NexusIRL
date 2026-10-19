@@ -63,13 +63,7 @@ class SrtDataPacket internal constructor(payload: ByteArray, offset: Int, length
         payload.copyInto(data, DATA_PACKET_HEADER_SIZE, offset, offset + length)
     }
 
-    internal fun setHeader(
-        sequenceNumber: Long,
-        now: Long,
-        timestamp: Long,
-        destinationSrtSocketId: Long,
-        messageNumberFlags: Long = 0,
-    ) {
+    internal fun setHeader(sequenceNumber: Long, now: Long, timestamp: Long, destinationSrtSocketId: Long, messageNumberFlags: Long = 0) {
         this.sequenceNumber = sequenceNumber
         createdAt = now
         data.setUInt32Be(sequenceNumber, 0)
@@ -166,8 +160,11 @@ class SrtSender(
         executor.execute { setDisconnected() }
     }
 
-    fun newDataPacket(payload: ByteArray, offset: Int = 0, length: Int = payload.size - offset): SrtDataPacket =
-        SrtDataPacket(payload, offset, length)
+    fun newDataPacket(payload: ByteArray, offset: Int = 0, length: Int = payload.size - offset): SrtDataPacket = SrtDataPacket(
+        payload,
+        offset,
+        length,
+    )
 
     fun enqueue(packet: SrtDataPacket, now: Long) {
         if (state != State.CONNECTED) {
@@ -533,8 +530,7 @@ class SrtSender(
         }
     }
 
-    private fun numberOfPacketsToRetransmit(): Int =
-        audioSequenceNumbersToRetransmit.size + videoSequenceNumbersToRetransmit.size
+    private fun numberOfPacketsToRetransmit(): Int = audioSequenceNumbersToRetransmit.size + videoSequenceNumbersToRetransmit.size
 
     companion object {
         /**

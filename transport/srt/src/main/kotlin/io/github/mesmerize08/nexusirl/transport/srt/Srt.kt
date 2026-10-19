@@ -30,14 +30,12 @@ object SrtlaPacketType {
     const val REG_NAK = 0x1212
 }
 
-fun ByteArray.getUInt16Be(offset: Int = 0): Int =
-    ((this[offset].toInt() and 0xFF) shl 8) or (this[offset + 1].toInt() and 0xFF)
+fun ByteArray.getUInt16Be(offset: Int = 0): Int = ((this[offset].toInt() and 0xFF) shl 8) or (this[offset + 1].toInt() and 0xFF)
 
-fun ByteArray.getUInt32Be(offset: Int = 0): Long =
-    ((this[offset].toLong() and 0xFF) shl 24) or
-        ((this[offset + 1].toLong() and 0xFF) shl 16) or
-        ((this[offset + 2].toLong() and 0xFF) shl 8) or
-        (this[offset + 3].toLong() and 0xFF)
+fun ByteArray.getUInt32Be(offset: Int = 0): Long = ((this[offset].toLong() and 0xFF) shl 24) or
+    ((this[offset + 1].toLong() and 0xFF) shl 16) or
+    ((this[offset + 2].toLong() and 0xFF) shl 8) or
+    (this[offset + 3].toLong() and 0xFF)
 
 fun ByteArray.setUInt16Be(value: Int, offset: Int = 0) {
     this[offset] = (value ushr 8).toByte()
@@ -58,8 +56,7 @@ fun getSrtControlPacketType(packet: ByteArray): Int = packet.getUInt16Be() and 0
 fun getSrtSequenceNumber(packet: ByteArray): Long = packet.getUInt32Be()
 
 /** True if [sn] is at or before [ackSn] (ACK numbers are "next expected"), with wrap tolerance. */
-fun isSrtSnAcked(sn: Long, ackSn: Long): Boolean =
-    if (sn < ackSn) ackSn - sn < 100_000_000 else sn - ackSn > 100_000_000
+fun isSrtSnAcked(sn: Long, ackSn: Long): Boolean = if (sn < ackSn) ackSn - sn < 100_000_000 else sn - ackSn > 100_000_000
 
 fun isSrtSnRange(sn: Long): Boolean = (sn and 0x8000_0000L) == 0x8000_0000L
 

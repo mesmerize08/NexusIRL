@@ -51,8 +51,7 @@ object AppleDateSerializer : KSerializer<Instant> {
 
     override fun deserialize(decoder: Decoder): Instant = fromAppleSeconds(decoder.decodeDouble())
 
-    fun toAppleSeconds(instant: Instant): Double =
-        (instant.epochSecond - APPLE_REFERENCE_DATE_OFFSET_SECONDS) + instant.nano / 1e9
+    fun toAppleSeconds(instant: Instant): Double = (instant.epochSecond - APPLE_REFERENCE_DATE_OFFSET_SECONDS) + instant.nano / 1e9
 
     fun fromAppleSeconds(seconds: Double): Instant {
         val whole = Math.floor(seconds)
@@ -81,10 +80,16 @@ object SwiftDataSerializer : KSerializer<ByteArray> {
 }
 
 /** Swift `UUID`. */
-typealias SUuid = @Serializable(with = SwiftUuidSerializer::class) UUID
+typealias SUuid =
+    @Serializable(with = SwiftUuidSerializer::class)
+    UUID
 
 /** Swift `Date`. */
-typealias SDate = @Serializable(with = AppleDateSerializer::class) Instant
+typealias SDate =
+    @Serializable(with = AppleDateSerializer::class)
+    Instant
 
 /** Swift `Data`. */
-typealias SData = @Serializable(with = SwiftDataSerializer::class) ByteArray
+typealias SData =
+    @Serializable(with = SwiftDataSerializer::class)
+    ByteArray

@@ -77,49 +77,53 @@ class CameraSource(private val context: Context) {
         surfaceTexture.setDefaultBufferSize(size.width, size.height)
         val surface = Surface(surfaceTexture)
         this.surface = surface
-        manager.openCamera(cameraId, executor, object : CameraDevice.StateCallback() {
-            override fun onOpened(camera: CameraDevice) {
-                device = camera
-                val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-                    addTarget(surface)
-                    set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
-                    set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                    set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
-                }.build()
-                val configuration = SessionConfiguration(
-                    SessionConfiguration.SESSION_REGULAR,
-                    listOf(OutputConfiguration(surface)),
-                    executor,
-                    object : CameraCaptureSession.StateCallback() {
-                        override fun onConfigured(captureSession: CameraCaptureSession) {
-                            session = captureSession
-                            try {
-                                captureSession.setRepeatingRequest(request, null, handler)
-                            } catch (e: Exception) {
-                                listener.onError("Camera request failed: ${e.message}")
+        manager.openCamera(
+            cameraId,
+            executor,
+            object : CameraDevice.StateCallback() {
+                override fun onOpened(camera: CameraDevice) {
+                    device = camera
+                    val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                        addTarget(surface)
+                        set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                        set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
+                        set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                    }.build()
+                    val configuration = SessionConfiguration(
+                        SessionConfiguration.SESSION_REGULAR,
+                        listOf(OutputConfiguration(surface)),
+                        executor,
+                        object : CameraCaptureSession.StateCallback() {
+                            override fun onConfigured(captureSession: CameraCaptureSession) {
+                                session = captureSession
+                                try {
+                                    captureSession.setRepeatingRequest(request, null, handler)
+                                } catch (e: Exception) {
+                                    listener.onError("Camera request failed: ${e.message}")
+                                }
                             }
-                        }
 
-                        override fun onConfigureFailed(captureSession: CameraCaptureSession) {
-                            listener.onError("Camera session configuration failed")
-                        }
-                    },
-                )
-                camera.createCaptureSession(configuration)
-            }
+                            override fun onConfigureFailed(captureSession: CameraCaptureSession) {
+                                listener.onError("Camera session configuration failed")
+                            }
+                        },
+                    )
+                    camera.createCaptureSession(configuration)
+                }
 
-            override fun onDisconnected(camera: CameraDevice) {
-                camera.close()
-                device = null
-                listener.onError("Camera disconnected")
-            }
+                override fun onDisconnected(camera: CameraDevice) {
+                    camera.close()
+                    device = null
+                    listener.onError("Camera disconnected")
+                }
 
-            override fun onError(camera: CameraDevice, error: Int) {
-                camera.close()
-                device = null
-                listener.onError("Camera error $error")
-            }
-        })
+                override fun onError(camera: CameraDevice, error: Int) {
+                    camera.close()
+                    device = null
+                    listener.onError("Camera error $error")
+                }
+            },
+        )
     }
 
     fun close() {

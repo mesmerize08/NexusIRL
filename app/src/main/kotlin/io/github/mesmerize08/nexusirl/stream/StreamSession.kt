@@ -31,7 +31,11 @@ import java.util.concurrent.TimeUnit
 
 /** Device thermal state (upstream `ProcessInfo.ThermalState`), from PowerManager's status. */
 enum class ThermalState {
-    NORMAL, FAIR, SERIOUS, CRITICAL;
+    NORMAL,
+    FAIR,
+    SERIOUS,
+    CRITICAL,
+    ;
 
     companion object {
         fun fromPowerManager(status: Int): ThermalState = when {
@@ -243,8 +247,12 @@ class StreamSession(
 
             override fun setVideoConfig(config: MpegTsVideoConfig) = stream.setVideoConfig(config)
 
-            override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) =
-                stream.writeAudio(frame, 0, frame.size, presentationTimeStamp)
+            override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) = stream.writeAudio(
+                frame,
+                0,
+                frame.size,
+                presentationTimeStamp,
+            )
 
             override fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) =
                 stream.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
@@ -282,15 +290,21 @@ class StreamSession(
                 override fun onConnected() = handleConnected(eventGeneration)
             },
         )
-        stream.setMetadata(RtmpMetadata(settings.width, settings.height, settings.fps.toDouble(), settings.hevc, settings.bitrate, 128_000, 48_000.0))
+        stream.setMetadata(
+            RtmpMetadata(settings.width, settings.height, settings.fps.toDouble(), settings.hevc, settings.bitrate, 128_000, 48_000.0),
+        )
         stream.connect()
         return object : Destination {
             override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = stream.setAudioConfig(config, sampleRate)
 
             override fun setVideoConfig(config: MpegTsVideoConfig) = stream.setVideoConfig(config)
 
-            override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) =
-                stream.writeAudio(frame, 0, frame.size, presentationTimeStamp)
+            override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) = stream.writeAudio(
+                frame,
+                0,
+                frame.size,
+                presentationTimeStamp,
+            )
 
             override fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) =
                 stream.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
@@ -307,7 +321,11 @@ class StreamSession(
 
     private fun publishStatus() {
         val encoded = video.encoder?.encodedFrames ?: 0
-        android.util.Log.d("StreamSession", "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats() ?: ""}")
+        android.util.Log.d(
+            "StreamSession",
+            "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} " +
+                "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats() ?: ""}",
+        )
         lastEncodedFrames = encoded
         update(
             status.copy(

@@ -108,9 +108,8 @@ class TestTsDemuxer {
         }
     }
 
-    private fun timestamp(b: ByteArray, o: Int): Long =
-        ((u(b[o]).toLong() and 0x0E) shl 29) or (u(b[o + 1]).toLong() shl 22) or
-            ((u(b[o + 2]).toLong() and 0xFE) shl 14) or (u(b[o + 3]).toLong() shl 7) or (u(b[o + 4]).toLong() ushr 1)
+    private fun timestamp(b: ByteArray, o: Int): Long = ((u(b[o]).toLong() and 0x0E) shl 29) or (u(b[o + 1]).toLong() shl 22) or
+        ((u(b[o + 2]).toLong() and 0xFE) shl 14) or (u(b[o + 3]).toLong() shl 7) or (u(b[o + 4]).toLong() ushr 1)
 
     private fun flush(pid: Int) {
         val data = pending.remove(pid)?.toByteArray() ?: return

@@ -60,7 +60,6 @@ data class MediaTime(val value: Long, val timescale: Int) : Comparable<MediaTime
         val ZERO = MediaTime(0, 1)
 
         /** Equivalent of upstream's `CMTime(seconds:)` helper (nanosecond timescale). */
-        fun fromSeconds(seconds: Double, timescale: Int = NANOSECONDS): MediaTime =
-            MediaTime(Math.round(seconds * timescale), timescale)
+        fun fromSeconds(seconds: Double, timescale: Int = NANOSECONDS): MediaTime = MediaTime(Math.round(seconds * timescale), timescale)
     }
 }

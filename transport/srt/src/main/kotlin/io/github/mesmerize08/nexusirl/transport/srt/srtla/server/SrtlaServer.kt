@@ -35,8 +35,14 @@ private const val CLIENT_REMOVE_TIMEOUT_NANOS = 10 * NANOS_PER_SECOND
 private const val CONNECTION_REMOVE_TIMEOUT_NANOS = 10 * NANOS_PER_SECOND
 private const val ACK_PACKET_LENGTH = SRT_CONTROL_TYPE_SIZE + 2 + 10 * 4
 private val SRTLA_PACKET_TYPES = setOf(
-    SrtlaPacketType.KEEPALIVE, SrtlaPacketType.ACK, SrtlaPacketType.REG1, SrtlaPacketType.REG2,
-    SrtlaPacketType.REG3, SrtlaPacketType.REG_ERR, SrtlaPacketType.REG_NGP, SrtlaPacketType.REG_NAK,
+    SrtlaPacketType.KEEPALIVE,
+    SrtlaPacketType.ACK,
+    SrtlaPacketType.REG1,
+    SrtlaPacketType.REG2,
+    SrtlaPacketType.REG3,
+    SrtlaPacketType.REG_ERR,
+    SrtlaPacketType.REG_NGP,
+    SrtlaPacketType.REG_NAK,
 )
 
 /** Group id bytes as a map key. */

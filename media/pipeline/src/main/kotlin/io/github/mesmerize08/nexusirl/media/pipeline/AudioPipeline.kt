@@ -125,7 +125,10 @@ class AudioPipeline(
             windowFrames += frames
             val now = System.nanoTime()
             if (now - windowStart >= 1_000_000_000) {
-                android.util.Log.d("AudioPipeline", "Captured ${windowFrames * 1_000_000_000L / (now - windowStart)} frames/s, dropped chunks $droppedChunks")
+                android.util.Log.d(
+                    "AudioPipeline",
+                    "Captured ${windowFrames * 1_000_000_000L / (now - windowStart)} frames/s, dropped chunks $droppedChunks",
+                )
                 windowStart = now
                 windowFrames = 0
             }

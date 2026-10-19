@@ -56,13 +56,7 @@ sealed interface UdpLinkEvent {
 
 /** Opens [UdpLink]s. Events are always delivered on the given [SerialExecutor]. */
 fun interface UdpLinkFactory {
-    fun open(
-        host: String,
-        port: Int,
-        bondingInterface: BondingInterface?,
-        executor: SerialExecutor,
-        listener: UdpLinkListener,
-    ): UdpLink
+    fun open(host: String, port: Int, bondingInterface: BondingInterface?, executor: SerialExecutor, listener: UdpLinkListener): UdpLink
 }
 
 /** [UdpLinkFactory] on `java.net.DatagramSocket`, used on both the JVM and Android. */

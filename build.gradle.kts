@@ -6,4 +6,10 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.licensee) apply false
+    alias(libs.plugins.ktlint) apply false
+}
+
+// Kotlin style (rules in .editorconfig). `./gradlew ktlintFormat` fixes most findings.
+subprojects {
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
 }
