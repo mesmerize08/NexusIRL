@@ -100,6 +100,7 @@ class SrtStream(
     private var sender: SrtSender? = null
     private var srtlaClient: SrtlaClient? = null
     private var stopped = false
+    private var interfaces: List<BondingInterface> = emptyList()
 
     init {
         if (url.passphrase != null) {
@@ -124,6 +125,7 @@ class SrtStream(
         executor.execute {
             stopped = false
             srtlaClient = client
+            client.setInterfaces(interfaces)
         }
         client.start(url.host, url.port, config.connectTimeoutSeconds)
     }
@@ -141,7 +143,10 @@ class SrtStream(
 
     /** Available network paths for SRTLA bonding (from the connectivity layer). */
     fun setInterfaces(interfaces: List<BondingInterface>) {
-        executor.execute { srtlaClient?.setInterfaces(interfaces) }
+        executor.execute {
+            this.interfaces = interfaces
+            srtlaClient?.setInterfaces(interfaces)
+        }
     }
 
     fun setConnectionPriorities(priorities: ConnectionPriorities) {

@@ -32,3 +32,5 @@ git -C upstream diff <old>..<new> -- <path>
 | `Moblin/Media/Srtla/Client/SrtlaClient.swift` | `transport/srt/.../srtla/SrtlaClient.kt` | `NWPathMonitor` replaced by `setInterfaces()`. The interface sort is a stable rank, because upstream's comparator isn't a strict ordering. The libsrt `LocalListener` path is deferred to post-v1. |
 | `SrtSenderSuite`, `SrtSuite` | `transport/srt/src/test/.../SrtSenderTest.kt` | Golden handshake vectors copied verbatim, plus pacing, retransmit, ACK and drop tests |
 | — | `SrtInteropTest` | New: a live stream into ffmpeg's libsrt listener, with a strict decode of the recording |
+| `Moblin/Media/Srtla/Server/SrtlaServer.swift`, `SrtlaServerClient.swift`, `SrtlaServerClientConnection.swift` | `transport/srt/.../srtla/server/SrtlaServer.kt` | SRTLA relay only. One `DatagramSocket` demuxed by endpoint replaces `NWListener`. Any SRT listener can sit behind it (libsrt via ffmpeg in tests); the libsrt-backed ingest arrives post-v1. |
+| — | `SrtlaInteropTest` | New: bonded stream over 2 paths → ported SRTLA server → ffmpeg libsrt, checking per-path usage and a strict decode |
