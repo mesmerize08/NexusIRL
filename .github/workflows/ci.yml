@@ -32,8 +32,7 @@ jobs:
         run: |
           summary=$(grep -A40 -E "What went wrong|Dependency verification failed" gradle-build.log | head -60 || true)
           summary="${summary//'%'/'%25'}"
-          summary="${summary//$'
-'/'%0A'}"
+          summary="${summary//$'\n'/'%0A'}"
           echo "::error title=Gradle failure::${summary}"
       - name: Upload test reports
         if: failure()
