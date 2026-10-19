@@ -12,4 +12,6 @@
     <string name="hevc">HEVC</string>
     <string name="hevc_unsupported">HEVC (not supported)</string>
     <string name="thermal_critical">Device is critically hot. Lower resolution or bitrate, or let it cool.</string>
+    <string name="open_source_licenses">Open source licences</string>
+    <string name="close">Close</string>
 </resources>

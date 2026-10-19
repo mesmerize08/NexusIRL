@@ -11,6 +11,8 @@ licensee {
     allow("MIT")
     allow("BSD-2-Clause")
     allow("BSD-3-Clause")
+    // Ships the dependency licence list in the APK for the in-app "Open source licences" screen.
+    bundleAndroidAsset.set(true)
 }
 
 android {
@@ -85,3 +87,11 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 }
+
+// LICENSE and NOTICE (Moblin's MIT notice) ship in the APK for the licences screen.
+val copyNotices = tasks.register<Copy>("copyNotices") {
+    from(rootProject.file("LICENSE"), rootProject.file("NOTICE"))
+    into(layout.buildDirectory.dir("generated/notices"))
+}
+android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/notices"))
+tasks.named("preBuild") { dependsOn(copyNotices) }

@@ -116,6 +116,10 @@ private fun StreamScreen() {
     var revealUrl by remember { mutableStateOf(false) }
     val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
     var hevc by remember { mutableStateOf(false) }
+    var showLicenses by remember { mutableStateOf(false) }
+    if (showLicenses) {
+        LicensesDialog(onDismiss = { showLicenses = false })
+    }
     // Upstream makeFlameRedToast(): warn once the device reaches the critical thermal state.
     LaunchedEffect(status.thermal) {
         if (status.thermal == ThermalState.CRITICAL) {
@@ -189,6 +193,9 @@ private fun StreamScreen() {
                 Text(status.detail, style = MaterialTheme.typography.bodySmall)
             }
             Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { showLicenses = true }) {
+                Text(stringResource(R.string.open_source_licenses))
+            }
         }
     }
 }

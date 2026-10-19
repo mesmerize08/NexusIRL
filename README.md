@@ -5,10 +5,13 @@
 A free, open-source IRL live-streaming app for Android, ported from
 [Moblin](https://github.com/eerimoq/moblin) (iOS, MIT License).
 
-> **Status: early development.** The streaming core (Phase 1) is done and tested on the desktop:
-> MPEG-TS, SRT (with AES encryption), SRTLA bonding, RTMP(S) with HEVC, and adaptive bitrate. The
-> Android capture pipeline and UI (Phase 2+) are next, so the app cannot stream yet. See
-> [docs/PORT_PLAN.md](docs/PORT_PLAN.md) for the full plan and phase gates.
+> **Status: early development.** The app streams camera and microphone over SRT (with AES
+> encryption), SRTLA bonding and RTMP(S), with adaptive bitrate, HEVC, automatic reconnect and
+> mic selection. This is verified on the Android emulator; testing on real phones, settings,
+> scenes, chat and remote control are still to come. See [docs/PORT_PLAN.md](docs/PORT_PLAN.md)
+> for the full plan and phase gates.
+>
+> Privacy policy: [docs/privacy-policy.md](docs/privacy-policy.md).
 
 **Not affiliated with or endorsed by the Moblin project.**
 

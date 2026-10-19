@@ -1,0 +1,21 @@
+<p>NexusIRL is a free, open-source app for live streaming from your phone while you are out and about ("IRL" streaming). It is an Android port of Moblin, the iOS streaming app.</p>
+
+<p><b>Early development.</b> NexusIRL already streams camera and microphone, but many features are still to come.</p>
+
+<p>What works today:</p>
+<ul>
+<li>Streaming over SRT (with AES encryption), RTMP and RTMPS</li>
+<li>SRTLA bonding: send one stream over cellular, Wi-Fi and Ethernet at once, for a stream that survives losing a connection</li>
+<li>Adaptive bitrate that follows your network</li>
+<li>H.264 and HEVC (on phones with a hardware HEVC encoder)</li>
+<li>Automatic reconnect, external microphones, and a warning when the phone gets too hot</li>
+</ul>
+
+<p>Privacy and security:</p>
+<ul>
+<li>No accounts, ads, analytics or tracking. The app talks only to the servers you choose.</li>
+<li>Stream keys are hidden on screen, blocked from screenshots, and kept out of logs.</li>
+<li>Works without Google Play Services.</li>
+</ul>
+
+<p>NexusIRL is based on Moblin by Erik Moqvist (MIT License). It is not affiliated with or endorsed by the Moblin project.</p>
