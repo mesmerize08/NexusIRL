@@ -34,3 +34,5 @@ git -C upstream diff <old>..<new> -- <path>
 | — | `SrtInteropTest` | New: a live stream into ffmpeg's libsrt listener, with a strict decode of the recording |
 | `Moblin/Media/Srtla/Server/SrtlaServer.swift`, `SrtlaServerClient.swift`, `SrtlaServerClientConnection.swift` | `transport/srt/.../srtla/server/SrtlaServer.kt` | SRTLA relay only. One `DatagramSocket` demuxed by endpoint replaces `NWListener`. Any SRT listener can sit behind it (libsrt via ffmpeg in tests); the libsrt-backed ingest arrives post-v1. |
 | — | `SrtlaInteropTest` | New: bonded stream over 2 paths → ported SRTLA server → ffmpeg libsrt, checking per-path usage and a strict decode |
+| `Moblin/Media/AdaptiveBitrate/AdaptiveBitrate.swift`, `AdaptiveBitrateSrtFight.swift`, `AdaptiveBitrateSrtBelabox.swift` | `transport/abr/` | Injected `HostClock`. The 20/200 ms driver and the transport-bitrate EWMA (from `Media.swift`) arrive with the Phase 2 pipeline. The RIST experiment comes post-v1. |
+| `AdaptiveBitrateSuite` | `transport/abr/src/test/.../AdaptiveBitrateTest.kt` | Vectors kept; a fake clock replaces the 20 ms sleeps. Adds behaviour tests for both algorithms. |
