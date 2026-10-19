@@ -49,6 +49,7 @@ dependencies {
     implementation(project(":transport:srt"))
     implementation(project(":transport:rtmp"))
     implementation(project(":transport:abr"))
+    implementation(project(":net"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

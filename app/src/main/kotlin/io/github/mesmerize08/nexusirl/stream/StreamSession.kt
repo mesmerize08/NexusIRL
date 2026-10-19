@@ -12,6 +12,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
+import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtFight
 import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpMetadata
@@ -107,6 +108,9 @@ class StreamSession(
         val adaptiveBitrate = AdaptiveBitrateSrtFight(settings.bitrate, { video.encoder?.setBitrate(it) }, clock)
             .apply { setSettings(AdaptiveBitrateSettings.FAST) }
         val driver = SrtAdaptiveBitrateDriver(stream, adaptiveBitrate, executor, settings.bitrate)
+        // SRTLA bonds every available network (cellular, Wi-Fi, Ethernet) at once.
+        val networks = if (url.startsWith("srtla", ignoreCase = true)) MultiNetworkManager(context) else null
+        networks?.start { stream.setInterfaces(it) }
         stream.start()
         driver.start()
         return object : Destination {
@@ -123,13 +127,18 @@ class StreamSession(
             override fun stop() {
                 driver.stop()
                 stream.stop()
+                networks?.stop()
             }
 
             override fun rttMs(): Double = stream.getPerformanceData()?.msRtt ?: 0.0
 
-            override fun debugStats(): String = stream.getPerformanceData()?.let {
-                "srt drop=${it.pktSndDropTotal} retrans=${it.pktRetransTotal} nak=${it.pktRecvNakTotal} pif=${it.pktFlightSize} rtt=${it.msRtt}"
-            } ?: ""
+            override fun debugStats(): String {
+                val performance = stream.getPerformanceData() ?: return ""
+                // Runs on the stream executor (publishStatus), as connectionStatistics requires.
+                val paths = stream.connectionStatistics().joinToString(" ") { "${it.name}:${it.usage / 1024}KiB/${it.rtt}ms" }
+                return "srt drop=${performance.pktSndDropTotal} retrans=${performance.pktRetransTotal} " +
+                    "nak=${performance.pktRecvNakTotal} pif=${performance.pktFlightSize} rtt=${performance.msRtt} paths[$paths]"
+            }
         }
     }
 
