@@ -44,6 +44,9 @@ interface SecretStore {
 
     /** All stored values, for exact-match masking in [Redactor]. Never display or export these. */
     fun values(): Collection<String>
+
+    /** All stored refs, so unreferenced secrets can be removed. */
+    fun refs(): Collection<SecretRef>
 }
 
 /** Non-persistent store for tests and previews. */
@@ -66,4 +69,7 @@ class InMemorySecretStore : SecretStore {
 
     @Synchronized
     override fun values(): Collection<String> = secrets.values.toList()
+
+    @Synchronized
+    override fun refs(): Collection<SecretRef> = secrets.keys.map { SecretRef(it) }
 }

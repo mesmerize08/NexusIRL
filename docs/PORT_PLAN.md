@@ -173,6 +173,13 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   Still needs a physical phone: the 60-minute soak, A/V sync, thermal behaviour and OEM encoder
 >   quirks.
+> - Phase 3 is in progress. Done:
+>   - the settings document (iOS-compatible; unknown keys preserved)
+>   - saved streams with stream keys in the encrypted store
+>   - streams list and stream editor
+>   - `.moblinSettings` import and export (without keys by default)
+>
+>   Still to do: `moblin://` deep links, camera controls, recording, snapshots and localization.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

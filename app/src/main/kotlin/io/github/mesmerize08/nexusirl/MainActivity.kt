@@ -8,6 +8,7 @@ import android.view.SurfaceView
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,13 +20,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
@@ -40,34 +39,37 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
+import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
+import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
+import io.github.mesmerize08.nexusirl.ui.StreamEditorScreen
+import io.github.mesmerize08.nexusirl.ui.StreamsScreen
+import io.github.mesmerize08.nexusirl.ui.summary
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The URL field can show a stream key (docs/PORT_PLAN.md §9.4).
+        // Stream editors and import/export can show stream keys (docs/PORT_PLAN.md §9.4).
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         requestPermissionsIfNeeded()
         updateDisplayRotation()
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    StreamScreen()
+                    App()
                 }
             }
         }
         // Debug builds only: allow automated tests to start a stream via an intent extra.
         if (BuildConfig.DEBUG) {
             intent.getStringExtra(EXTRA_DEBUG_URL)?.let {
-                StreamController.goLive(this, it, DEFAULT_SETTINGS.copy(hevc = intent.getBooleanExtra(EXTRA_DEBUG_HEVC, false)))
+                val video = DEFAULT_SETTINGS.copy(hevc = intent.getBooleanExtra(EXTRA_DEBUG_HEVC, false))
+                StreamController.goLive(this, StreamConfig(url = it, video = video, srtLatency = 2000))
             }
         }
     }
@@ -108,23 +110,55 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** App screens (simple state-based navigation). */
+private sealed interface Screen {
+    data object Main : Screen
+
+    data object Streams : Screen
+
+    data class EditStream(val id: UUID?) : Screen
+
+    data object ImportExport : Screen
+}
+
 @Composable
-private fun StreamScreen() {
+private fun App() {
     val context = LocalContext.current
+    val store = remember { StreamController.settings(context) }
     val status by StreamController.status.collectAsState()
-    var url by remember { mutableStateOf("") }
-    var revealUrl by remember { mutableStateOf(false) }
-    val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
-    var hevc by remember { mutableStateOf(false) }
-    var showLicenses by remember { mutableStateOf(false) }
-    if (showLicenses) {
-        LicensesDialog(onDismiss = { showLicenses = false })
-    }
+    var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     // Upstream makeFlameRedToast(): warn once the device reaches the critical thermal state.
     LaunchedEffect(status.thermal) {
         if (status.thermal == ThermalState.CRITICAL) {
             Toast.makeText(context, R.string.thermal_critical, Toast.LENGTH_LONG).show()
         }
+    }
+    BackHandler(enabled = screen != Screen.Main) {
+        screen = if (screen is Screen.EditStream) Screen.Streams else Screen.Main
+    }
+    when (val current = screen) {
+        Screen.Main -> MainScreen(onStreams = { screen = Screen.Streams }, onImportExport = { screen = Screen.ImportExport })
+        Screen.Streams -> StreamsScreen(
+            store,
+            status.active,
+            onEdit = { screen = Screen.EditStream(it) },
+            onBack = { screen = Screen.Main },
+        )
+        is Screen.EditStream -> StreamEditorScreen(store, current.id, onDone = { screen = Screen.Streams })
+        Screen.ImportExport -> ImportExportScreen(store, status.active, onBack = { screen = Screen.Main })
+    }
+}
+
+@Composable
+private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { StreamController.settings(context) }
+    val database by store.database.collectAsState()
+    val status by StreamController.status.collectAsState()
+    val stream = database.selectedStream
+    var showLicenses by remember { mutableStateOf(false) }
+    if (showLicenses) {
+        LicensesDialog(onDismiss = { showLicenses = false })
     }
     // Landscape: preview on the left (as large as fits at 16:9), controls scroll on the right.
     Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -149,37 +183,26 @@ private fun StreamScreen() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it.trim() },
-                    label = { Text(stringResource(R.string.stream_url)) },
-                    singleLine = true,
-                    visualTransformation = if (revealUrl) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { revealUrl = !revealUrl }) {
-                    Text(stringResource(if (revealUrl) R.string.hide else R.string.show))
-                }
+            if (stream != null) {
+                Text(stream.name, style = MaterialTheme.typography.titleMedium)
+                Text(stream.summary(), style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text(stringResource(R.string.no_streams))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = {
                         if (status.active) {
                             StreamController.stop(context)
                         } else {
-                            StreamController.goLive(context, url, MainActivity.DEFAULT_SETTINGS.copy(hevc = hevc))
+                            StreamController.goLive(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
                         }
                     },
-                    enabled = url.isNotEmpty() || status.active,
+                    enabled = stream != null || status.active,
                 ) {
                     Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(if (hevcSupported) R.string.hevc else R.string.hevc_unsupported))
-                Switch(checked = hevc, onCheckedChange = { hevc = it }, enabled = hevcSupported && !status.active)
+                OutlinedButton(onClick = onStreams) { Text(stringResource(R.string.streams)) }
             }
             Text(
                 "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +
@@ -193,6 +216,7 @@ private fun StreamScreen() {
             if (status.detail.isNotEmpty()) {
                 Text(status.detail, style = MaterialTheme.typography.bodySmall)
             }
+            TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
             Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { showLicenses = true }) {
                 Text(stringResource(R.string.open_source_licenses))

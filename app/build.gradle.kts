@@ -57,6 +57,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -77,6 +81,7 @@ dependencies {
     implementation(project(":transport:rtmp"))
     implementation(project(":transport:abr"))
     implementation(project(":net"))
+    implementation(project(":settings"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -86,6 +91,10 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 // LICENSE and NOTICE (Moblin's MIT notice) ship in the APK for the licences screen.

@@ -42,6 +42,9 @@ class AeadSecretStore(private val file: File, private val aead: Aead) : SecretSt
     @Synchronized
     override fun values(): Collection<String> = cache.values.toList()
 
+    @Synchronized
+    override fun refs(): Collection<SecretRef> = cache.keys.map { SecretRef(it) }
+
     private fun load() {
         if (!file.exists()) {
             return

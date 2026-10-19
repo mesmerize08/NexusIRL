@@ -13,10 +13,15 @@ import android.os.PowerManager
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.MainActivity
 import io.github.mesmerize08.nexusirl.R
+import io.github.mesmerize08.nexusirl.core.secrets.KeystoreSecretStore
+import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
 import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
-import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
+import io.github.mesmerize08.nexusirl.settings.SettingsArchive
+import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.io.File
 
 /** Process-wide entry point the UI talks to (upstream: the Model's stream controls). */
 object StreamController {
@@ -27,12 +32,38 @@ object StreamController {
     internal var session: StreamSession? = null
     private var previewSurface: Surface? = null
 
-    fun goLive(context: Context, url: String, settings: VideoEncoderSettings) {
+    @Volatile
+    private var settingsStore: SettingsStore? = null
+
+    /** The app's settings (created on first use). */
+    fun settings(context: Context): SettingsStore = settingsStore ?: synchronized(this) {
+        settingsStore ?: SettingsStore(
+            File(context.applicationContext.filesDir, SettingsArchive.SETTINGS_JSON),
+            KeystoreSecretStore.create(context.applicationContext),
+        ).also { settingsStore = it }
+    }
+
+    /** Goes live with the selected stream. Returns an error message, or null when starting. */
+    fun goLive(context: Context): String? {
+        val store = settings(context)
+        val stream = store.current.selectedStream ?: return "Add a stream first"
+        val url = try {
+            store.resolveUrl(stream)
+        } catch (e: MissingSecretException) {
+            return "The stream key is missing. Edit the stream and enter it again."
+        }
+        if (!StreamUrlSecrets.isValid(url)) {
+            return "Edit the stream and enter an srt://, srtla://, rtmp:// or rtmps:// URL"
+        }
+        goLive(context, StreamConfig.from(stream, url))
+        return null
+    }
+
+    fun goLive(context: Context, config: StreamConfig) {
         if (session != null) {
             return
         }
-        pendingUrl = url
-        pendingSettings = settings
+        pendingConfig = config
         context.startForegroundService(Intent(context, StreamingService::class.java))
     }
 
@@ -54,16 +85,18 @@ object StreamController {
         session?.setPreviewSurface(surface)
     }
 
-    internal var pendingUrl: String? = null
-    internal var pendingSettings: VideoEncoderSettings? = null
+    private var pendingConfig: StreamConfig? = null
 
     internal fun start(context: Context) {
-        val url = pendingUrl ?: return
-        val requested = pendingSettings ?: return
-        pendingUrl = null
+        val requested = pendingConfig ?: return
+        pendingConfig = null
         // No HEVC encoder (common on low-end SoCs): fall back to H.264 (docs/PORT_PLAN.md §6).
-        val settings = if (requested.hevc && !EncoderCapabilities.supportsHevc()) requested.copy(hevc = false) else requested
-        val newSession = StreamSession(context, url, settings) { mutableStatus.value = it }
+        val config = if (requested.video.hevc && !EncoderCapabilities.supportsHevc()) {
+            requested.copy(video = requested.video.copy(hevc = false))
+        } else {
+            requested
+        }
+        val newSession = StreamSession(context, config) { mutableStatus.value = it }
         session = newSession
         newSession.setDisplayRotation(displayRotationDegrees)
         newSession.start()

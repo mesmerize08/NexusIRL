@@ -14,10 +14,10 @@ import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
 import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MicrophoneManager
-import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
-import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
+import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateListener
+import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtBelabox
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtFight
 import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpCode
 import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpMetadata
@@ -88,10 +88,11 @@ data class StreamStatus(
  */
 class StreamSession(
     private val context: Context,
-    private val url: String,
-    private val settings: VideoEncoderSettings,
+    private val config: StreamConfig,
     private val onStatus: (StreamStatus) -> Unit,
 ) {
+    private val url = config.url
+    private val settings = config.video
     private val fanOut = FanOutSink()
     private val video = VideoPipeline(context, settings, fanOut) { report("Camera: $it") }
     private val audio = AudioPipeline(fanOut)
@@ -224,7 +225,7 @@ class StreamSession(
 
     private fun startSrt(eventGeneration: Int): Destination {
         val stream = SrtStream(
-            SrtStreamConfig(url = url, latency = 2000),
+            SrtStreamConfig(url = url, latency = config.srtLatency),
             DatagramUdpLinkFactory(),
             executor,
             clock,
@@ -234,14 +235,22 @@ class StreamSession(
                 override fun onDisconnected(message: String) = handleDisconnected(eventGeneration, message)
             },
         )
-        val adaptiveBitrate = AdaptiveBitrateSrtFight(settings.bitrate, { video.encoder?.setBitrate(it) }, clock)
-            .apply { setSettings(AdaptiveBitrateSettings.FAST) }
-        val driver = SrtAdaptiveBitrateDriver(stream, adaptiveBitrate, executor, settings.bitrate)
+        // Upstream Media.srtSetAdaptiveBitrateAlgorithm: no algorithm when adaptive bitrate is off.
+        val driver = config.srtAdaptiveBitrate?.let { choice ->
+            val setBitrate = AdaptiveBitrateListener { video.encoder?.setBitrate(it) }
+            val adaptiveBitrate = if (choice.belabox) {
+                AdaptiveBitrateSrtBelabox(settings.bitrate, setBitrate, clock)
+            } else {
+                AdaptiveBitrateSrtFight(settings.bitrate, setBitrate, clock)
+            }
+            adaptiveBitrate.setSettings(choice.settings)
+            SrtAdaptiveBitrateDriver(stream, adaptiveBitrate, executor, settings.bitrate)
+        }
         // SRTLA bonds every available network (cellular, Wi-Fi, Ethernet) at once.
         val networks = if (url.startsWith("srtla", ignoreCase = true)) MultiNetworkManager(context) else null
         networks?.start { stream.setInterfaces(it) }
         stream.start()
-        driver.start()
+        driver?.start()
         return object : Destination {
             override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = stream.setAudioConfig(config)
 
@@ -258,7 +267,7 @@ class StreamSession(
                 stream.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
 
             override fun stop() {
-                driver.stop()
+                driver?.stop()
                 stream.stop()
                 networks?.stop()
             }
