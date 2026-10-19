@@ -9,6 +9,7 @@ kotlin {
 dependencies {
     api(project(":core:clock"))
     implementation(project(":media:mux"))
+    api(project(":transport:abr"))
     testImplementation(testFixtures(project(":media:mux")))
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)

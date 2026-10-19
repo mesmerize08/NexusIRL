@@ -171,6 +171,17 @@ class SrtStream(
     /** Must be called on [executor]. */
     fun connectionStatistics(): List<BondingConnection> = srtlaClient?.connectionStatistics() ?: emptyList()
 
+    /** Total bytes through the transport (both directions, upstream semantics). Must be called on [executor]. */
+    fun getTotalByteCount(): Long = srtlaClient?.getTotalByteCount() ?: 0
+
+    /** Must be called on [executor]. */
+    val isConnected: Boolean
+        get() = sender?.isConnected == true
+
+    /** The configured SRT latency in milliseconds. */
+    val latency: Int
+        get() = config.latency
+
     // Encoder side
 
     fun setAudioConfig(config: MpegTsAudioConfig) = synchronized(writerLock) {
