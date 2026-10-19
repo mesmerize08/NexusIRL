@@ -13,3 +13,15 @@ git -C upstream diff <old>..<new> -- <path>
 | `MoblinTests/Moblin/Media/WrappingTimestampSuite.swift` | `core/clock/src/test/.../WrappingTimestampTest.kt` | Vectors copied verbatim |
 | Swift `JSONEncoder`/`Codable` conventions | `core/codable/` | Golden vectors from `RemoteControlSuite.swift` and `MoblinkSuite.swift` |
 | `Common/Various/CommonUtils.swift` (`decode(key, Type, default)`) | `SwiftJson` config (`ignoreUnknownKeys`, defaults) | Full per-field forgiveness arrives with settings in Phase 3 |
+| `Moblin/Media/HaishinKit/Util/ByteReader.swift`, `ByteWriter.swift` | `media/mux/.../Bytes.kt` | `ByteWriter` is append-only (the overwrite mode is unused by ported code) |
+| `Moblin/Media/HaishinKit/Mpeg/Crc32.swift` | `media/mux/.../Crc32.kt` | |
+| `Mpeg/MpegTsPacket.swift`, `MpegTsAdaptationField.swift` | `media/mux/.../ts/MpegTsPacket.kt` | Includes `TSTimestamp`, and PCR coding with upstream's reserved-bit quirk kept |
+| `Mpeg/MpegTsProgramSpecificInformation.swift`, `ElementaryStreamSpecificData.swift` | `media/mux/.../ts/MpegTsProgram.kt` | Encode only; the PSI decoder arrives with `MpegTsReader` (post-v1 ingest) |
+| `Mpeg/MpegTsPacketizedElementaryStream.swift` | `media/mux/.../ts/MpegTsPes.kt` | PTS ticks = `(seconds * 90000).toLong()`, truncating like upstream |
+| `Mpeg/MpegTsAudioConfig.swift`, `Adts.swift`, `Opus.swift`, `Avc/MpegTsVideoConfigAvc.swift`, `Hevc/MpegTsVideoConfigHevc.swift` | `media/mux/.../ts/MpegTsConfigs.kt` | CoreMedia format-description bridges are not ported |
+| `Mpeg/MpegTsTimecodeGenerator.swift` | `media/mux/.../ts/MpegTsTimecodeGenerator.kt` | Clock kept as epoch seconds (`Double`) |
+| `Mpeg/MpegTsWriter.swift` | `media/mux/.../ts/MpegTsWriter.kt` | Takes Annex-B input (MediaCodec) instead of AVCC. `newSrt` becomes `OutputMode.BLOCKS`/`CHUNKED`. The global `payloadSize` becomes a constructor property. TrueTime becomes `TimecodeClock`. |
+| `Mpeg/NalUnitReader.swift`, `NalUnitWriter.swift`, `NalUnitStream.swift` | `media/mux/.../nal/NalUnits.kt` | Adds `annexBToLengthPrefixed` for FLV/RTMP |
+| `Mpeg/Avc/*.swift`, `Mpeg/Hevc/*.swift` | `media/mux/.../nal/AvcHevc.kt` | Header, raw parameter sets and timecode SEI |
+| `MpegTsSuite`, `TSTimestampSuite`, `NalUnitReaderSuite`, `NalUnitWriterSuite`, `NalUnitSeiSuite`, `MpegTsTimecodeGeneratorSuite` | `media/mux/src/test/.../Upstream*Test.kt` | All vectors copied verbatim |
+| — | `MpegTsWriterTest`, `FfmpegInteropTest` | New: an independent demuxer, plus an ffmpeg strict-decode check (skipped when ffmpeg is absent) |
