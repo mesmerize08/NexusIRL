@@ -1,3 +1,5 @@
+<img src="fastlane/metadata/android/en-US/images/icon.png" alt="NexusIRL icon" width="128" align="right">
+
 # NexusIRL
 
 A free, open-source IRL live-streaming app for Android, ported from
