@@ -47,8 +47,8 @@ jobs:
       - name: Show the signing certificate
         run: |
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          cert=$("$apksigner" verify --print-certs dist/*.apk | grep -E "Signer #1 certificate (DN|SHA-256)")
-          echo "$cert"
+          "$apksigner" verify --verbose --print-certs dist/*.apk | tee certs.txt
+          cert=$(grep -E "certificate (DN|SHA-256 digest)" certs.txt | sort -u)
           echo "::notice title=Signing certificate::${cert//$'\n'/'%0A'}"
       - name: Upload dry-run APK
         if: github.event_name == 'workflow_dispatch'
