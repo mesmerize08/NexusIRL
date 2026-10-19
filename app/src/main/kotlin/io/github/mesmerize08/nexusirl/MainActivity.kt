@@ -67,7 +67,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateDisplayRotation() {
-        val degrees = when (display?.rotation) {
+        val rotation = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            display?.rotation
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.rotation
+        }
+        val degrees = when (rotation) {
             android.view.Surface.ROTATION_90 -> 90
             android.view.Surface.ROTATION_180 -> 180
             android.view.Surface.ROTATION_270 -> 270
