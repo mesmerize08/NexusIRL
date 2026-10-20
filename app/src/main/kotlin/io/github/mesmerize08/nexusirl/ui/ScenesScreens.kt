@@ -57,7 +57,7 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 /** Widget types Android can show today. */
-private val SUPPORTED_WIDGET_TYPES = listOf(WidgetType.TEXT, WidgetType.IMAGE, WidgetType.QR_CODE)
+private val SUPPORTED_WIDGET_TYPES = listOf(WidgetType.TEXT, WidgetType.IMAGE, WidgetType.QR_CODE, WidgetType.BROWSER)
 
 private val CAMERAS = listOf("Back", "Front", "None")
 
@@ -456,6 +456,66 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
                 modifier = Modifier.fillMaxWidth(),
             )
+            WidgetType.BROWSER -> {
+                val browser = widget.browser
+                OutlinedTextField(
+                    value = browser.url,
+                    onValueChange = { url -> update { it.copy(browser = it.browser.copy(url = url.trim())) } },
+                    label = { Text(stringResource(R.string.browser_url)) },
+                    supportingText = { Text(stringResource(R.string.browser_url_help)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = browser.width.toString(),
+                        onValueChange = { text ->
+                            text.toIntOrNull()?.let { w ->
+                                update {
+                                    it.copy(
+                                        browser = it.browser.copy(width = w.coerceIn(1, 4096)),
+                                    )
+                                }
+                            }
+                        },
+                        label = { Text(stringResource(R.string.width)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = browser.height.toString(),
+                        onValueChange = { text ->
+                            text.toIntOrNull()?.let { h ->
+                                update {
+                                    it.copy(
+                                        browser = it.browser.copy(height = h.coerceIn(1, 4096)),
+                                    )
+                                }
+                            }
+                        },
+                        label = { Text(stringResource(R.string.height)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                OutlinedTextField(
+                    value = browser.styleSheet,
+                    onValueChange = { css -> update { it.copy(browser = it.browser.copy(styleSheet = css)) } },
+                    label = { Text(stringResource(R.string.style_sheet)) },
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.moblin_access), modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = browser.moblinAccess,
+                        onCheckedChange = { on -> update { it.copy(browser = it.browser.copy(moblinAccess = on)) } },
+                    )
+                }
+            }
             else -> Text(stringResource(R.string.not_shown_on_android))
         }
     }

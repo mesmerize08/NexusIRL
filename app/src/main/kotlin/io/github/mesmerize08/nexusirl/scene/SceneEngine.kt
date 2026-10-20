@@ -108,6 +108,29 @@ class SceneEngine(context: Context) {
                         bitmap = WidgetBitmaps.qrCode(key, minOf(canvasWidth, canvasHeight)) ?: continue
                     }
                 }
+                // Browser widgets render into a surface of their own (BrowserWidgets); only place it.
+                WidgetType.BROWSER -> {
+                    if (!BrowserWidgets.isAllowedUrl(widget.browser.url)) {
+                        continue
+                    }
+                    val rect = WidgetLayout.place(
+                        sceneWidget,
+                        widget.browser.width.toDouble(),
+                        widget.browser.height.toDouble(),
+                        canvasWidth.toDouble(),
+                        canvasHeight.toDouble(),
+                        resize = true,
+                    )
+                    overlays += Overlay(
+                        BrowserWidgets.overlayId(widget.id),
+                        null,
+                        rect.x.toFloat(),
+                        rect.y.toFloat(),
+                        rect.width.toFloat(),
+                        rect.height.toFloat(),
+                    )
+                    continue
+                }
                 // Other widget types arrive in later phases; they are kept in settings but not drawn.
                 else -> continue
             }

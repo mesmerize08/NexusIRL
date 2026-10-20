@@ -201,7 +201,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - global effects: gray scale, sepia, pixellate, 4:3, CRT, whirlpool, pinch (GLSL, upstream order and parameters)
 >
->   Still to do: chat, map and browser widgets, LUTs, scene transitions, quick buttons (effects are
+>   - browser widgets (WebView on a private virtual display rendering straight into the compositor;
+>     https only; the `moblin` object only with Moblin access, messages logged until Phase 5)
+>
+>   Still to do: chat and map widgets, LUTs, scene transitions, quick buttons (effects are
 >   toggled from a chip row for now and are not saved).
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).

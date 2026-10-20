@@ -117,4 +117,10 @@
     <string name="effect_crt">CRT</string>
     <string name="effect_whirlpool">Whirlpool</string>
     <string name="effect_pinch">Pinch</string>
+    <string name="browser_url">URL</string>
+    <string name="browser_url_help">An https:// page, e.g. a chat or alerts overlay. Plain http:// is not allowed.</string>
+    <string name="width">Width</string>
+    <string name="height">Height</string>
+    <string name="style_sheet">Style sheet</string>
+    <string name="moblin_access">Moblin access</string>
 </resources>

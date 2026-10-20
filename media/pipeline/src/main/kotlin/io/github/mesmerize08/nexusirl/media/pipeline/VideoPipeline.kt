@@ -21,6 +21,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.gl.EffectRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.EglCore
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.Framebuffer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.GlPrograms
+import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRectRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.TextureRenderer
 import java.nio.ByteBuffer
@@ -64,6 +65,20 @@ class VideoPipeline(
     private class OverlayTexture(val textureId: Int, var x: Float, var y: Float, var width: Float, var height: Float)
 
     private val overlays = LinkedHashMap<String, OverlayTexture>()
+
+    /** A live overlay fed through a Surface (browser widgets), drawn from an OES texture. */
+    private class SurfaceOverlay(val textureId: Int, val surfaceTexture: SurfaceTexture, val surface: Surface) {
+        val matrix = FloatArray(16).also { android.opengl.Matrix.setIdentityM(it, 0) }
+
+        @Volatile
+        var frameAvailable = false
+    }
+
+    private val surfaceOverlays = HashMap<String, SurfaceOverlay>()
+
+    /** Ids and rectangles to draw, in scene order (bitmap and surface overlays mixed). */
+    private var drawOrder: List<Overlay> = emptyList()
+    private var oesRectRenderer: OesRectRenderer? = null
     private var surfaceTexture: SurfaceTexture? = null
 
     /** Attached encoders and their EGL surfaces (GL thread only). */
@@ -114,6 +129,7 @@ class VideoPipeline(
             val renderer = OesRenderer()
             this.renderer = renderer
             textureRenderer = TextureRenderer()
+            oesRectRenderer = OesRectRenderer()
             canvas = Framebuffer(settings.width, settings.height)
             scratch = Framebuffer(settings.width, settings.height)
             effectRenderer = EffectRenderer()
@@ -227,7 +243,40 @@ class VideoPipeline(
             }
             overlays.clear()
             overlays.putAll(ordered)
+            drawOrder = list.map { Overlay(it.id, null, it.x, it.y, it.width, it.height) }
         }
+    }
+
+    /**
+     * Creates a [width]x[height] surface whose content is drawn as overlay [id] wherever
+     * [setOverlays] places it (browser widgets render into it through a virtual display).
+     * [onReady] runs on the GL thread.
+     */
+    fun createSurfaceOverlay(id: String, width: Int, height: Int, onReady: (Surface) -> Unit) {
+        glHandler.post {
+            val oes = oesRectRenderer ?: return@post
+            egl?.makeNothingCurrent()
+            surfaceOverlays.remove(id)?.let { releaseSurfaceOverlay(it) }
+            val textureId = oes.createTexture()
+            val surfaceTexture = SurfaceTexture(textureId).apply { setDefaultBufferSize(width, height) }
+            val overlay = SurfaceOverlay(textureId, surfaceTexture, Surface(surfaceTexture))
+            surfaceTexture.setOnFrameAvailableListener({ overlay.frameAvailable = true }, glHandler)
+            surfaceOverlays[id] = overlay
+            onReady(overlay.surface)
+        }
+    }
+
+    fun releaseSurfaceOverlay(id: String) {
+        glHandler.post {
+            egl?.makeNothingCurrent()
+            surfaceOverlays.remove(id)?.let { releaseSurfaceOverlay(it) }
+        }
+    }
+
+    private fun releaseSurfaceOverlay(overlay: SurfaceOverlay) {
+        overlay.surface.release()
+        overlay.surfaceTexture.release()
+        GLES20.glDeleteTextures(1, intArrayOf(overlay.textureId), 0)
     }
 
     /** Switches to another camera (upstream `attachCamera`), keeping the pipeline running. */
@@ -481,8 +530,31 @@ class VideoPipeline(
             target = other
             other = previous
         }
+        // Latch new browser frames before binding the canvas (updateTexImage binds the OES texture).
+        for (overlay in surfaceOverlays.values) {
+            if (overlay.frameAvailable) {
+                overlay.frameAvailable = false
+                overlay.surfaceTexture.updateTexImage()
+                overlay.surfaceTexture.getTransformMatrix(overlay.matrix)
+            }
+        }
         target.bind()
-        for (overlay in overlays.values) {
+        for (placement in drawOrder) {
+            val surfaceOverlay = surfaceOverlays[placement.id]
+            if (surfaceOverlay != null) {
+                oesRectRenderer?.drawRect(
+                    surfaceOverlay.textureId,
+                    surfaceOverlay.matrix,
+                    placement.x,
+                    placement.y,
+                    placement.width,
+                    placement.height,
+                    target.width,
+                    target.height,
+                )
+                continue
+            }
+            val overlay = overlays[placement.id] ?: continue
             textureRenderer.drawRect(
                 overlay.textureId,
                 overlay.x,
@@ -564,6 +636,9 @@ class VideoPipeline(
                 }
                 renderer?.release()
                 textureRenderer?.release()
+                oesRectRenderer?.release()
+                surfaceOverlays.values.forEach { releaseSurfaceOverlay(it) }
+                surfaceOverlays.clear()
                 effectRenderer?.release()
                 canvas?.release()
                 scratch?.release()

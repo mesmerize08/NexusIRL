@@ -5,6 +5,7 @@
 package io.github.mesmerize08.nexusirl.settings
 
 import io.github.mesmerize08.nexusirl.core.codable.SDouble
+import io.github.mesmerize08.nexusirl.core.codable.SFloat
 import io.github.mesmerize08.nexusirl.core.codable.SUuid
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreserving
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreservingSerializer
@@ -12,6 +13,7 @@ import io.github.mesmerize08.nexusirl.core.codable.SwiftRawValueEnum
 import io.github.mesmerize08.nexusirl.core.codable.SwiftRawValueEnumSerializer
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonObject
@@ -130,6 +132,24 @@ data class SettingsWidgetQrCode(
     object Serializer : SwiftPreservingSerializer<SettingsWidgetQrCode>(generatedSerializer())
 }
 
+/** Upstream `SettingsWidgetBrowser` (v1 subset; mode, speech-to-text and local-only stay in `extra`). */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsWidgetBrowser.Serializer::class)
+data class SettingsWidgetBrowser(
+    val url: String = "",
+    val width: Int = 500,
+    val height: Int = 500,
+    /** Upstream `baseFps`, stored under the key "fps". */
+    @SerialName("fps")
+    val baseFps: SFloat = 5f,
+    val styleSheet: String = "",
+    /** Whether the page may use the `moblin` JavaScript object (chat and other events). */
+    val moblinAccess: Boolean = false,
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsWidgetBrowser>(generatedSerializer())
+}
+
 /**
  * Upstream `SettingsWidget`. Image widgets keep their picture in a file named after the widget id
  * (upstream `imagesStorageDirectory`), not in the settings.
@@ -142,6 +162,7 @@ data class SettingsWidget(
     val type: WidgetType = WidgetType.TEXT,
     val text: SettingsWidgetText = SettingsWidgetText(),
     val qrCode: SettingsWidgetQrCode = SettingsWidgetQrCode(),
+    val browser: SettingsWidgetBrowser = SettingsWidgetBrowser(),
     val enabled: Boolean = true,
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {

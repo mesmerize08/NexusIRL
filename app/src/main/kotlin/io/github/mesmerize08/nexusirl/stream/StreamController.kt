@@ -22,6 +22,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
+import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
@@ -30,6 +31,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.settings.VideoStabilizationMode
+import io.github.mesmerize08.nexusirl.settings.WidgetType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -97,6 +99,9 @@ object StreamController {
     // Scenes (upstream ModelScene.swift)
 
     private var sceneEngine: SceneEngine? = null
+    private var browserWidgets: BrowserWidgets? = null
+
+    private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: BrowserWidgets(context).also { browserWidgets = it }
     private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
 
     private val mutableEffects = MutableStateFlow<Set<VideoEffect>>(emptySet())
@@ -163,6 +168,10 @@ object StreamController {
         val scene = enabled.firstOrNull { it.id == mutableSelectedSceneId.value } ?: enabled.firstOrNull()
         mutableSelectedSceneId.value = scene?.id
         scenes(context).setScene(scene, database.widgets)
+        val browserWidgetIds = scene?.widgets.orEmpty().map { it.widgetId }.toSet()
+        browsers(
+            context,
+        ).update(pipeline, database.widgets.filter { it.enabled && it.type == WidgetType.BROWSER && it.id in browserWidgetIds })
         return scene
     }
 
@@ -472,6 +481,7 @@ object StreamController {
     private fun releasePipeline() {
         android.util.Log.d(TAG, "Releasing camera pipeline ${pipeline != null}")
         sceneEngine?.setPipeline(null)
+        browserWidgets?.update(null, emptyList())
         pipeline?.stop()
         pipeline = null
     }
