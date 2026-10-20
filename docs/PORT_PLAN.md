@@ -188,7 +188,11 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - manual camera controls: exposure bias, focus, shutter, ISO, white balance, stabilization
 >
->   Still to do: localization.
+>   - translations: 33 of 88 strings in 20 languages from upstream's catalog where the English
+>     text matches (`tools/import-translations.py`), with a per-app language picker on Android 13+;
+>     the rest falls back to English
+>
+>   Everything in Phase 3 that the emulator can check is done.
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.

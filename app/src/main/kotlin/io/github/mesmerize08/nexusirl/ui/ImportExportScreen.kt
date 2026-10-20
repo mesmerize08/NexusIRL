@@ -70,7 +70,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
             pendingImport = try {
                 readImport(context, uri)
             } catch (e: Exception) {
-                message = context.getString(R.string.import_failed, e.message ?: e.javaClass.simpleName)
+                message = context.getString(R.string.import_failed) + ": " + (e.message ?: e.javaClass.simpleName)
                 null
             }
         }
@@ -120,7 +120,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                         store.import(pending.json)
                         context.getString(R.string.imported)
                     } catch (e: Exception) {
-                        context.getString(R.string.import_failed, e.message ?: e.javaClass.simpleName)
+                        context.getString(R.string.import_failed) + ": " + (e.message ?: e.javaClass.simpleName)
                     }
                     pendingImport = null
                 }) { Text(stringResource(R.string.replace_settings)) }

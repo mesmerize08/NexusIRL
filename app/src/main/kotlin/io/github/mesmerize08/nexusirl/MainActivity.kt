@@ -128,7 +128,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissionsIfNeeded() {
-        val missing = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+        val wanted = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        // The notification permission exists from Android 13.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            wanted += Manifest.permission.POST_NOTIFICATIONS
+        }
+        val missing = wanted
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) {
             requestPermissions(missing.toTypedArray(), 1)
@@ -174,7 +179,7 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         try {
             parsedLink = MoblinSettingsUrl.parse(text)
         } catch (e: MoblinSettingsUrl.InvalidSettingsUrlException) {
-            Toast.makeText(context, context.getString(R.string.link_failed, e.message), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.link_failed) + ": " + e.message, Toast.LENGTH_LONG).show()
             pendingLink.value = null
         }
     }

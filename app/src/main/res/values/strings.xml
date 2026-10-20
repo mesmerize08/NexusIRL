@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">NexusIRL</string>
+    <string name="app_name" translatable="false">NexusIRL</string>
     <string name="attribution">Based on Moblin by Erik Moqvist (MIT License). Not affiliated with or endorsed by the Moblin project.</string>
     <string name="stream_url">Stream URL</string>
     <string name="go_live">Go live</string>
@@ -30,7 +30,7 @@
     <string name="rtmp_unencrypted_warning">RTMP sends your stream key unencrypted. Use rtmps:// if your platform supports it.</string>
     <string name="video">Video</string>
     <string name="resolution">Resolution</string>
-    <string name="fps">Frame rate</string>
+    <string name="fps">FPS</string>
     <string name="bitrate">Bitrate</string>
     <string name="codec">Codec</string>
     <string name="hevc_fallback_note">This phone has no hardware H.265 encoder, so H.264 is used.</string>
@@ -47,7 +47,7 @@
     <string name="import_contains_keys">This file contains stream keys. They will be stored encrypted on this phone.</string>
     <string name="replace_settings">Replace</string>
     <string name="imported">Settings imported.</string>
-    <string name="import_failed">Import failed: %1$s</string>
+    <string name="import_failed">Import settings failed</string>
     <string name="export_help">Export your settings to a .moblinSettings file that NexusIRL and Moblin can import.</string>
     <string name="export_without_keys">Export without stream keys</string>
     <string name="export_with_keys">Export with stream keys</string>
@@ -66,11 +66,10 @@
     <string name="link_import">Import</string>
     <string name="link_add_new">Add as new</string>
     <string name="link_replace">Replace existing</string>
-    <string name="link_imported">Settings link imported.</string>
-    <string name="link_failed">Settings link import failed: %1$s</string>
+    <string name="link_imported">URL import successful</string>
+    <string name="link_failed">URL import failed</string>
     <string name="link_not_while_live">Cannot import settings while live.</string>
-    <string name="torch_on">Torch on</string>
-    <string name="torch_off">Torch off</string>
+    <string name="torch">Torch</string>
     <string name="camera">Camera</string>
     <string name="record">Record</string>
     <string name="stop_recording">Stop recording</string>
@@ -81,12 +80,12 @@
     <string name="snapshot_failed">Snapshot failed: no camera frame yet.</string>
     <string name="camera_settings">Camera settings</string>
     <string name="no_camera">No camera is running.</string>
-    <string name="not_supported_by_camera">Not supported by this camera</string>
+    <string name="not_supported_by_camera">Not supported for this camera</string>
     <string name="auto">Auto</string>
     <string name="exposure_bias">Exposure bias</string>
     <string name="focus">Focus</string>
     <string name="shutter">Shutter</string>
     <string name="iso">ISO</string>
     <string name="white_balance">White balance</string>
-    <string name="stabilization">Stabilization</string>
+    <string name="stabilization">Video stabilization</string>
 </resources>

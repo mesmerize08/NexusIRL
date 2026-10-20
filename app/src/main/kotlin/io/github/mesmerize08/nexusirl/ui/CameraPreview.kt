@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -151,8 +152,11 @@ fun CameraPreview(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (current?.hasTorch == true) {
-                FilledTonalButton(onClick = { StreamController.setTorch(!camera.torch) }) {
-                    Text(stringResource(if (camera.torch) R.string.torch_off else R.string.torch_on))
+                // Filled while the torch is on.
+                if (camera.torch) {
+                    Button(onClick = { StreamController.setTorch(false) }) { Text(stringResource(R.string.torch)) }
+                } else {
+                    FilledTonalButton(onClick = { StreamController.setTorch(true) }) { Text(stringResource(R.string.torch)) }
                 }
             }
             if (camera.cameras.size > 1) {

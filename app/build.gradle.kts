@@ -61,6 +61,12 @@ android {
         unitTests.all { it.useJUnitPlatform() }
     }
 
+    lint {
+        // Translations come from upstream Moblin's catalog where its English text matches ours
+        // (tools/import-translations.py); other strings fall back to English by design.
+        disable += "MissingTranslation"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
