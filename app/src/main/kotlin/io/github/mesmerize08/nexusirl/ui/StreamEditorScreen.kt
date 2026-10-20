@@ -27,6 +27,7 @@ import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamResolution
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
+import io.github.mesmerize08.nexusirl.settings.StreamUrls
 import java.util.UUID
 
 /** Bitrate choices in kbps (upstream's bitrate presets cover the same range). */
@@ -95,7 +96,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             value = url,
             onValueChange = { url = it.trim() },
             supportingText = when {
-                url.isNotEmpty() && !urlValid -> stringResource(R.string.stream_url_invalid)
+                url.isNotEmpty() && !urlValid -> StreamUrls.validate(url) ?: stringResource(R.string.stream_url_invalid)
                 else -> stringResource(R.string.stream_url_help)
             },
         )

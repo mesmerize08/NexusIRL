@@ -56,4 +56,17 @@
     <string name="exported_without_keys">Settings exported without stream keys.</string>
     <string name="exported_with_keys">Settings exported, including stream keys. Keep the file private.</string>
     <string name="export_failed">Export failed: %1$s</string>
+    <string name="link_title">Import settings from link?</string>
+    <string name="link_no_streams">This link contains no streams.</string>
+    <string name="link_stream_new">new</string>
+    <string name="link_stream_exists">a stream with this name exists</string>
+    <string name="link_contains_keys">This link contains stream keys. They will be stored encrypted on this phone.</string>
+    <string name="link_ignored">Not supported yet and ignored: %1$s.</string>
+    <string name="link_never_starts">Importing does not start streaming.</string>
+    <string name="link_import">Import</string>
+    <string name="link_add_new">Add as new</string>
+    <string name="link_replace">Replace existing</string>
+    <string name="link_imported">Settings link imported.</string>
+    <string name="link_failed">Settings link import failed: %1$s</string>
+    <string name="link_not_while_live">Cannot import settings while live.</string>
 </resources>

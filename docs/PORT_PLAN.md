@@ -179,7 +179,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - streams list and stream editor
 >   - `.moblinSettings` import and export (without keys by default)
 >
->   Still to do: `moblin://` deep links, camera controls, recording, snapshots and localization.
+>   - `moblin://` setup links with a confirmation dialog
+>
+>   Still to do: camera controls, recording, snapshots and localization.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

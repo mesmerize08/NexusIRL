@@ -1,6 +1,7 @@
 package io.github.mesmerize08.nexusirl
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.SurfaceHolder
@@ -42,18 +43,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
+import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
+import io.github.mesmerize08.nexusirl.ui.SettingsLinkDialog
 import io.github.mesmerize08.nexusirl.ui.StreamEditorScreen
 import io.github.mesmerize08.nexusirl.ui.StreamsScreen
 import io.github.mesmerize08.nexusirl.ui.summary
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
+    /** A `moblin://` link waiting for confirmation. */
+    private val pendingLink = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            handleLinkIntent(intent)
+        }
         // Stream editors and import/export can show stream keys (docs/PORT_PLAN.md §9.4).
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         requestPermissionsIfNeeded()
@@ -61,7 +71,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    App()
+                    App(pendingLink)
                 }
             }
         }
@@ -71,6 +81,18 @@ class MainActivity : ComponentActivity() {
                 val video = DEFAULT_SETTINGS.copy(hevc = intent.getBooleanExtra(EXTRA_DEBUG_HEVC, false))
                 StreamController.goLive(this, StreamConfig(url = it, video = video, srtLatency = 2000))
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLinkIntent(intent)
+    }
+
+    private fun handleLinkIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme.equals("moblin", ignoreCase = true)) {
+            pendingLink.value = intent.dataString
         }
     }
 
@@ -122,10 +144,41 @@ private sealed interface Screen {
 }
 
 @Composable
-private fun App() {
+private fun App(pendingLink: MutableStateFlow<String?>) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
     val status by StreamController.status.collectAsState()
+    val database by store.database.collectAsState()
+    val link by pendingLink.collectAsState()
+    // Upstream handleSettingsUrls: links are rejected while live and validated before anything else.
+    var parsedLink by remember { mutableStateOf<MoblinSettingsUrl?>(null) }
+    LaunchedEffect(link) {
+        parsedLink = null
+        val text = link ?: return@LaunchedEffect
+        if (status.active) {
+            Toast.makeText(context, R.string.link_not_while_live, Toast.LENGTH_LONG).show()
+            pendingLink.value = null
+            return@LaunchedEffect
+        }
+        try {
+            parsedLink = MoblinSettingsUrl.parse(text)
+        } catch (e: MoblinSettingsUrl.InvalidSettingsUrlException) {
+            Toast.makeText(context, context.getString(R.string.link_failed, e.message), Toast.LENGTH_LONG).show()
+            pendingLink.value = null
+        }
+    }
+    parsedLink?.let { settingsLink ->
+        SettingsLinkDialog(
+            link = settingsLink,
+            database = database,
+            onApply = { replaceCollisions ->
+                store.update { settingsLink.apply(it, replaceCollisions) }
+                pendingLink.value = null
+                Toast.makeText(context, R.string.link_imported, Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { pendingLink.value = null },
+        )
+    }
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     // Upstream makeFlameRedToast(): warn once the device reaches the critical thermal state.
     LaunchedEffect(status.thermal) {

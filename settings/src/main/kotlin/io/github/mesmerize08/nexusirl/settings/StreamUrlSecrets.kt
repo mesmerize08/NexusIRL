@@ -1,7 +1,5 @@
 package io.github.mesmerize08.nexusirl.settings
 
-import java.net.URI
-
 /**
  * Splits stream URLs into a displayable part and a secret part (docs/PORT_PLAN.md §9.3, §9.4).
  *
@@ -51,11 +49,6 @@ object StreamUrlSecrets {
         return if (secret.isEmpty()) url else public + store(secret)
     }
 
-    /** True when [url] looks like a stream URL this app can use. */
-    fun isValid(url: String): Boolean = try {
-        val uri = URI(url)
-        uri.scheme?.lowercase() in setOf("srt", "srtla", "rtmp", "rtmps") && !uri.host.isNullOrEmpty()
-    } catch (e: Exception) {
-        false
-    }
+    /** True when [url] is a stream URL this app can use (see [StreamUrls.validate]). */
+    fun isValid(url: String): Boolean = StreamUrls.validate(url) == null
 }
