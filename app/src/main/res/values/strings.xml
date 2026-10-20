@@ -8,7 +8,7 @@
     <string name="show">Show</string>
     <string name="hide">Hide</string>
     <string name="notification_channel">Streaming</string>
-    <string name="notification_streaming">Camera and microphone are streaming</string>
+    <string name="notification_streaming">Camera and microphone are in use (live or recording)</string>
     <string name="thermal_critical">Device is critically hot. Lower resolution or bitrate, or let it cool.</string>
     <string name="open_source_licenses">Open source licences</string>
     <string name="close">Close</string>
@@ -72,4 +72,8 @@
     <string name="torch_on">Torch on</string>
     <string name="torch_off">Torch off</string>
     <string name="camera">Camera</string>
+    <string name="record">Record</string>
+    <string name="stop_recording">Stop recording</string>
+    <string name="recording_saved">Recording saved to Movies/NexusIRL.</string>
+    <string name="recording_failed">Recording failed: nothing was recorded.</string>
 </resources>

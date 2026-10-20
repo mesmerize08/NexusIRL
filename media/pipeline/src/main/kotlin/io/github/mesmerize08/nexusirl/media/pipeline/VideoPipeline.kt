@@ -4,7 +4,7 @@
 // is available, and a monotonic PTS guard.
 //
 // The pipeline runs whenever the camera is needed (preview while the app is open, or streaming);
-// an encoder is attached only while live (startEncoder/stopEncoder).
+// encoders are attached while live or recording (startEncoder/stopEncoder), one per consumer.
 package io.github.mesmerize08.nexusirl.media.pipeline
 
 import android.content.Context
@@ -28,7 +28,9 @@ class VideoPipeline(
     private var egl: EglCore? = null
     private var renderer: OesRenderer? = null
     private var surfaceTexture: SurfaceTexture? = null
-    private var encoderSurface: EGLSurface? = null
+
+    /** Attached encoders and their EGL surfaces (GL thread only). */
+    private val encoders = mutableListOf<Pair<VideoEncoder, EGLSurface>>()
     private var previewSurface: EGLSurface? = null
     private var cameraSource: CameraSource? = null
     private var sourceAspect = settings.width.toFloat() / settings.height
@@ -43,9 +45,6 @@ class VideoPipeline(
     private var lastPresentationNanos = 0L
     private var lastFrameWallNanos = 0L
     private var running = false
-
-    var encoder: VideoEncoder? = null
-        private set
 
     /** Frames rendered per second (output side), for the status line. */
     @Volatile
@@ -86,31 +85,33 @@ class VideoPipeline(
         }
     }
 
-    /** Attaches an encoder (going live). [encoderSettings] must match [settings] in size and rate. */
-    fun startEncoder(encoderSettings: VideoEncoderSettings, sink: MediaSink) {
+    /**
+     * Attaches an encoder (going live, or recording) and returns it. [encoderSettings] must match
+     * [settings] in size and rate; codec and bitrate may differ per encoder.
+     */
+    fun startEncoder(encoderSettings: VideoEncoderSettings, sink: MediaSink): VideoEncoder? {
         require(
             encoderSettings.width == settings.width && encoderSettings.height == settings.height &&
                 encoderSettings.fps == settings.fps,
         ) { "Encoder settings do not match the pipeline" }
+        var created: VideoEncoder? = null
         runOnGlThread {
             val egl = egl ?: return@runOnGlThread
             val encoder = VideoEncoder(encoderSettings, sink)
-            this.encoder = encoder
-            encoderSurface = egl.createWindowSurface(encoder.inputSurface)
+            encoders += encoder to egl.createWindowSurface(encoder.inputSurface)
+            created = encoder
         }
+        return created
     }
 
-    /** Detaches and releases the encoder (stream ended); the preview keeps running. */
-    fun stopEncoder() {
+    /** Detaches and releases [encoder]; the preview and other encoders keep running. */
+    fun stopEncoder(encoder: VideoEncoder) {
         runOnGlThread {
-            val egl = egl
-            encoderSurface?.let {
-                egl?.makeNothingCurrent()
-                egl?.releaseSurface(it)
-            }
-            encoderSurface = null
-            encoder?.release()
-            encoder = null
+            val entry = encoders.firstOrNull { it.first === encoder } ?: return@runOnGlThread
+            encoders.remove(entry)
+            egl?.makeNothingCurrent()
+            egl?.releaseSurface(entry.second)
+            encoder.release()
         }
     }
 
@@ -278,7 +279,7 @@ class VideoPipeline(
         }
         lastPresentationNanos = presentationNanos
         updateDrawMatrix()
-        encoderSurface?.let { encoderSurface ->
+        for ((_, encoderSurface) in encoders) {
             egl.makeCurrent(encoderSurface)
             renderer.draw(drawMatrix, settings.width, settings.height, sourceAspect)
             egl.setPresentationTime(encoderSurface, presentationNanos)
@@ -296,15 +297,16 @@ class VideoPipeline(
     private fun renderBlack(presentationNanos: Long) {
         val egl = egl ?: return
         val renderer = renderer ?: return
-        val encoderSurface = encoderSurface ?: return
-        if (presentationNanos <= lastPresentationNanos) {
+        if (encoders.isEmpty() || presentationNanos <= lastPresentationNanos) {
             return
         }
         lastPresentationNanos = presentationNanos
-        egl.makeCurrent(encoderSurface)
-        renderer.drawBlack(settings.width, settings.height)
-        egl.setPresentationTime(encoderSurface, presentationNanos)
-        egl.swapBuffers(encoderSurface)
+        for ((_, encoderSurface) in encoders) {
+            egl.makeCurrent(encoderSurface)
+            renderer.drawBlack(settings.width, settings.height)
+            egl.setPresentationTime(encoderSurface, presentationNanos)
+            egl.swapBuffers(encoderSurface)
+        }
         countFrame()
     }
 
@@ -347,16 +349,17 @@ class VideoPipeline(
             if (egl != null) {
                 egl.makeNothingCurrent()
                 previewSurface?.let { egl.releaseSurface(it) }
-                encoderSurface?.let { egl.releaseSurface(it) }
+                for ((encoder, surface) in encoders) {
+                    egl.releaseSurface(surface)
+                    encoder.release()
+                }
                 renderer?.release()
                 surfaceTexture?.release()
-                encoder?.release()
                 egl.release()
             }
+            encoders.clear()
             this.egl = null
             previewSurface = null
-            encoderSurface = null
-            encoder = null
             done.countDown()
         }
         done.await(3, java.util.concurrent.TimeUnit.SECONDS)

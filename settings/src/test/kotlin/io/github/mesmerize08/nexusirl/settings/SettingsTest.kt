@@ -74,7 +74,7 @@ class SettingsTest {
         assertEquals("\"Twitch main\"", stream["name"].toString())
         assertEquals("30", stream["fps"].toString())
         assertEquals("\"someone\"", stream["twitchChannelName"].toString())
-        assertEquals("""{"videoCodec":"H.265/HEVC"}""", stream["recording"].toString())
+        assertEquals("\"H.265/HEVC\"", stream["recording"]!!.jsonObject["videoCodec"].toString())
     }
 
     @Test
@@ -89,6 +89,9 @@ class SettingsTest {
         assertEquals(3000, stream.srt.latency)
         assertEquals(SrtAdaptiveBitrateAlgorithm.Belabox, stream.srt.adaptiveBitrate.algorithm)
         assertEquals(2, stream.maxKeyFrameInterval)
+        assertEquals(StreamCodec.H265_HEVC, stream.recording.videoCodec)
+        assertEquals(0, stream.recording.videoBitrate)
+        assertEquals(128_000, stream.recording.audioBitrate)
     }
 
     @Test

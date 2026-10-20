@@ -259,6 +259,7 @@ private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
                 }
                 OutlinedButton(onClick = onStreams) { Text(stringResource(R.string.streams)) }
             }
+            RecordingControls()
             Text(
                 "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +
                     "RTT ${status.rttMs.toInt()} ms  " +
@@ -276,6 +277,39 @@ private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
             TextButton(onClick = { showLicenses = true }) {
                 Text(stringResource(R.string.open_source_licenses))
             }
+        }
+    }
+}
+
+/** Record button and indicator (upstream record quick button and recording status). */
+@Composable
+private fun RecordingControls() {
+    val context = LocalContext.current
+    val recording by StreamController.recording.collectAsState()
+    var elapsedSeconds by remember { mutableStateOf(0L) }
+    LaunchedEffect(recording) {
+        while (recording != null) {
+            elapsedSeconds = (android.os.SystemClock.elapsedRealtime() - recording!!.startedAtElapsedMillis) / 1000
+            kotlinx.coroutines.delay(500)
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = {
+            if (recording == null) {
+                StreamController.startRecording(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            } else {
+                val saved = StreamController.stopRecording(context)
+                Toast.makeText(context, if (saved) R.string.recording_saved else R.string.recording_failed, Toast.LENGTH_LONG).show()
+            }
+        }) {
+            Text(stringResource(if (recording == null) R.string.record else R.string.stop_recording))
+        }
+        if (recording != null) {
+            Text(
+                "● REC %d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.labelLarge,
+            )
         }
     }
 }

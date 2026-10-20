@@ -182,7 +182,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - `moblin://` setup links with a confirmation dialog
 >   - camera preview while not live, zoom (presets and pinch), torch, tap-to-focus and auto focus, camera switching
 >
->   Still to do: manual focus/ISO/exposure/white balance, stabilization, recording, snapshots and localization.
+>   - recording to MP4 in `Movies/NexusIRL`, alone or while live, also in the background
+>
+>   Still to do: manual focus/ISO/exposure/white balance, stabilization, snapshots and localization.
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.
 
 

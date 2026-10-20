@@ -191,6 +191,22 @@ data class SettingsStreamRtmp(
 }
 
 /**
+ * Upstream `SettingsStreamRecording` (v1 subset; resolution override, auto start/stop and the
+ * recording path stay in `extra`). Zero means "auto" for the bitrates and key frame interval.
+ */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsStreamRecording.Serializer::class)
+data class SettingsStreamRecording(
+    val videoCodec: StreamCodec = StreamCodec.H265_HEVC,
+    val videoBitrate: Long = 0,
+    val maxKeyFrameInterval: Int = 0,
+    val audioBitrate: Long = 128_000,
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsStreamRecording>(generatedSerializer())
+}
+
+/**
  * Upstream `SettingsStream` (v1 subset). The selected stream is the one with [enabled] set, as
  * upstream. Upstream's key names are kept even where the Swift property differs
  * (`bitrateRateControl` for `rateControl`).
@@ -216,6 +232,7 @@ data class SettingsStream(
     val maxKeyFrameInterval: Int = 2,
     val audioCodec: StreamAudioCodec = StreamAudioCodec.AAC,
     val audioBitrate: Int = 128_000,
+    val recording: SettingsStreamRecording = SettingsStreamRecording(),
     val portrait: Boolean = false,
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {

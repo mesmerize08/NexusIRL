@@ -9,10 +9,9 @@ import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.core.secrets.Redactor
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
-import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
 import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
-import io.github.mesmerize08.nexusirl.media.pipeline.MicrophoneManager
+import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateListener
@@ -75,7 +74,7 @@ data class StreamStatus(
 }
 
 /**
- * One streaming session: capture + encode (video and audio) for its whole lifetime, and a
+ * One streaming session: a video encoder on the shared camera pipeline, the shared audio, and a
  * destination (SRT/SRTLA or RTMP(S)) that is recreated on every reconnect.
  *
  * Upstream equivalents: Media.swift's srtStartStream/rtmpStartStream with the Processor, and
@@ -90,12 +89,13 @@ class StreamSession(
     private val config: StreamConfig,
     /** The running camera pipeline (owned by StreamController); the session attaches an encoder. */
     private val video: VideoPipeline,
+    /** Shared microphone capture (also used by recordings). */
+    private val audio: SharedAudio,
     private val onStatus: (StreamStatus) -> Unit,
 ) {
     private val url = config.url
     private val settings = config.video
     private val fanOut = FanOutSink()
-    private val audio = AudioPipeline(fanOut)
     private val executor = SerialExecutor.create("stream")
     private val clock = HostClock.system
     private var destination: Destination? = null
@@ -105,7 +105,7 @@ class StreamSession(
     private var liveSince: Long? = null
     private var reconnects = 0
     private var lastEncodedFrames = 0L
-    private val microphones = MicrophoneManager(context)
+    private var encoder: VideoEncoder? = null
     private val powerManager = context.getSystemService(PowerManager::class.java)
     private val thermalListener = PowerManager.OnThermalStatusChangedListener { thermalStatus ->
         update(status.copy(thermal = ThermalState.fromPowerManager(thermalStatus)))
@@ -123,12 +123,8 @@ class StreamSession(
     }
 
     fun start() {
-        video.startEncoder(settings, fanOut)
-        microphones.start { _, selected ->
-            audio.setPreferredDevice(selected?.device)
-            update(status.copy(microphone = selected?.name ?: ""))
-        }
-        audio.start()
+        encoder = video.startEncoder(settings, fanOut)
+        audio.add(fanOut)
         powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
         executor.execute { startDestination() }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
@@ -144,9 +140,9 @@ class StreamSession(
         }
         done.await(3, TimeUnit.SECONDS)
         powerManager.removeThermalStatusListener(thermalListener)
-        microphones.stop()
-        audio.stop()
-        video.stopEncoder()
+        audio.remove(fanOut)
+        encoder?.let { video.stopEncoder(it) }
+        encoder = null
         executor.shutdown()
         update(status.copy(state = StreamState.STOPPED))
     }
@@ -192,7 +188,7 @@ class StreamSession(
         }
         // Like processor.startEncoding(stream): attach, replay formats, and start on a key frame.
         destination?.let { fanOut.add(it) }
-        video.encoder?.requestKeyFrame()
+        encoder?.requestKeyFrame()
         liveSince = clock.nanoTime()
         update(status.copy(state = StreamState.LIVE, detail = ""))
     }
@@ -231,7 +227,7 @@ class StreamSession(
         )
         // Upstream Media.srtSetAdaptiveBitrateAlgorithm: no algorithm when adaptive bitrate is off.
         val driver = config.srtAdaptiveBitrate?.let { choice ->
-            val setBitrate = AdaptiveBitrateListener { video.encoder?.setBitrate(it) }
+            val setBitrate = AdaptiveBitrateListener { encoder?.setBitrate(it) }
             val adaptiveBitrate = if (choice.belabox) {
                 AdaptiveBitrateSrtBelabox(settings.bitrate, setBitrate, clock)
             } else {
@@ -323,7 +319,7 @@ class StreamSession(
     }
 
     private fun publishStatus() {
-        val encoded = video.encoder?.encodedFrames ?: 0
+        val encoded = encoder?.encodedFrames ?: 0
         android.util.Log.d(
             "StreamSession",
             "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} " +
@@ -333,11 +329,12 @@ class StreamSession(
         update(
             status.copy(
                 fps = video.outputFps,
-                videoBitrateKbps = (video.encoder?.currentBitrate ?: 0) / 1000,
+                videoBitrateKbps = (encoder?.currentBitrate ?: 0) / 1000,
                 rttMs = destination?.rttMs() ?: 0.0,
                 audioLevelDbfs = audio.levelDbfs,
+                microphone = audio.microphoneName,
                 uptimeSeconds = liveSince?.let { (clock.nanoTime() - it) / 1_000_000_000 } ?: 0,
-                encoder = video.encoder?.info?.let { it.name + if (it.hardware) " (HW)" else " (SW)" } ?: "",
+                encoder = encoder?.info?.let { it.name + if (it.hardware) " (HW)" else " (SW)" } ?: "",
             ),
         )
     }
