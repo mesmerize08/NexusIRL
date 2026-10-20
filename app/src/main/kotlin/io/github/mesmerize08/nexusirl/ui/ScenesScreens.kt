@@ -49,6 +49,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsSceneWidget
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsWidget
+import io.github.mesmerize08.nexusirl.settings.SettingsWidgetChat
 import io.github.mesmerize08.nexusirl.settings.WidgetAlignment
 import io.github.mesmerize08.nexusirl.settings.WidgetType
 import io.github.mesmerize08.nexusirl.stream.StreamController
@@ -57,7 +58,7 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 /** Widget types Android can show today. */
-private val SUPPORTED_WIDGET_TYPES = listOf(WidgetType.TEXT, WidgetType.IMAGE, WidgetType.QR_CODE, WidgetType.BROWSER)
+private val SUPPORTED_WIDGET_TYPES = listOf(WidgetType.TEXT, WidgetType.IMAGE, WidgetType.QR_CODE, WidgetType.BROWSER, WidgetType.CHAT)
 
 private val CAMERAS = listOf("Back", "Front", "None")
 
@@ -517,6 +518,7 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
                     )
                 }
             }
+            WidgetType.CHAT -> ChatWidgetEditor(widget.chat) { chat -> update { it.copy(chat = chat) } }
             else -> Text(stringResource(R.string.not_shown_on_android))
         }
     }
@@ -542,4 +544,52 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
             dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
+}
+
+/** Upstream `WidgetChatSettingsView` (v1 subset). */
+@Composable
+private fun ChatWidgetEditor(chat: SettingsWidgetChat, onChange: (SettingsWidgetChat) -> Unit) {
+    SliderRow(stringResource(R.string.font_size), chat.fontSize, 10f..80f, "${chat.fontSize.roundToInt()}") {
+        onChange(chat.copy(fontSize = it.roundToInt().toFloat()))
+    }
+    SliderRow(stringResource(R.string.chat_messages), chat.maximumNumberOfMessages.toFloat(), 1f..20f, "${chat.maximumNumberOfMessages}") {
+        onChange(chat.copy(maximumNumberOfMessages = it.roundToInt()))
+    }
+    SliderRow(stringResource(R.string.chat_height), chat.height, 0.1f..1f, "${(chat.height * 100).roundToInt()} %") {
+        onChange(chat.copy(height = (it * 20).roundToInt() / 20f))
+    }
+    ColorChoice(stringResource(R.string.username_color), chat.usernameColor) { onChange(chat.copy(usernameColor = it)) }
+    ColorChoice(stringResource(R.string.text_color), chat.messageColor) { onChange(chat.copy(messageColor = it)) }
+    SwitchRow(stringResource(R.string.background), chat.backgroundColorEnabled) { onChange(chat.copy(backgroundColorEnabled = it)) }
+    SwitchRow(stringResource(R.string.border), chat.shadowColorEnabled) { onChange(chat.copy(shadowColorEnabled = it)) }
+    SwitchRow(stringResource(R.string.bold_username), chat.boldUsername) { onChange(chat.copy(boldUsername = it)) }
+    SwitchRow(stringResource(R.string.bold_message), chat.boldMessage) { onChange(chat.copy(boldMessage = it)) }
+}
+
+@Composable
+private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, valueText: String, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f))
+        Text(valueText, style = MaterialTheme.typography.bodySmall)
+    }
+    Slider(value = value.coerceIn(range), onValueChange = onChange, valueRange = range)
+}
+
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(label, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun ColorChoice(label: String, color: RgbColor, onChange: (RgbColor) -> Unit) {
+    ChoiceField(
+        label,
+        COLORS.firstOrNull { it.second == color.copy(opacity = null) }?.first ?: "Custom",
+        COLORS.map { it.first },
+        { it },
+        { name -> COLORS.firstOrNull { it.first == name }?.let { onChange(it.second) } },
+    )
 }

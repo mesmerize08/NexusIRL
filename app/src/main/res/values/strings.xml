@@ -135,4 +135,10 @@
     <string name="youtube_handle">YouTube handle (for example @name)</string>
     <string name="youtube_video_ids">YouTube video ID (found from the handle when you go live)</string>
     <string name="show_chat">Show chat</string>
+    <string name="chat_messages">Maximum messages</string>
+    <string name="chat_height">Maximum height</string>
+    <string name="username_color">Username color</string>
+    <string name="border">Border</string>
+    <string name="bold_username">Bold username</string>
+    <string name="bold_message">Bold message</string>
 </resources>

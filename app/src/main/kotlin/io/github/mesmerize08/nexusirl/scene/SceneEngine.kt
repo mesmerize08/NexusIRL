@@ -3,8 +3,11 @@
 package io.github.mesmerize08.nexusirl.scene
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
+import io.github.mesmerize08.nexusirl.chat.ChatPost
+import io.github.mesmerize08.nexusirl.chat.EmoteImages
 import io.github.mesmerize08.nexusirl.effects.TextFormat
 import io.github.mesmerize08.nexusirl.effects.TextFormatter
 import io.github.mesmerize08.nexusirl.effects.TextVariables
@@ -34,6 +37,7 @@ class SceneEngine(context: Context) {
     private var scene: SettingsScene? = null
     private var widgets: Map<UUID, SettingsWidget> = emptyMap()
     private var variables: () -> TextVariables = { TextVariables() }
+    private var chatPosts: () -> List<ChatPost> = { emptyList() }
     private val cache = HashMap<String, Cached>()
     private var ticking = false
 
@@ -65,6 +69,16 @@ class SceneEngine(context: Context) {
         handler.post { variables = provider }
     }
 
+    /** Supplies the chat for chat widgets (newest first). */
+    fun setChatPosts(provider: () -> List<ChatPost>) {
+        handler.post { chatPosts = provider }
+    }
+
+    /** Redraws now instead of at the next tick (new chat messages). */
+    fun invalidate() {
+        handler.post(::render)
+    }
+
     private fun tick() {
         if (pipeline == null) {
             ticking = false
@@ -84,7 +98,7 @@ class SceneEngine(context: Context) {
             val widget = widgets[sceneWidget.widgetId]?.takeIf { it.enabled } ?: continue
             val id = sceneWidget.id.toString()
             val previous = cache[id]
-            var bitmap: android.graphics.Bitmap? = null
+            var bitmap: Bitmap? = null
             val key: String
             when (widget.type) {
                 WidgetType.TEXT -> {
@@ -106,6 +120,24 @@ class SceneEngine(context: Context) {
                     key = widget.qrCode.message
                     if (key != previous?.key) {
                         bitmap = WidgetBitmaps.qrCode(key, minOf(canvasWidth, canvasHeight)) ?: continue
+                    }
+                }
+                WidgetType.CHAT -> {
+                    val posts = chatPosts()
+                    key = "${System.identityHashCode(posts)}|${EmoteImages.version.value}|${widget.chat}|$canvasHeight"
+                    if (key != previous?.key) {
+                        val rendered = ChatWidgetBitmap.render(posts, widget.chat, EmoteImages::get)
+                        if (rendered == null) {
+                            cache.remove(id)
+                            continue
+                        }
+                        // Upstream keeps at most `height` of the canvas, dropping the oldest lines.
+                        val maximumHeight = (canvasHeight * widget.chat.height.coerceIn(0f, 1f)).toInt().coerceAtLeast(1)
+                        bitmap = if (rendered.height > maximumHeight) {
+                            Bitmap.createBitmap(rendered, 0, rendered.height - maximumHeight, rendered.width, maximumHeight)
+                        } else {
+                            rendered
+                        }
                     }
                 }
                 // Browser widgets render into a surface of their own (BrowserWidgets); only place it.

@@ -31,22 +31,26 @@ object EmoteImages {
     /** Increases whenever an image arrives, so views can redraw. */
     val version: StateFlow<Int> = mutableVersion
 
-    /** The image if loaded; otherwise starts loading it and returns null. Main thread. */
+    /** The image if loaded; otherwise starts loading it and returns null. Any thread. */
     fun get(url: String): Bitmap? {
         cache.get(url)?.let { return it }
-        if (!url.startsWith("https://") || url in failed || !loading.add(url)) {
-            return null
+        synchronized(this) {
+            if (!url.startsWith("https://") || url in failed || !loading.add(url)) {
+                return null
+            }
         }
         executor.execute {
             val bitmap = download(url)
-            handler.post {
+            synchronized(this) {
                 loading -= url
                 if (bitmap != null) {
                     cache.put(url, bitmap)
-                    mutableVersion.value += 1
                 } else {
                     failed += url
                 }
+            }
+            if (bitmap != null) {
+                handler.post { mutableVersion.value += 1 }
             }
         }
         return null

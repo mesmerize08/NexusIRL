@@ -105,7 +105,10 @@ object StreamController {
     private var sceneEngine: SceneEngine? = null
     private var browserWidgets: BrowserWidgets? = null
 
-    private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: BrowserWidgets(context).also { browserWidgets = it }
+    private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: BrowserWidgets(context).also { widgets ->
+        browserWidgets = widgets
+        ChatController.addPostListener(widgets::sendChat)
+    }
     private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
 
     private val mutableEffects = MutableStateFlow<Set<VideoEffect>>(emptySet())
@@ -130,6 +133,8 @@ object StreamController {
     private fun scenes(context: Context): SceneEngine = sceneEngine ?: SceneEngine(context).also { engine ->
         sceneEngine = engine
         engine.setVariables(::textVariables)
+        engine.setChatPosts { ChatController.posts.value }
+        ChatController.addPostListener { engine.invalidate() }
     }
 
     /**

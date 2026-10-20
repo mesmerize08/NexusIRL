@@ -208,7 +208,7 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - LUTs: the two bundled upstream LUTs plus imported .cube files and LUT images, applied first
 >
->   Still to do: chat and map widgets, the "Freeze" and "Blur & zoom" transitions, quick buttons (effects are
+>   Still to do: map widget, the "Freeze" and "Blur & zoom" transitions, quick buttons (effects are
 >   toggled from a chip row for now and are not saved).
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
@@ -216,8 +216,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 > **Phase 5 progress:** anonymous chat read for Twitch (IRC), Kick (Pusher) and YouTube (innertube
 > polling, video id from the channel handle), shown over the preview. Channels are set per stream.
-> Still to do: chat widget in the stream, browser widget chat events, third-party emotes, OAuth
-> features (sending, EventSub alerts, viewers).
+> Chat widgets draw the chat into the stream, and browser widgets with Moblin access get chat
+> through `moblin.subscribe({chat: {}})`.
+> Still to do: third-party emotes, a chat appearance screen, OAuth features (sending, EventSub
+> alerts, viewers).
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.
