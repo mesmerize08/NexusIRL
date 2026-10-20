@@ -3,6 +3,7 @@ package io.github.mesmerize08.nexusirl.stream
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
@@ -211,6 +212,40 @@ object StreamController {
     fun autoRecordingBitrate(canvas: VideoEncoderSettings, hevc: Boolean): Long {
         val bitsPerPixel = if (hevc) 0.09 else 0.15
         return (canvas.width.toLong() * canvas.height * canvas.fps * bitsPerPixel).toLong().coerceIn(1_000_000, 100_000_000)
+    }
+
+    // Snapshots (upstream ModelSnapshot.swift)
+
+    /**
+     * Saves the current frame as a JPEG (quality 0.9, as upstream) to `Pictures/NexusIRL`.
+     * [onDone] runs on the main thread with true when saved.
+     */
+    fun takeSnapshot(context: Context, onDone: (Boolean) -> Unit) {
+        val video = pipeline
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        if (video == null) {
+            onDone(false)
+            return
+        }
+        val resolver = context.applicationContext.contentResolver
+        video.takeSnapshot { bitmap ->
+            val saved = bitmap != null && try {
+                val name = "NexusIRL_${SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())}.jpg"
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/NexusIRL")
+                }
+                val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                val output = uri?.let { resolver.openOutputStream(it) }
+                output?.use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) } == true
+            } catch (e: Exception) {
+                false
+            } finally {
+                bitmap?.recycle()
+            }
+            main.post { onDone(saved) }
+        }
     }
 
     // Capture lifetime

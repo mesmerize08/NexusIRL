@@ -184,7 +184,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - recording to MP4 in `Movies/NexusIRL`, alone or while live, also in the background
 >
->   Still to do: manual focus/ISO/exposure/white balance, stabilization, snapshots and localization.
+>   - snapshots (JPEG of the current frame to `Pictures/NexusIRL`)
+>
+>   Still to do: manual focus/ISO/exposure/white balance, stabilization and localization.
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.
 
 

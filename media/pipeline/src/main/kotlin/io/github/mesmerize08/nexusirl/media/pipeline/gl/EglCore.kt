@@ -65,6 +65,18 @@ class EglCore {
         EGLExt.eglPresentationTimeANDROID(display, surface, nanos)
     }
 
+    /** An offscreen surface of the given size (snapshots). */
+    fun createOffscreenSurface(width: Int, height: Int): EGLSurface {
+        val eglSurface = EGL14.eglCreatePbufferSurface(
+            display,
+            config,
+            intArrayOf(EGL14.EGL_WIDTH, width, EGL14.EGL_HEIGHT, height, EGL14.EGL_NONE),
+            0,
+        )
+        check(eglSurface != EGL14.EGL_NO_SURFACE) { "eglCreatePbufferSurface failed: 0x${Integer.toHexString(EGL14.eglGetError())}" }
+        return eglSurface
+    }
+
     fun swapBuffers(surface: EGLSurface): Boolean = EGL14.eglSwapBuffers(display, surface)
 
     fun surfaceSize(surface: EGLSurface): Pair<Int, Int> {

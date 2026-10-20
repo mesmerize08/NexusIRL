@@ -304,6 +304,13 @@ private fun RecordingControls() {
         }) {
             Text(stringResource(if (recording == null) R.string.record else R.string.stop_recording))
         }
+        OutlinedButton(onClick = {
+            StreamController.takeSnapshot(context) { saved ->
+                Toast.makeText(context, if (saved) R.string.snapshot_saved else R.string.snapshot_failed, Toast.LENGTH_SHORT).show()
+            }
+        }) {
+            Text(stringResource(R.string.snapshot))
+        }
         if (recording != null) {
             Text(
                 "● REC %d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60),

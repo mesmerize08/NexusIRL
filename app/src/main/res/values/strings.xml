@@ -76,4 +76,7 @@
     <string name="stop_recording">Stop recording</string>
     <string name="recording_saved">Recording saved to Movies/NexusIRL.</string>
     <string name="recording_failed">Recording failed: nothing was recorded.</string>
+    <string name="snapshot">Snapshot</string>
+    <string name="snapshot_saved">Snapshot saved to Pictures/NexusIRL.</string>
+    <string name="snapshot_failed">Snapshot failed: no camera frame yet.</string>
 </resources>

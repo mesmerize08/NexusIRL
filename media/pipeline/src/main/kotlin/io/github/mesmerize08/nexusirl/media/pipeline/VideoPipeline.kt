@@ -8,14 +8,18 @@
 package io.github.mesmerize08.nexusirl.media.pipeline
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.EGLSurface
+import android.opengl.GLES20
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.EglCore
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRenderer
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class VideoPipeline(
     private val context: Context,
@@ -112,6 +116,43 @@ class VideoPipeline(
             egl?.makeNothingCurrent()
             egl?.releaseSurface(entry.second)
             encoder.release()
+        }
+    }
+
+    /**
+     * Renders the current frame at canvas size into a bitmap (upstream `takeSnapshot` with age 0).
+     * [onDone] runs on the GL thread with null when there is no frame yet.
+     */
+    fun takeSnapshot(onDone: (Bitmap?) -> Unit) {
+        glHandler.post {
+            val egl = egl
+            val renderer = renderer
+            if (egl == null || renderer == null || !hasFrame) {
+                onDone(null)
+                return@post
+            }
+            val width = settings.width
+            val height = settings.height
+            val surface = egl.createOffscreenSurface(width, height)
+            try {
+                egl.makeCurrent(surface)
+                updateDrawMatrix()
+                renderer.draw(drawMatrix, width, height, sourceAspect)
+                val pixels = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
+                GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
+                val upsideDown = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                upsideDown.copyPixelsFromBuffer(pixels)
+                // GL rows start at the bottom.
+                val flip = android.graphics.Matrix().apply { preScale(1f, -1f) }
+                val bitmap = Bitmap.createBitmap(upsideDown, 0, 0, width, height, flip, false)
+                upsideDown.recycle()
+                onDone(bitmap)
+            } catch (e: Exception) {
+                onDone(null)
+            } finally {
+                egl.makeNothingCurrent()
+                egl.releaseSurface(surface)
+            }
         }
     }
 
