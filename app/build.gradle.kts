@@ -89,6 +89,7 @@ dependencies {
     implementation(project(":net"))
     implementation(project(":settings"))
     implementation(project(":effects"))
+    implementation(project(":chat"))
     implementation(libs.zxing.core)
 
     implementation(libs.androidx.core.ktx)
