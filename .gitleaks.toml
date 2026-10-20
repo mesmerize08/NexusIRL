@@ -1,0 +1,11 @@
+# Extends gitleaks' default rules. Only public identifiers that look like tokens are allowed here;
+# never add a real secret.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public identifiers"
+regexes = [
+  # The project's Twitch client ID: public by design (Device Code flow, no client secret).
+  '''l5cynm5xv41vde5txw6d2w3dl3kp60''',
+]

@@ -26,6 +26,10 @@ android {
         versionCode = 1
         versionName = "0.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // docs/PORT_PLAN.md §8.1: our own public Twitch client (Device Code flow), overridable per build.
+        val twitchClientId = (findProperty("nexusirl.twitchClientId") as String?).orEmpty()
+        require(twitchClientId.matches(Regex("[a-z0-9]*"))) { "nexusirl.twitchClientId must be a Twitch client ID" }
+        buildConfigField("String", "TWITCH_CLIENT_ID", "\"$twitchClientId\"")
     }
 
     // Release signing comes only from the environment (GitHub Actions secrets); the key is never in the repo.
