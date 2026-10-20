@@ -10,8 +10,8 @@ import io.github.mesmerize08.nexusirl.chat.ChatPlatform
 import io.github.mesmerize08.nexusirl.chat.ChatPost
 import io.github.mesmerize08.nexusirl.chat.ChatPostSegment
 import io.github.mesmerize08.nexusirl.chat.EmoteSet
-import io.github.mesmerize08.nexusirl.chat.net.ReconnectingWebSocket
 import io.github.mesmerize08.nexusirl.chat.rgbColorFromHex
+import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject

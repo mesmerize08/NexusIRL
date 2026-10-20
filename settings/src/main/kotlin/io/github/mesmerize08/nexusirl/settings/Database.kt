@@ -101,6 +101,7 @@ data class Database(
     /** Upstream: restart the camera, and so show the transition, on every scene switch. */
     val forceSceneSwitchTransition: Boolean = false,
     val location: SettingsLocation = SettingsLocation(),
+    val remoteControl: SettingsRemoteControl = SettingsRemoteControl(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

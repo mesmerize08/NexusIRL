@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Cleartext HTTP is denied for HTTP stacks (OkHttp, WebView, URLConnection). Streaming protocols
-    (rtmp://, srt://, ...) use raw sockets and are unaffected; the UI warns when they are
-    unencrypted (docs/PORT_PLAN.md §9.5). localhost is allowed for the in-app OAuth fallback.
+    Cleartext is enforced in code, not here, because this file can only list host names and remote
+    control must reach assistants by LAN or Tailscale address (docs/PORT_PLAN.md §9.5, §9.6):
+    - OkHttp clients refuse http:// and ws:// except loopback (CleartextPolicy); only the remote
+      control client also allows the local network.
+    - Browser widgets load https:// only, with mixed content blocked; map styles are https:// only.
+    Streaming protocols (rtmp://, srt://, ...) use raw sockets; the UI warns when they are
+    unencrypted.
 -->
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
             <!-- Intentional: lets users trust their own CA for self-hosted relays and RTMPS/WHIP
@@ -13,8 +17,4 @@
             <certificates src="user" tools:ignore="AcceptsUserCertificates" />
         </trust-anchors>
     </base-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">127.0.0.1</domain>
-    </domain-config>
 </network-security-config>

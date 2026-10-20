@@ -9,7 +9,7 @@ kotlin {
 
 dependencies {
     api(project(":settings"))
-    api(libs.okhttp)
+    api(project(":core:websocket"))
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.mockwebserver)

@@ -54,17 +54,32 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             val url = if (includeSecrets) resolveUrl(stream) else StreamUrlSecrets.publicPart(stream.url)
             stream.copy(url = url)
         }
-        return database.copy(streams = streams).toJson()
+        val password = if (includeSecrets) remoteControlPassword() else ""
+        return database.copy(streams = streams, remoteControl = database.remoteControl.copy(password = password)).toJson()
     }
 
-    private fun protectSecrets(database: Database): Database = database.copy(
-        streams = database.streams.map { stream ->
-            stream.copy(url = StreamUrlSecrets.protect(stream.url) { secret -> secrets.put(secret).placeholder })
-        },
-    )
+    private fun protectSecrets(database: Database): Database {
+        val password = database.remoteControl.password
+        // The remote control password is secret as a whole (docs/PORT_PLAN.md §9.2).
+        val protectedPassword = if (password.isEmpty() || SecretRef.findAll(password).isNotEmpty()) {
+            password
+        } else {
+            secrets.put(password).placeholder
+        }
+        return database.copy(
+            streams = database.streams.map { stream ->
+                stream.copy(url = StreamUrlSecrets.protect(stream.url) { secret -> secrets.put(secret).placeholder })
+            },
+            remoteControl = database.remoteControl.copy(password = protectedPassword),
+        )
+    }
+
+    /** The remote control password, from the secret store. Keep it in memory only. */
+    fun remoteControlPassword(): String = SecretRef.resolve(current.remoteControl.password, secrets)
 
     private fun removeUnreferencedSecrets(database: Database) {
-        val referenced = database.streams.flatMap { SecretRef.findAll(it.url) }.toSet()
+        val streamSecrets = database.streams.flatMap { SecretRef.findAll(it.url) }
+        val referenced = (streamSecrets + SecretRef.findAll(database.remoteControl.password)).toSet()
         for (ref in secrets.refs()) {
             if (ref !in referenced) {
                 secrets.remove(ref)

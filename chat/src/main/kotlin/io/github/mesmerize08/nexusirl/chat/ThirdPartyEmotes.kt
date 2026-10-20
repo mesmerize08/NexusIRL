@@ -1,7 +1,7 @@
 // Port of Moblin/Integrations/Emotes/{Emotes,Bttv,Ffz,Seventv}.swift @97e26d2.
 package io.github.mesmerize08.nexusirl.chat
 
-import io.github.mesmerize08.nexusirl.chat.net.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray

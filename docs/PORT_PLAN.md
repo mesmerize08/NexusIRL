@@ -232,6 +232,12 @@ It must reproduce Swift `JSONEncoder` defaults:
 > A chat settings screen sets the overlay's appearance.
 > Still to do: OAuth features (sending, EventSub
 > alerts, viewers).
+>
+> **Phase 6 progress:** remote control, streamer side: an iOS Moblin assistant (or the web
+> remote through a compatible assistant) sees status and a preview and controls scenes, going
+> live, recording, zoom, torch, mute, stealth mode and effects. Checked on the emulator against a
+> protocol-level test assistant. Still to do: the assistant and web servers on Android, the
+> relay, and Moblink.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

@@ -108,3 +108,34 @@ abstract class SwiftRawValueEnumSerializer<E>(
             ?: throw SerializationException("${descriptor.serialName}: unknown raw value '$raw'")
     }
 }
+
+/**
+ * A Swift enum without associated or raw values, e.g. `enum RemoteControlFilter { case grayScale }`,
+ * which Swift encodes as `{"grayScale":{}}`. [caseName] gives each Kotlin constant its Swift case
+ * name; unknown cases decode to [fallback] when given.
+ */
+abstract class SwiftUnitEnumSerializer<E : Enum<E>>(
+    serialName: String,
+    entries: List<E>,
+    private val caseName: (E) -> String,
+    private val fallback: E? = null,
+) : KSerializer<E> {
+    private val byName = entries.associateBy(caseName)
+
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor(serialName)
+
+    override fun serialize(encoder: Encoder, value: E) {
+        val jsonEncoder = encoder as? JsonEncoder
+            ?: throw SerializationException("${descriptor.serialName} supports JSON only")
+        jsonEncoder.encodeJsonElement(JsonObject(mapOf(caseName(value) to JsonObject(emptyMap()))))
+    }
+
+    override fun deserialize(decoder: Decoder): E {
+        val jsonDecoder = decoder as? JsonDecoder
+            ?: throw SerializationException("${descriptor.serialName} supports JSON only")
+        val element = jsonDecoder.decodeJsonElement() as? JsonObject
+        val name = element?.keys?.singleOrNull()
+            ?: throw SerializationException("${descriptor.serialName}: expected exactly one case key")
+        return byName[name] ?: fallback ?: throw SerializationException("${descriptor.serialName}: unknown case '$name'")
+    }
+}

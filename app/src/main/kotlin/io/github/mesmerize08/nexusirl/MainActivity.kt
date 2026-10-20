@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
+import io.github.mesmerize08.nexusirl.remote.RemoteControlController
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
@@ -59,6 +60,7 @@ import io.github.mesmerize08.nexusirl.ui.LocationScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
 import io.github.mesmerize08.nexusirl.ui.QuickButtonBar
 import io.github.mesmerize08.nexusirl.ui.QuickButtonsScreen
+import io.github.mesmerize08.nexusirl.ui.RemoteControlScreen
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
 import io.github.mesmerize08.nexusirl.ui.ScenesScreen
@@ -89,6 +91,7 @@ class MainActivity : ComponentActivity() {
         updateDisplayRotation()
         ChatController.start(this)
         LocationController.start(this)
+        RemoteControlController.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -207,6 +210,8 @@ private sealed interface Screen {
     data object QuickButtons : Screen
 
     data object Location : Screen
+
+    data object RemoteControl : Screen
 }
 
 @Composable
@@ -297,7 +302,9 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onLuts = { screen = Screen.Luts },
             onQuickButtons = { screen = Screen.QuickButtons },
             onLocation = { screen = Screen.Location },
+            onRemoteControl = { screen = Screen.RemoteControl },
         )
+        Screen.RemoteControl -> RemoteControlScreen(store, onBack = { screen = Screen.Main })
         Screen.Location -> LocationScreen(store, onBack = { screen = Screen.Main })
         Screen.QuickButtons -> QuickButtonsScreen(store, onBack = { screen = Screen.Main })
         Screen.Chat -> ChatSettingsScreen(store, onBack = { screen = Screen.Main })
@@ -335,6 +342,7 @@ private fun MainScreen(
     onLuts: () -> Unit,
     onQuickButtons: () -> Unit,
     onLocation: () -> Unit,
+    onRemoteControl: () -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
@@ -404,6 +412,7 @@ private fun MainScreen(
             }
             TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
             TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
+            TextButton(onClick = onRemoteControl) { Text(stringResource(R.string.remote_control)) }
             Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { showLicenses = true }) {
                 Text(stringResource(R.string.open_source_licenses))

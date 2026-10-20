@@ -90,6 +90,7 @@ dependencies {
     implementation(project(":settings"))
     implementation(project(":effects"))
     implementation(project(":chat"))
+    implementation(project(":remotecontrol"))
     implementation(libs.zxing.core)
     implementation(libs.maplibre)
 

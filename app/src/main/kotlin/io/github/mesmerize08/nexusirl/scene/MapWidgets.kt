@@ -110,7 +110,9 @@ class MapWidgets(context: Context) {
             return
         }
         val key = Triple(location.latitude, location.longitude, location.speed)
-        val styleUrl = entry.settings.styleUrl.ifBlank { SettingsWidgetMap.DEFAULT_STYLE_URL }
+        // https only (docs/PORT_PLAN.md §9.5); anything else falls back to the default style.
+        val styleUrl = entry.settings.styleUrl.takeIf { it.startsWith("https://", ignoreCase = true) }
+            ?: SettingsWidgetMap.DEFAULT_STYLE_URL
         if (entry.inProgress || (key == entry.rendered && entry.renderedSide == entry.side && styleUrl == entry.styleUrl)) {
             return
         }

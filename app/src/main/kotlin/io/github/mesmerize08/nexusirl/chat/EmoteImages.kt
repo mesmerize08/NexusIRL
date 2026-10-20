@@ -5,7 +5,7 @@ import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
-import io.github.mesmerize08.nexusirl.chat.net.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import okhttp3.Request

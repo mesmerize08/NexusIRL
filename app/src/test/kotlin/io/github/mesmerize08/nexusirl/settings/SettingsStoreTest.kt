@@ -48,6 +48,29 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun remoteControlPasswordIsSecret() {
+        val secrets = InMemorySecretStore()
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, secrets)
+        // An iOS import with a plaintext password.
+        store.import(
+            """{"remoteControl":{"password":"$key","streamer":{"enabled":true,"url":"ws://10.0.0.2:2345"},"web":{"enabled":false}}}""",
+        )
+        val onDisk = file.readText()
+        assertFalse(key in onDisk, onDisk)
+        assertEquals(key, store.remoteControlPassword())
+        assertEquals("ws://10.0.0.2:2345", store.current.remoteControl.streamer.url)
+        assertTrue("\"web\":{\"enabled\":false}" in onDisk, "iOS-only remote control settings are kept")
+        assertFalse(key in store.exportJson())
+        assertTrue(key in store.exportJson(includeSecrets = true))
+        // A fresh install gets a strong random password, also kept out of the file.
+        val fresh = SettingsStore(File(directory, "fresh.json"), InMemorySecretStore())
+        fresh.update { it }
+        assertEquals(20, fresh.remoteControlPassword().length)
+        assertFalse(fresh.remoteControlPassword() in File(directory, "fresh.json").readText())
+    }
+
+    @Test
     fun exportWithoutSecretsHasNoKeys() {
         val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())
         store.update { it.addStream(SettingsStream(name = "Twitch", url = url)) }
@@ -66,9 +89,10 @@ class SettingsStoreTest {
         store.update { it.addStream(SettingsStream(name = "A", url = url)) }
         val stream = store.current.streams.single()
         store.update { it.updateStream(stream.copy(url = "rtmp://live.twitch.tv/app/fakekey-bbbbbbbbbbbb")) }
-        assertEquals(listOf("/app/fakekey-bbbbbbbbbbbb"), secrets.values().toList())
+        val password = store.remoteControlPassword()
+        assertEquals(listOf("/app/fakekey-bbbbbbbbbbbb"), secrets.values().filter { it != password })
         store.update { it.removeStream(stream.id) }
-        assertTrue(secrets.values().isEmpty())
+        assertEquals(listOf(password), secrets.values().toList())
     }
 
     @Test

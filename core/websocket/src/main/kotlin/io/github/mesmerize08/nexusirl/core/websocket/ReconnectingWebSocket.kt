@@ -1,5 +1,5 @@
 // Port of Moblin/Various/Network/WebSocketClient.swift @97e26d2 on OkHttp.
-package io.github.mesmerize08.nexusirl.chat.net
+package io.github.mesmerize08.nexusirl.core.websocket
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -56,8 +56,32 @@ class ReconnectingWebSocket(
         executor.shutdown()
     }
 
+    /** Drops the connection and connects again now (an application keep-alive failed). */
+    fun restart() {
+        onExecutor {
+            if (running) {
+                reconnect?.cancel(false)
+                val wasConnected = isConnected
+                disconnect()
+                if (wasConnected) {
+                    listener.onDisconnected(this)
+                }
+                delayMillis = SHORTEST_DELAY_MILLIS
+                connect()
+            }
+        }
+    }
+
+    private fun onExecutor(block: () -> Unit) {
+        try {
+            executor.execute(block)
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            // Stopped.
+        }
+    }
+
     fun send(text: String) {
-        executor.execute { webSocket?.send(text) }
+        onExecutor { webSocket?.send(text) }
     }
 
     private fun connect() {
@@ -126,9 +150,21 @@ class ReconnectingWebSocket(
         private const val SHORTEST_DELAY_MILLIS = 500L
         private const val LONGEST_DELAY_MILLIS = 10_000L
 
-        /** One client for all chat connections; pings every 10 s like upstream. */
+        /** One client for all chat connections; pings every 10 s like upstream. TLS only (except loopback). */
         val SHARED_CLIENT: OkHttpClient by lazy {
-            OkHttpClient.Builder().pingInterval(10, TimeUnit.SECONDS).readTimeout(0, TimeUnit.MILLISECONDS).build()
+            OkHttpClient.Builder()
+                .pingInterval(10, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .addInterceptor(CleartextPolicy.Guard())
+                .build()
+        }
+
+        /** Like [SHARED_CLIENT] but also allows ws:// to the local network (remote control on Wi-Fi or Tailscale). */
+        val LOCAL_NETWORK_CLIENT: OkHttpClient by lazy {
+            SHARED_CLIENT.newBuilder().apply {
+                interceptors().clear()
+                addInterceptor(CleartextPolicy.Guard(allowLocalNetwork = true))
+            }.build()
         }
     }
 }

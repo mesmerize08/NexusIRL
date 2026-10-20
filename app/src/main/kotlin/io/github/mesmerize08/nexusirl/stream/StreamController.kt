@@ -456,6 +456,12 @@ object StreamController {
      * Saves the current frame as a JPEG (quality 0.9, as upstream) to `Pictures/NexusIRL`.
      * [onDone] runs on the main thread with true when saved.
      */
+    /** The current composed frame at canvas size, or null (remote control previews). Any thread callback. */
+    fun currentFrame(onDone: (Bitmap?) -> Unit) {
+        val video = pipeline ?: return onDone(null)
+        video.takeSnapshot(onDone)
+    }
+
     fun takeSnapshot(context: Context, onDone: (Boolean) -> Unit) {
         val video = pipeline
         val main = android.os.Handler(android.os.Looper.getMainLooper())

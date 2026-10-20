@@ -167,4 +167,18 @@
     <string name="map_delay_help">To show the widget in sync with high latency cameras.</string>
     <string name="map_style_url">Map style URL</string>
     <string name="map_style_url_help">A MapLibre style. Empty uses OpenFreeMap (OpenStreetMap data).</string>
+    <string name="remote_control">Remote control</string>
+    <string name="remote_control_help">Lets an assistant control this phone: another phone running Moblin (assistant mode) or a compatible app. Use the same password on both. Over the internet, use a VPN such as Tailscale or a relay with wss://.</string>
+    <string name="remote_control_off">Off</string>
+    <string name="remote_control_connecting">Connecting…</string>
+    <string name="remote_control_connected">Connected to the assistant</string>
+    <string name="remote_control_wrong_password">Wrong password</string>
+    <string name="assistant_url">Assistant URL</string>
+    <string name="assistant_url_help">For example ws://192.168.1.10:2345</string>
+    <string name="assistant_url_unencrypted">Plain ws:// is only allowed on your local network or Tailscale. Use wss:// for other addresses.</string>
+    <string name="password">Password</string>
+    <string name="remote_control_password_help">Stored encrypted on this device. Use a long random password.</string>
+    <string name="save_password">Save password</string>
+    <string name="generate_password">Generate new password</string>
+    <string name="preview_fps">Preview images per second</string>
 </resources>

@@ -7,8 +7,8 @@ import io.github.mesmerize08.nexusirl.chat.ChatListener
 import io.github.mesmerize08.nexusirl.chat.ChatPlatform
 import io.github.mesmerize08.nexusirl.chat.ChatPost
 import io.github.mesmerize08.nexusirl.chat.EmoteSet
-import io.github.mesmerize08.nexusirl.chat.net.ReconnectingWebSocket
 import io.github.mesmerize08.nexusirl.chat.rgbColorFromHex
+import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import okhttp3.OkHttpClient
 
 /**
