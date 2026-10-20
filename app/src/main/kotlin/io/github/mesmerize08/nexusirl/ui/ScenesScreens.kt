@@ -44,7 +44,6 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.HorizontalAlignment
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl.Companion.makeUniqueName
-import io.github.mesmerize08.nexusirl.settings.RgbColor
 import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsSceneWidget
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
@@ -338,14 +337,6 @@ fun WidgetsScreen(store: SettingsStore, onEdit: (UUID) -> Unit, onBack: () -> Un
 }
 
 /** Colour presets for text widgets (a full picker comes later). */
-private val COLORS = listOf(
-    "White" to RgbColor(255, 255, 255),
-    "Black" to RgbColor(0, 0, 0),
-    "Yellow" to RgbColor(255, 214, 10),
-    "Red" to RgbColor(255, 59, 48),
-    "Green" to RgbColor(52, 199, 89),
-    "Blue" to RgbColor(10, 132, 255),
-)
 
 private fun copyImage(context: Context, uri: Uri, widgetId: UUID): Boolean = try {
     val directory = File(context.filesDir, SceneEngine.IMAGES_DIRECTORY).apply { mkdirs() }
@@ -564,32 +555,4 @@ private fun ChatWidgetEditor(chat: SettingsWidgetChat, onChange: (SettingsWidget
     SwitchRow(stringResource(R.string.border), chat.shadowColorEnabled) { onChange(chat.copy(shadowColorEnabled = it)) }
     SwitchRow(stringResource(R.string.bold_username), chat.boldUsername) { onChange(chat.copy(boldUsername = it)) }
     SwitchRow(stringResource(R.string.bold_message), chat.boldMessage) { onChange(chat.copy(boldMessage = it)) }
-}
-
-@Composable
-private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, valueText: String, onChange: (Float) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f))
-        Text(valueText, style = MaterialTheme.typography.bodySmall)
-    }
-    Slider(value = value.coerceIn(range), onValueChange = onChange, valueRange = range)
-}
-
-@Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
-@Composable
-private fun ColorChoice(label: String, color: RgbColor, onChange: (RgbColor) -> Unit) {
-    ChoiceField(
-        label,
-        COLORS.firstOrNull { it.second == color.copy(opacity = null) }?.first ?: "Custom",
-        COLORS.map { it.first },
-        { it },
-        { name -> COLORS.firstOrNull { it.first == name }?.let { onChange(it.second) } },
-    )
 }

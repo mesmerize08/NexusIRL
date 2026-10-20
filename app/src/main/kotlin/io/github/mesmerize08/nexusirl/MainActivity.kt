@@ -47,6 +47,7 @@ import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.ChatControls
 import io.github.mesmerize08.nexusirl.ui.ChatOverlay
+import io.github.mesmerize08.nexusirl.ui.ChatSettingsScreen
 import io.github.mesmerize08.nexusirl.ui.EffectsPicker
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
@@ -180,6 +181,8 @@ private sealed interface Screen {
     data class EditWidget(val id: UUID) : Screen
 
     data object Luts : Screen
+
+    data object Chat : Screen
 }
 
 @Composable
@@ -245,7 +248,9 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onStreams = { screen = Screen.Streams },
             onScenes = { screen = Screen.Scenes },
             onImportExport = { screen = Screen.ImportExport },
+            onChat = { screen = Screen.Chat },
         )
+        Screen.Chat -> ChatSettingsScreen(store, onBack = { screen = Screen.Main })
         Screen.Streams -> StreamsScreen(
             store,
             status.active,
@@ -271,7 +276,7 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
 }
 
 @Composable
-private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExport: () -> Unit) {
+private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExport: () -> Unit, onChat: () -> Unit) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
     val database by store.database.collectAsState()
@@ -319,7 +324,7 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
             }
             ScenePicker(store)
             EffectsPicker()
-            ChatControls(store)
+            ChatControls(store, onSettings = onChat)
             RecordingControls()
             Text(
                 "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +

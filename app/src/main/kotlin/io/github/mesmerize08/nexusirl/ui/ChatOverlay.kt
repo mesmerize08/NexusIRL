@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -145,11 +146,12 @@ private fun chatLineText(post: ChatPost, settings: SettingsChat): Pair<Annotated
 
 /** Chat switch and connection status for the main screen (upstream chat quick button and status). */
 @Composable
-fun ChatControls(store: SettingsStore) {
+fun ChatControls(store: SettingsStore, onSettings: () -> Unit) {
     val database by store.database.collectAsState()
     val connected by ChatController.connected.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.show_chat), modifier = Modifier.weight(1f))
+        TextButton(onClick = onSettings) { Text(stringResource(R.string.chat_settings)) }
         Switch(
             checked = database.chat.enabled,
             onCheckedChange = { enabled -> store.update { it.copy(chat = it.chat.copy(enabled = enabled)) } },

@@ -219,7 +219,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Chat widgets draw the chat into the stream, and browser widgets with Moblin access get chat
 > through `moblin.subscribe({chat: {}})`.
 > BTTV, FFZ and 7TV emotes can be turned on per stream.
-> Still to do: a chat appearance screen, OAuth features (sending, EventSub
+> A chat settings screen sets the overlay's appearance.
+> Still to do: OAuth features (sending, EventSub
 > alerts, viewers).
 
 

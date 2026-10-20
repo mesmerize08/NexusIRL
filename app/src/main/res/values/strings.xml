@@ -143,4 +143,10 @@
     <string name="bold_message">Bold message</string>
     <string name="emotes_help">Third-party emotes are downloaded from each provider when chat connects.</string>
     <string name="emotes_provider">%1$s emotes</string>
+    <string name="enabled">Enabled</string>
+    <string name="same_username_color">Same color for all usernames</string>
+    <string name="background_color">Background color</string>
+    <string name="mirrored">Mirrored</string>
+    <string name="maximum_age">Remove old messages</string>
+    <string name="chat_settings">Chat settings</string>
 </resources>
