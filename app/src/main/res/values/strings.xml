@@ -69,4 +69,7 @@
     <string name="link_imported">Settings link imported.</string>
     <string name="link_failed">Settings link import failed: %1$s</string>
     <string name="link_not_while_live">Cannot import settings while live.</string>
+    <string name="torch_on">Torch on</string>
+    <string name="torch_off">Torch off</string>
+    <string name="camera">Camera</string>
 </resources>

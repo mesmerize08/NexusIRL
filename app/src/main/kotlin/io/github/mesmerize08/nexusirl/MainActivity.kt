@@ -4,8 +4,6 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -41,12 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
+import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
 import io.github.mesmerize08.nexusirl.ui.SettingsLinkDialog
 import io.github.mesmerize08.nexusirl.ui.StreamEditorScreen
@@ -65,7 +62,10 @@ class MainActivity : ComponentActivity() {
             handleLinkIntent(intent)
         }
         // Stream editors and import/export can show stream keys (docs/PORT_PLAN.md §9.4).
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Debug builds only: automated UI tests may turn it off to take screenshots.
+        if (!(BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_DEBUG_NO_SECURE, false))) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
         requestPermissionsIfNeeded()
         updateDisplayRotation()
         setContent {
@@ -82,6 +82,16 @@ class MainActivity : ComponentActivity() {
                 StreamController.goLive(this, StreamConfig(url = it, video = video, srtLatency = 2000))
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        StreamController.setUiVisible(this, true)
+    }
+
+    override fun onStop() {
+        StreamController.setUiVisible(this, false)
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -128,6 +138,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_DEBUG_URL = "debug_url"
         const val EXTRA_DEBUG_HEVC = "debug_hevc"
+        const val EXTRA_DEBUG_NO_SECURE = "debug_no_secure"
         val DEFAULT_SETTINGS = VideoEncoderSettings(width = 1280, height = 720, fps = 30, bitrate = 3_000_000)
     }
 }
@@ -209,6 +220,10 @@ private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
     val database by store.database.collectAsState()
     val status by StreamController.status.collectAsState()
     val stream = database.selectedStream
+    // The preview canvas follows the selected stream's resolution and frame rate.
+    LaunchedEffect(stream?.resolution, stream?.fps) {
+        StreamController.refreshPreview(context)
+    }
     var showLicenses by remember { mutableStateOf(false) }
     if (showLicenses) {
         LicensesDialog(onDismiss = { showLicenses = false })
@@ -216,20 +231,7 @@ private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
     // Landscape: preview on the left (as large as fits at 16:9), controls scroll on the right.
     Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            AndroidView(
-                modifier = Modifier.aspectRatio(16f / 9f),
-                factory = { viewContext ->
-                    SurfaceView(viewContext).apply {
-                        holder.addCallback(object : SurfaceHolder.Callback {
-                            override fun surfaceCreated(holder: SurfaceHolder) = StreamController.setPreviewSurface(holder.surface)
-
-                            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
-
-                            override fun surfaceDestroyed(holder: SurfaceHolder) = StreamController.setPreviewSurface(null)
-                        })
-                    }
-                },
-            )
+            CameraPreview()
         }
         Column(
             modifier = Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()),

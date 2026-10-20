@@ -2,6 +2,9 @@
 // VideoUnit.swift @97e26d2 for built-in cameras: render on each camera frame, a gap filler that
 // re-emits the last frame (PTS advanced) after 50 ms without input, black frames when no source
 // is available, and a monotonic PTS guard.
+//
+// The pipeline runs whenever the camera is needed (preview while the app is open, or streaming);
+// an encoder is attached only while live (startEncoder/stopEncoder).
 package io.github.mesmerize08.nexusirl.media.pipeline
 
 import android.content.Context
@@ -16,8 +19,8 @@ import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRenderer
 
 class VideoPipeline(
     private val context: Context,
-    private val settings: VideoEncoderSettings,
-    private val sink: MediaSink,
+    /** Canvas size and frame rate. An attached encoder must use the same size and rate. */
+    val settings: VideoEncoderSettings,
     private val onError: (String) -> Unit = {},
 ) {
     private val glThread = HandlerThread("video-gl").apply { start() }
@@ -27,7 +30,7 @@ class VideoPipeline(
     private var surfaceTexture: SurfaceTexture? = null
     private var encoderSurface: EGLSurface? = null
     private var previewSurface: EGLSurface? = null
-    private var camera: CameraSource? = null
+    private var cameraSource: CameraSource? = null
     private var sourceAspect = settings.width.toFloat() / settings.height
     private val textureMatrix = FloatArray(16)
     private val drawMatrix = FloatArray(16)
@@ -57,29 +60,137 @@ class VideoPipeline(
         const val TAG = "VideoPipeline"
     }
 
-    fun start() {
+    /** Camera in use, for the UI's camera controls. */
+    val camera: CameraInfo?
+        get() = cameraSource?.current
+
+    val zoom: Float
+        get() = cameraSource?.zoom ?: 1f
+
+    val torch: Boolean
+        get() = cameraSource?.torch ?: false
+
+    /** Starts the camera and the preview path. [cameraId] null picks the first back camera. */
+    fun start(cameraId: String? = null) {
         glHandler.post {
-            val encoder = VideoEncoder(settings, sink)
-            this.encoder = encoder
             val egl = EglCore()
             this.egl = egl
-            encoderSurface = egl.createWindowSurface(encoder.inputSurface)
-            egl.makeCurrent(encoderSurface!!)
             val renderer = OesRenderer()
             this.renderer = renderer
             val texture = SurfaceTexture(renderer.textureId)
             surfaceTexture = texture
             texture.setOnFrameAvailableListener({ handleFrameAvailable() }, glHandler)
             running = true
-            startCamera(texture)
+            startCamera(texture, cameraId)
             glHandler.postDelayed(::handleFrameTimer, frameIntervalNanos / 1_000_000)
         }
     }
 
-    private fun startCamera(texture: SurfaceTexture) {
+    /** Attaches an encoder (going live). [encoderSettings] must match [settings] in size and rate. */
+    fun startEncoder(encoderSettings: VideoEncoderSettings, sink: MediaSink) {
+        require(
+            encoderSettings.width == settings.width && encoderSettings.height == settings.height &&
+                encoderSettings.fps == settings.fps,
+        ) { "Encoder settings do not match the pipeline" }
+        runOnGlThread {
+            val egl = egl ?: return@runOnGlThread
+            val encoder = VideoEncoder(encoderSettings, sink)
+            this.encoder = encoder
+            encoderSurface = egl.createWindowSurface(encoder.inputSurface)
+        }
+    }
+
+    /** Detaches and releases the encoder (stream ended); the preview keeps running. */
+    fun stopEncoder() {
+        runOnGlThread {
+            val egl = egl
+            encoderSurface?.let {
+                egl?.makeNothingCurrent()
+                egl?.releaseSurface(it)
+            }
+            encoderSurface = null
+            encoder?.release()
+            encoder = null
+        }
+    }
+
+    /** Switches to another camera (upstream `attachCamera`), keeping the pipeline running. */
+    fun switchCamera(cameraId: String) {
+        glHandler.post {
+            val texture = surfaceTexture ?: return@post
+            if (cameraSource?.current?.id == cameraId) {
+                return@post
+            }
+            cameraSource?.release()
+            cameraSource = null
+            startCamera(texture, cameraId)
+        }
+    }
+
+    fun setZoom(factor: Float) {
+        cameraSource?.setZoom(factor)
+    }
+
+    fun setTorch(on: Boolean) {
+        cameraSource?.setTorch(on)
+    }
+
+    fun setAutoFocus() {
+        cameraSource?.setAutoFocus()
+    }
+
+    /**
+     * Focuses at a tap on the preview, given in normalized preview coordinates (0..1, origin top
+     * left). The preview shows the upright frame aspect-filled, so the point is first mapped into
+     * the frame, then rotated back into sensor coordinates.
+     */
+    fun focusAtPreviewPoint(x: Float, y: Float, previewAspect: Float) {
+        val info = cameraSource?.current ?: return
+        val contentAspect = sourceAspect
+        var u = x
+        var v = y
+        if (contentAspect > previewAspect) {
+            u = 0.5f + (x - 0.5f) * (previewAspect / contentAspect)
+        } else {
+            v = 0.5f + (y - 0.5f) * (contentAspect / previewAspect)
+        }
+        if (info.isFront) {
+            u = 1f - u
+        }
+        val rotation = if (info.isFront) {
+            (info.sensorOrientation + displayRotationDegrees) % 360
+        } else {
+            (info.sensorOrientation - displayRotationDegrees + 360) % 360
+        }
+        val (sensorX, sensorY) = when (rotation) {
+            90 -> v to 1f - u
+            180 -> 1f - u to 1f - v
+            270 -> 1f - v to u
+            else -> u to v
+        }
+        cameraSource?.focusAt(sensorX, sensorY)
+    }
+
+    private fun runOnGlThread(block: () -> Unit) {
+        if (Thread.currentThread() === glThread) {
+            block()
+            return
+        }
+        val done = java.util.concurrent.CountDownLatch(1)
+        glHandler.post {
+            try {
+                block()
+            } finally {
+                done.countDown()
+            }
+        }
+        done.await(3, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
+    private fun startCamera(texture: SurfaceTexture, requestedId: String?) {
         val camera = CameraSource(context)
-        this.camera = camera
-        val cameraId = camera.backCameraId()
+        this.cameraSource = camera
+        val cameraId = requestedId?.takeIf { id -> camera.cameras().any { it.id == id } } ?: camera.backCameraId()
         if (cameraId == null) {
             onError("No camera")
             return
@@ -116,7 +227,7 @@ class VideoPipeline(
     }
 
     private fun toHostClock(sensorNanos: Long): Long {
-        if (camera?.timestampsAreRealtime != true) {
+        if (cameraSource?.timestampsAreRealtime != true) {
             return sensorNanos
         }
         // Shift boot-time (elapsedRealtime) stamps into the CLOCK_MONOTONIC domain.
@@ -162,16 +273,17 @@ class VideoPipeline(
     private fun render(presentationNanos: Long) {
         val egl = egl ?: return
         val renderer = renderer ?: return
-        val encoderSurface = encoderSurface ?: return
         if (presentationNanos <= lastPresentationNanos) {
             return
         }
         lastPresentationNanos = presentationNanos
         updateDrawMatrix()
-        egl.makeCurrent(encoderSurface)
-        renderer.draw(drawMatrix, settings.width, settings.height, sourceAspect)
-        egl.setPresentationTime(encoderSurface, presentationNanos)
-        egl.swapBuffers(encoderSurface)
+        encoderSurface?.let { encoderSurface ->
+            egl.makeCurrent(encoderSurface)
+            renderer.draw(drawMatrix, settings.width, settings.height, sourceAspect)
+            egl.setPresentationTime(encoderSurface, presentationNanos)
+            egl.swapBuffers(encoderSurface)
+        }
         previewSurface?.let { preview ->
             egl.makeCurrent(preview)
             val (width, height) = egl.surfaceSize(preview)
@@ -229,8 +341,8 @@ class VideoPipeline(
         val done = java.util.concurrent.CountDownLatch(1)
         glHandler.post {
             running = false
-            camera?.release()
-            camera = null
+            cameraSource?.release()
+            cameraSource = null
             val egl = egl
             if (egl != null) {
                 egl.makeNothingCurrent()

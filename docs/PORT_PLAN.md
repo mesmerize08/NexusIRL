@@ -180,8 +180,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - `.moblinSettings` import and export (without keys by default)
 >
 >   - `moblin://` setup links with a confirmation dialog
+>   - camera preview while not live, zoom (presets and pinch), torch, tap-to-focus and auto focus, camera switching
 >
->   Still to do: camera controls, recording, snapshots and localization.
+>   Still to do: manual focus/ISO/exposure/white balance, stabilization, recording, snapshots and localization.
+>   Tap-to-focus point mapping and pinch zoom need checking on a real phone.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

@@ -2,7 +2,6 @@ package io.github.mesmerize08.nexusirl.stream
 
 import android.content.Context
 import android.os.PowerManager
-import android.view.Surface
 import io.github.mesmerize08.nexusirl.core.clock.Cancellable
 import io.github.mesmerize08.nexusirl.core.clock.HostClock
 import io.github.mesmerize08.nexusirl.core.clock.MediaTime
@@ -89,12 +88,13 @@ data class StreamStatus(
 class StreamSession(
     private val context: Context,
     private val config: StreamConfig,
+    /** The running camera pipeline (owned by StreamController); the session attaches an encoder. */
+    private val video: VideoPipeline,
     private val onStatus: (StreamStatus) -> Unit,
 ) {
     private val url = config.url
     private val settings = config.video
     private val fanOut = FanOutSink()
-    private val video = VideoPipeline(context, settings, fanOut) { report("Camera: $it") }
     private val audio = AudioPipeline(fanOut)
     private val executor = SerialExecutor.create("stream")
     private val clock = HostClock.system
@@ -123,7 +123,7 @@ class StreamSession(
     }
 
     fun start() {
-        video.start()
+        video.startEncoder(settings, fanOut)
         microphones.start { _, selected ->
             audio.setPreferredDevice(selected?.device)
             update(status.copy(microphone = selected?.name ?: ""))
@@ -132,12 +132,6 @@ class StreamSession(
         powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
         executor.execute { startDestination() }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
-    }
-
-    fun setPreviewSurface(surface: Surface?) = video.setPreviewSurface(surface)
-
-    fun setDisplayRotation(degrees: Int) {
-        video.displayRotationDegrees = degrees
     }
 
     fun stop() {
@@ -152,7 +146,7 @@ class StreamSession(
         powerManager.removeThermalStatusListener(thermalListener)
         microphones.stop()
         audio.stop()
-        video.stop()
+        video.stopEncoder()
         executor.shutdown()
         update(status.copy(state = StreamState.STOPPED))
     }
