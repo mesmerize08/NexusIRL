@@ -71,6 +71,20 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun moblinkPasswordIsSecret() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        store.import("""{"moblink":{"password":"$key","client":{"enabled":true,"name":"Relay","url":"//1.2.3.4:5678","manual":true}}}""")
+        assertFalse(key in file.readText())
+        assertEquals(key, store.moblinkPassword())
+        assertEquals("Relay", store.current.moblink.relay.name)
+        // Upstream drops relay URLs that are not WebSocket URLs.
+        assertEquals("", store.current.moblink.relay.validUrl)
+        assertFalse(key in store.exportJson())
+        assertTrue(key in store.exportJson(includeSecrets = true))
+    }
+
+    @Test
     fun exportWithoutSecretsHasNoKeys() {
         val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())
         store.update { it.addStream(SettingsStream(name = "Twitch", url = url)) }

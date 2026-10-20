@@ -25,6 +25,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
+import io.github.mesmerize08.nexusirl.moblink.MoblinkController
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.LutLoader
 import io.github.mesmerize08.nexusirl.scene.MapWidgets
@@ -506,9 +507,19 @@ object StreamController {
     }
 
     /** The foreground service runs while live or recording. */
-    private fun updateService(context: Context) {
+    private fun updateService(context: Context) = updateForegroundService(context)
+
+    /** Whether the camera and microphone are in use for a stream or recording. */
+    val isCapturing: Boolean
+        get() = session != null || activeRecording != null
+
+    /**
+     * Runs the foreground service while capturing or relaying (Moblink), restarting it so its
+     * declared types match what is in use.
+     */
+    fun updateForegroundService(context: Context) {
         val intent = Intent(context, StreamingService::class.java)
-        if (session != null || activeRecording != null) {
+        if (isCapturing || MoblinkController.isRunning) {
             context.startForegroundService(intent)
         } else {
             context.stopService(intent)

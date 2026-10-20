@@ -55,31 +55,40 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             stream.copy(url = url)
         }
         val password = if (includeSecrets) remoteControlPassword() else ""
-        return database.copy(streams = streams, remoteControl = database.remoteControl.copy(password = password)).toJson()
+        val moblinkPassword = if (includeSecrets) moblinkPassword() else ""
+        return database.copy(
+            streams = streams,
+            remoteControl = database.remoteControl.copy(password = password),
+            moblink = database.moblink.copy(password = moblinkPassword),
+        ).toJson()
     }
 
     private fun protectSecrets(database: Database): Database {
-        val password = database.remoteControl.password
-        // The remote control password is secret as a whole (docs/PORT_PLAN.md §9.2).
-        val protectedPassword = if (password.isEmpty() || SecretRef.findAll(password).isNotEmpty()) {
+        // Remote control and Moblink passwords are secret as a whole (docs/PORT_PLAN.md §9.2).
+        fun protect(password: String) = if (password.isEmpty() || SecretRef.findAll(password).isNotEmpty()) {
             password
         } else {
             secrets.put(password).placeholder
         }
         return database.copy(
+            moblink = database.moblink.copy(password = protect(database.moblink.password)),
             streams = database.streams.map { stream ->
                 stream.copy(url = StreamUrlSecrets.protect(stream.url) { secret -> secrets.put(secret).placeholder })
             },
-            remoteControl = database.remoteControl.copy(password = protectedPassword),
+            remoteControl = database.remoteControl.copy(password = protect(database.remoteControl.password)),
         )
     }
+
+    /** The Moblink password, from the secret store. Keep it in memory only. */
+    fun moblinkPassword(): String = SecretRef.resolve(current.moblink.password, secrets)
 
     /** The remote control password, from the secret store. Keep it in memory only. */
     fun remoteControlPassword(): String = SecretRef.resolve(current.remoteControl.password, secrets)
 
     private fun removeUnreferencedSecrets(database: Database) {
         val streamSecrets = database.streams.flatMap { SecretRef.findAll(it.url) }
-        val referenced = (streamSecrets + SecretRef.findAll(database.remoteControl.password)).toSet()
+        val passwords = SecretRef.findAll(database.remoteControl.password) + SecretRef.findAll(database.moblink.password)
+        val referenced = (streamSecrets + passwords).toSet()
         for (ref in secrets.refs()) {
             if (ref !in referenced) {
                 secrets.remove(ref)

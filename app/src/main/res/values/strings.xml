@@ -181,4 +181,14 @@
     <string name="save_password">Save password</string>
     <string name="generate_password">Generate new password</string>
     <string name="preview_fps">Preview images per second</string>
+    <string name="moblink_relay">Moblink relay</string>
+    <string name="moblink_relay_help">Lends this phone\'s mobile data to a Moblin streamer on the same Wi-Fi, for bonding. Turn on Moblink in the streamer\'s settings and use the same password. Streamers on the Wi-Fi are found automatically.</string>
+    <string name="moblink_password_needed">Enter the password shown in the streamer\'s Moblink settings.</string>
+    <string name="moblink_found_streamer">Found streamer: %1$s</string>
+    <string name="moblink_relay_name">Relay name (shown on the streamer)</string>
+    <string name="moblink_password_help">The same password as on the streamer. Stored encrypted on this device.</string>
+    <string name="moblink_manual">Enter the streamer address manually</string>
+    <string name="moblink_streamer_url">Streamer URL</string>
+    <string name="moblink_streamer_url_help">For example ws://192.168.1.10:7777</string>
+    <string name="notification_moblink_relay">Moblink relay: sharing mobile data with a streamer</string>
 </resources>

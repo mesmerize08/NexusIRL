@@ -95,6 +95,7 @@ dependencies {
     implementation(project(":effects"))
     implementation(project(":chat"))
     implementation(project(":remotecontrol"))
+    implementation(project(":moblink"))
     implementation(libs.zxing.core)
     implementation(libs.maplibre)
 

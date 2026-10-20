@@ -102,6 +102,7 @@ data class Database(
     val forceSceneSwitchTransition: Boolean = false,
     val location: SettingsLocation = SettingsLocation(),
     val remoteControl: SettingsRemoteControl = SettingsRemoteControl(),
+    val moblink: SettingsMoblink = SettingsMoblink(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

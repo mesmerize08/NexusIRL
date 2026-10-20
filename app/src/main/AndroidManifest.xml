@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Moblink relay: keeps running with the screen off, finds streamers with mDNS. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- Only used when location is turned on in settings (text and map widgets). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -38,7 +41,7 @@
         <service
             android:name=".stream.StreamingService"
             android:exported="false"
-            android:foregroundServiceType="camera|microphone|location" />
+            android:foregroundServiceType="camera|microphone|location|connectedDevice" />
 
         <activity
             android:name=".MainActivity"
