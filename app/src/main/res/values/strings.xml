@@ -79,4 +79,14 @@
     <string name="snapshot">Snapshot</string>
     <string name="snapshot_saved">Snapshot saved to Pictures/NexusIRL.</string>
     <string name="snapshot_failed">Snapshot failed: no camera frame yet.</string>
+    <string name="camera_settings">Camera settings</string>
+    <string name="no_camera">No camera is running.</string>
+    <string name="not_supported_by_camera">Not supported by this camera</string>
+    <string name="auto">Auto</string>
+    <string name="exposure_bias">Exposure bias</string>
+    <string name="focus">Focus</string>
+    <string name="shutter">Shutter</string>
+    <string name="iso">ISO</string>
+    <string name="white_balance">White balance</string>
+    <string name="stabilization">Stabilization</string>
 </resources>

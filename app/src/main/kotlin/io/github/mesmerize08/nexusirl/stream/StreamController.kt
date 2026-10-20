@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.core.secrets.KeystoreSecretStore
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
+import io.github.mesmerize08.nexusirl.media.pipeline.CameraFactors
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraInfo
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraSource
 import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
@@ -22,6 +23,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
+import io.github.mesmerize08.nexusirl.settings.VideoStabilizationMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -35,7 +37,19 @@ data class CameraUiState(
     val current: CameraInfo? = null,
     val zoom: Float = 1f,
     val torch: Boolean = false,
-)
+    /** Exposure bias in EV. */
+    val exposureBias: Float = 0f,
+    /** Manual values as upstream's 0..1 slider factors; null means automatic. */
+    val manualFocus: Float? = null,
+    val manualExposure: Float? = null,
+    val manualIso: Float? = null,
+    val manualWhiteBalance: Float? = null,
+    val stabilization: Boolean = false,
+) {
+    /** Resets the per-camera manual controls (upstream re-applies auto after a camera change). */
+    fun withAutoControls(): CameraUiState =
+        copy(exposureBias = 0f, manualFocus = null, manualExposure = null, manualIso = null, manualWhiteBalance = null)
+}
 
 /** A recording in progress (upstream `currentRecording`). */
 data class RecordingState(val fileName: String, val startedAtElapsedMillis: Long)
@@ -337,6 +351,7 @@ object StreamController {
             mutableStatus.value = mutableStatus.value.copy(detail = "Camera: $message")
         }
         created.displayRotationDegrees = displayRotationDegrees
+        created.stabilization = settings(context).current.videoStabilizationMode != VideoStabilizationMode.OFF
         created.start(cameraId)
         previewSurface?.let { created.setPreviewSurface(it) }
         pipeline = created
@@ -350,10 +365,11 @@ object StreamController {
             mutableCamera.value = CameraUiState(cameras = cameras)
         }
         val cameras = mutableCamera.value.cameras
-        mutableCamera.value = mutableCamera.value.copy(
+        mutableCamera.value = mutableCamera.value.withAutoControls().copy(
             current = cameras.firstOrNull { it.id == cameraId } ?: cameras.firstOrNull(),
             zoom = 1f,
             torch = false,
+            stabilization = created.stabilization,
         )
         return created
     }
@@ -369,7 +385,7 @@ object StreamController {
         cameraId = id
         pipeline?.switchCamera(id)
         val info = mutableCamera.value.cameras.firstOrNull { it.id == id }
-        mutableCamera.value = mutableCamera.value.copy(current = info, zoom = 1f, torch = false)
+        mutableCamera.value = mutableCamera.value.withAutoControls().copy(current = info, zoom = 1f, torch = false)
     }
 
     fun setZoom(factor: Float) {
@@ -395,5 +411,81 @@ object StreamController {
     /** Back to continuous auto focus (upstream long press). */
     fun setAutoFocus() {
         pipeline?.setAutoFocus()
+        mutableCamera.value = mutableCamera.value.copy(manualFocus = null)
     }
+
+    // Manual camera controls (upstream ModelCamera.swift; sliders use 0..1 factors)
+
+    fun setExposureBias(bias: Float) {
+        pipeline?.setExposureBias(bias)
+        mutableCamera.value = mutableCamera.value.copy(exposureBias = bias)
+    }
+
+    /** Manual focus at a lens position (0 near, 1 far), or null for auto focus. */
+    fun setManualFocus(position: Float?) {
+        if (position == null) {
+            setAutoFocus()
+            return
+        }
+        pipeline?.setManualFocus(position)
+        mutableCamera.value = mutableCamera.value.copy(manualFocus = position)
+    }
+
+    /**
+     * Manual shutter and/or ISO as factors (upstream `setManualExposureAndIso`). A null value is
+     * locked at what the camera uses now; both null returns to auto exposure.
+     */
+    fun setManualExposureAndIso(exposureFactor: Float?, isoFactor: Float?) {
+        val video = pipeline ?: return
+        val info = mutableCamera.value.current ?: return
+        if (exposureFactor == null && isoFactor == null) {
+            video.setAutoExposure()
+        } else {
+            val exposure = exposureFactor?.let { CameraFactors.exposureFromFactor(exposures(info, video), it) }
+            val iso = isoFactor?.let { CameraFactors.isoFromFactor(info.minIso, info.maxIso, it) }
+            video.setManualExposure(exposure, iso)
+        }
+        mutableCamera.value = mutableCamera.value.copy(manualExposure = exposureFactor, manualIso = isoFactor)
+    }
+
+    /** Manual white balance as a factor of 2200..10000 K, or null for auto. */
+    fun setManualWhiteBalance(factor: Float?) {
+        val video = pipeline ?: return
+        if (factor == null) {
+            video.setAutoWhiteBalance()
+        } else {
+            video.setManualWhiteBalance(CameraFactors.kelvinFromFactor(factor))
+        }
+        mutableCamera.value = mutableCamera.value.copy(manualWhiteBalance = factor)
+    }
+
+    /** Video stabilization on or off, saved like upstream's global `videoStabilizationMode`. */
+    fun setStabilization(context: Context, on: Boolean) {
+        settings(
+            context,
+        ).update { it.copy(videoStabilizationMode = if (on) VideoStabilizationMode.STANDARD else VideoStabilizationMode.OFF) }
+        pipeline?.stabilization = on
+        mutableCamera.value = mutableCamera.value.copy(stabilization = on)
+    }
+
+    /** The camera's current auto values as slider factors, so a control switched to manual starts there. */
+    fun currentCameraFactors(): Triple<Float, Float, Float>? {
+        val video = pipeline ?: return null
+        val info = mutableCamera.value.current ?: return null
+        return Triple(
+            CameraFactors.factorFromExposure(exposures(info, video), video.currentExposureNs),
+            CameraFactors.factorFromIso(info.minIso, info.maxIso, video.currentIso),
+            CameraFactors.positionFromFocusDistance(video.currentFocusDistance, info.minFocusDistance),
+        )
+    }
+
+    /** Shutter speed for an exposure factor, for the slider label. */
+    fun exposureLabel(factor: Float): String {
+        val video = pipeline ?: return ""
+        val info = mutableCamera.value.current ?: return ""
+        return CameraFactors.formatExposure(CameraFactors.exposureFromFactor(exposures(info, video), factor))
+    }
+
+    private fun exposures(info: CameraInfo, video: VideoPipeline): List<Long> =
+        CameraFactors.exposures(info.minExposureNs, info.maxExposureNs, 1_000_000_000L / video.settings.fps)
 }

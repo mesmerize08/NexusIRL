@@ -186,7 +186,11 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - snapshots (JPEG of the current frame to `Pictures/NexusIRL`)
 >
->   Still to do: manual focus/ISO/exposure/white balance, stabilization and localization.
+>   - manual camera controls: exposure bias, focus, shutter, ISO, white balance, stabilization
+>
+>   Still to do: localization.
+>   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
+>   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.
 
 

@@ -181,6 +181,48 @@ class VideoPipeline(
         cameraSource?.setAutoFocus()
     }
 
+    fun setManualFocus(position: Float) {
+        cameraSource?.setManualFocus(position)
+    }
+
+    fun setManualExposure(exposureNs: Long?, iso: Int?) {
+        cameraSource?.setManualExposure(exposureNs, iso)
+    }
+
+    fun setAutoExposure() {
+        cameraSource?.setAutoExposure()
+    }
+
+    fun setExposureBias(bias: Float) {
+        cameraSource?.setExposureBias(bias)
+    }
+
+    fun setManualWhiteBalance(kelvin: Float) {
+        cameraSource?.setManualWhiteBalance(kelvin)
+    }
+
+    fun setAutoWhiteBalance() {
+        cameraSource?.setAutoWhiteBalance()
+    }
+
+    /** Stabilization for this and later cameras. */
+    @Volatile
+    var stabilization = false
+        set(value) {
+            field = value
+            cameraSource?.setStabilization(value)
+        }
+
+    /** What the camera is using now (auto or manual): exposure (ns), ISO, focus (diopters). */
+    val currentExposureNs: Long
+        get() = cameraSource?.currentExposureNs ?: 0
+
+    val currentIso: Int
+        get() = cameraSource?.currentIso ?: 0
+
+    val currentFocusDistance: Float
+        get() = cameraSource?.currentFocusDistance ?: 0f
+
     /**
      * Focuses at a tap on the preview, given in normalized preview coordinates (0..1, origin top
      * left). The preview shows the upright frame aspect-filled, so the point is first mapped into
@@ -232,6 +274,7 @@ class VideoPipeline(
     private fun startCamera(texture: SurfaceTexture, requestedId: String?) {
         val camera = CameraSource(context)
         this.cameraSource = camera
+        camera.setStabilization(stabilization)
         val cameraId = requestedId?.takeIf { id -> camera.cameras().any { it.id == id } } ?: camera.backCameraId()
         if (cameraId == null) {
             onError("No camera")

@@ -53,6 +53,10 @@ private fun formatZoom(zoom: Float): String = if (zoom == zoom.roundToInt().toFl
 fun CameraPreview(modifier: Modifier = Modifier) {
     val camera by StreamController.camera.collectAsState()
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
+    if (showSettings) {
+        CameraSettingsDialog(onDismiss = { showSettings = false })
+    }
     LaunchedEffect(focusPoint) {
         if (focusPoint != null) {
             delay(1500)
@@ -138,6 +142,9 @@ fun CameraPreview(modifier: Modifier = Modifier) {
                     )
                 }
             }
+        }
+        FilledTonalButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+            Text(stringResource(R.string.camera_settings))
         }
         Row(
             modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),

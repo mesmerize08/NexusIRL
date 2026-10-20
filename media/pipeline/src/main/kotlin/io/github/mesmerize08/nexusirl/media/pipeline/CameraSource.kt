@@ -10,8 +10,12 @@ import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
+import android.hardware.camera2.params.ColorSpaceTransform
 import android.hardware.camera2.params.MeteringRectangle
 import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.RggbChannelVector
 import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
 import android.os.Handler
@@ -32,7 +36,25 @@ data class CameraInfo(
     val maxZoom: Float,
     val hasTorch: Boolean,
     val supportsFocusPoint: Boolean,
+    /** Manual ISO and shutter (MANUAL_SENSOR capability). */
+    val supportsManualExposure: Boolean = false,
+    val minIso: Int = 0,
+    val maxIso: Int = 0,
+    val minExposureNs: Long = 0,
+    val maxExposureNs: Long = 0,
+    /** Manual focus: the minimum focus distance in diopters (0 means fixed focus). */
+    val minFocusDistance: Float = 0f,
+    /** Manual white balance (MANUAL_POST_PROCESSING capability). */
+    val supportsManualWhiteBalance: Boolean = false,
+    val exposureCompensationMin: Int = 0,
+    val exposureCompensationMax: Int = 0,
+    /** EV per exposure compensation step. */
+    val exposureCompensationStep: Float = 0f,
+    val supportsStabilization: Boolean = false,
 ) {
+    val supportsManualFocus: Boolean
+        get() = minFocusDistance > 0f
+
     val isFront: Boolean
         get() = facing == CameraMetadata.LENS_FACING_FRONT
 
@@ -79,6 +101,33 @@ class CameraSource(private val context: Context) {
     var torch = false
         private set
 
+    /** Latest values the camera used (auto or manual), from capture results. */
+    @Volatile
+    var currentExposureNs = 0L
+        private set
+
+    @Volatile
+    var currentIso = 0
+        private set
+
+    @Volatile
+    var currentFocusDistance = 0f
+        private set
+
+    @Volatile
+    private var currentColorTransform: ColorSpaceTransform? = null
+    private var manualExposure = false
+    private var frameDurationNs = 33_333_333L
+
+    private val captureCallback = object : CameraCaptureSession.CaptureCallback() {
+        override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
+            result.get(CaptureResult.SENSOR_EXPOSURE_TIME)?.let { currentExposureNs = it }
+            result.get(CaptureResult.SENSOR_SENSITIVITY)?.let { currentIso = it }
+            result.get(CaptureResult.LENS_FOCUS_DISTANCE)?.let { currentFocusDistance = it }
+            result.get(CaptureResult.COLOR_CORRECTION_TRANSFORM)?.let { currentColorTransform = it }
+        }
+    }
+
     /**
      * True when sensor timestamps are on the boot-time clock (REALTIME source) rather than
      * CLOCK_MONOTONIC; they must then be shifted into the host clock domain.
@@ -110,6 +159,10 @@ class CameraSource(private val context: Context) {
         } else {
             null
         } ?: Range(1f, c.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM) ?: 1f)
+        val capabilities = c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)?.toList().orEmpty()
+        val isoRange = c.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+        val exposureRange = c.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        val compensation = c.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
         return CameraInfo(
             id = id,
             facing = c.get(CameraCharacteristics.LENS_FACING) ?: CameraMetadata.LENS_FACING_EXTERNAL,
@@ -118,6 +171,20 @@ class CameraSource(private val context: Context) {
             maxZoom = zoomRange.upper,
             hasTorch = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true,
             supportsFocusPoint = (c.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AF) ?: 0) > 0,
+            supportsManualExposure = CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR in capabilities,
+            minIso = isoRange?.lower ?: 0,
+            maxIso = isoRange?.upper ?: 0,
+            minExposureNs = exposureRange?.lower ?: 0,
+            maxExposureNs = exposureRange?.upper ?: 0,
+            minFocusDistance = c.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f,
+            supportsManualWhiteBalance = CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_POST_PROCESSING in capabilities,
+            exposureCompensationMin = compensation?.lower ?: 0,
+            exposureCompensationMax = compensation?.upper ?: 0,
+            exposureCompensationStep = c.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)?.toFloat() ?: 0f,
+            supportsStabilization = c.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
+                ?.contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON) == true ||
+                c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+                    ?.contains(CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON) == true,
         )
     }
 
@@ -146,6 +213,8 @@ class CameraSource(private val context: Context) {
         current = describe(cameraId)
         zoom = 1f.coerceIn(current!!.minZoom, current!!.maxZoom)
         torch = false
+        manualExposure = false
+        frameDurationNs = 1_000_000_000L / fps
         timestampsAreRealtime = characteristics.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) ==
             CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME
         val fpsRange = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
@@ -169,6 +238,7 @@ class CameraSource(private val context: Context) {
                     }
                     request = builder
                     applyZoom(builder)
+                    applyStabilization(builder, stabilization)
                     val configuration = SessionConfiguration(
                         SessionConfiguration.SESSION_REGULAR,
                         listOf(OutputConfiguration(surface)),
@@ -177,7 +247,7 @@ class CameraSource(private val context: Context) {
                             override fun onConfigured(captureSession: CameraCaptureSession) {
                                 session = captureSession
                                 try {
-                                    captureSession.setRepeatingRequest(builder.build(), null, handler)
+                                    captureSession.setRepeatingRequest(builder.build(), captureCallback, handler)
                                 } catch (e: Exception) {
                                     listener.onError("Camera request failed: ${e.message}")
                                 }
@@ -238,7 +308,9 @@ class CameraSource(private val context: Context) {
             }
             torch = on
             val builder = request ?: return@post
-            builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON)
+            if (!manualExposure) {
+                builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON)
+            }
             builder.set(CaptureRequest.FLASH_MODE, if (on) CameraMetadata.FLASH_MODE_TORCH else CameraMetadata.FLASH_MODE_OFF)
             updateRepeating()
         }
@@ -273,7 +345,7 @@ class CameraSource(private val context: Context) {
                 builder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START)
                 session.capture(builder.build(), null, handler)
                 builder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_IDLE)
-                session.setRepeatingRequest(builder.build(), null, handler)
+                session.setRepeatingRequest(builder.build(), captureCallback, handler)
             } catch (e: Exception) {
                 // Session closed concurrently.
             }
@@ -293,10 +365,140 @@ class CameraSource(private val context: Context) {
         }
     }
 
+    /** Manual focus at a lens position, 0 closest to 1 farthest (upstream `setManualFocus`). */
+    fun setManualFocus(position: Float) {
+        handler.post {
+            val info = current ?: return@post
+            val builder = request ?: return@post
+            if (!info.supportsManualFocus) {
+                return@post
+            }
+            builder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_IDLE)
+            builder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF)
+            builder.set(CaptureRequest.LENS_FOCUS_DISTANCE, CameraFactors.focusDistanceFromPosition(position, info.minFocusDistance))
+            updateRepeating()
+        }
+    }
+
+    /**
+     * Manual exposure (upstream `setManualExposureAndIso`): a null value keeps what the camera is
+     * using now. The frame duration stays at the frame rate.
+     */
+    fun setManualExposure(exposureNs: Long?, iso: Int?) {
+        handler.post {
+            val info = current ?: return@post
+            val builder = request ?: return@post
+            if (!info.supportsManualExposure) {
+                return@post
+            }
+            manualExposure = true
+            val exposure = (exposureNs ?: currentExposureNs.takeIf { it > 0 } ?: frameDurationNs / 2)
+                .coerceIn(info.minExposureNs, minOf(info.maxExposureNs, frameDurationNs))
+            val sensitivity = (iso ?: currentIso.takeIf { it > 0 } ?: info.minIso).coerceIn(info.minIso, info.maxIso)
+            builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_OFF)
+            builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, exposure)
+            builder.set(CaptureRequest.SENSOR_SENSITIVITY, sensitivity)
+            builder.set(CaptureRequest.SENSOR_FRAME_DURATION, frameDurationNs)
+            updateRepeating()
+        }
+    }
+
+    /** Back to continuous auto exposure (upstream `setAutoExposureAndIso`). */
+    fun setAutoExposure() {
+        handler.post {
+            val builder = request ?: return@post
+            manualExposure = false
+            builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON)
+            updateRepeating()
+        }
+    }
+
+    /** Exposure bias in EV (upstream `setExposureBias`); ignored outside the camera's range. */
+    fun setExposureBias(bias: Float) {
+        handler.post {
+            val info = current ?: return@post
+            val builder = request ?: return@post
+            val index = CameraFactors.compensationIndex(
+                bias,
+                info.exposureCompensationStep,
+                info.exposureCompensationMin,
+                info.exposureCompensationMax,
+            ) ?: return@post
+            builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, index)
+            updateRepeating()
+        }
+    }
+
+    /**
+     * Manual white balance at a colour temperature (upstream `setManualWhiteBalance`). Keeps the
+     * sensor's own colour matrix from the latest frame and only replaces the channel gains.
+     */
+    fun setManualWhiteBalance(kelvin: Float) {
+        handler.post {
+            val info = current ?: return@post
+            val builder = request ?: return@post
+            val transform = currentColorTransform
+            if (!info.supportsManualWhiteBalance || transform == null) {
+                return@post
+            }
+            val (red, green, blue) = CameraFactors.whiteBalanceGains(kelvin)
+            builder.set(CaptureRequest.CONTROL_AWB_MODE, CameraMetadata.CONTROL_AWB_MODE_OFF)
+            builder.set(CaptureRequest.COLOR_CORRECTION_MODE, CameraMetadata.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX)
+            builder.set(CaptureRequest.COLOR_CORRECTION_TRANSFORM, transform)
+            builder.set(CaptureRequest.COLOR_CORRECTION_GAINS, RggbChannelVector(red, green, green, blue))
+            updateRepeating()
+        }
+    }
+
+    /** Back to continuous auto white balance (upstream `setAutoWhiteBalance`). */
+    fun setAutoWhiteBalance() {
+        handler.post {
+            val builder = request ?: return@post
+            builder.set(CaptureRequest.CONTROL_AWB_MODE, CameraMetadata.CONTROL_AWB_MODE_AUTO)
+            builder.set(CaptureRequest.COLOR_CORRECTION_MODE, CameraMetadata.COLOR_CORRECTION_MODE_FAST)
+            updateRepeating()
+        }
+    }
+
+    /** Stabilization to apply when the camera opens and after [setStabilization]. */
+    @Volatile
+    var stabilization = false
+        private set
+
+    /** Video stabilization (upstream `videoStabilizationMode`): electronic and, where present, optical. */
+    fun setStabilization(on: Boolean) {
+        stabilization = on
+        handler.post {
+            val builder = request ?: return@post
+            applyStabilization(builder, on)
+            updateRepeating()
+        }
+    }
+
+    private fun applyStabilization(builder: CaptureRequest.Builder, on: Boolean) {
+        val characteristics = characteristics ?: return
+        if (characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES)
+                ?.contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON) == true
+        ) {
+            builder.set(
+                CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                if (on) CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON else CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_OFF,
+            )
+        }
+        if (characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
+                ?.contains(CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON) == true
+        ) {
+            builder.set(
+                CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                if (on) CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON else CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_OFF,
+            )
+        }
+    }
+
     private fun updateRepeating() {
         val builder = request ?: return
         try {
-            session?.setRepeatingRequest(builder.build(), null, handler)
+            session?.setRepeatingRequest(builder.build(), captureCallback, handler)
         } catch (e: Exception) {
             // Session closed concurrently.
         }

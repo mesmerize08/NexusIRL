@@ -6,11 +6,25 @@ package io.github.mesmerize08.nexusirl.settings
 import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreserving
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreservingSerializer
+import io.github.mesmerize08.nexusirl.core.codable.SwiftRawValueEnum
+import io.github.mesmerize08.nexusirl.core.codable.SwiftRawValueEnumSerializer
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonObject
+
+/** Upstream `SettingsVideoStabilizationMode`. Android maps every mode except Off to "on". */
+@Serializable(with = VideoStabilizationMode.Serializer::class)
+enum class VideoStabilizationMode(override val rawValue: String) : SwiftRawValueEnum {
+    OFF("Off"),
+    STANDARD("Standard"),
+    CINEMATIC("Cinematic"),
+    CINEMATIC_EXTENDED_ENHANCED("Cinematic extended enhanced"),
+    ;
+
+    object Serializer : SwiftRawValueEnumSerializer<VideoStabilizationMode>("SettingsVideoStabilizationMode", entries, OFF)
+}
 
 /**
  * The settings document. Upstream keeps the whole app configuration in one forgiving JSON object
@@ -23,6 +37,7 @@ data class Database(
     val streams: List<SettingsStream> = emptyList(),
     val tapToFocus: Boolean = false,
     val portrait: Boolean = false,
+    val videoStabilizationMode: VideoStabilizationMode = VideoStabilizationMode.OFF,
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())
