@@ -11,6 +11,7 @@ import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChat
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
 import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +54,7 @@ object ChatController {
     private var twitch: TwitchChat? = null
     private var kick: KickChat? = null
     private val youTube = mutableListOf<YouTubeLiveChat>()
+    private val emoteLoaders = mutableListOf<ThirdPartyEmotes>()
 
     /** Increases on every reload so callbacks from old connections are ignored. */
     private var generation = 0
@@ -65,6 +67,8 @@ object ChatController {
         val kickIds: KickChatIds?,
         val youTubeVideoIds: List<String>,
         val youTubeHandle: String,
+        val twitchChannelId: String,
+        val emotes: SettingsStreamChat,
     )
 
     private fun config(database: Database): Config {
@@ -79,6 +83,8 @@ object ChatController {
             kickIds = kickIds,
             youTubeVideoIds = stream?.youTubeVideoIdList.orEmpty(),
             youTubeHandle = stream?.youTubeHandle?.trim().orEmpty(),
+            twitchChannelId = stream?.twitchChannelId?.trim().orEmpty(),
+            emotes = stream?.chat ?: SettingsStreamChat(),
         )
     }
 
@@ -121,6 +127,8 @@ object ChatController {
         kick = null
         youTube.forEach { it.stop() }
         youTube.clear()
+        emoteLoaders.forEach { it.stop() }
+        emoteLoaders.clear()
         mutablePosts.value = emptyList()
         if (!config.enabled) {
             mutableConnected.value = emptyMap()
@@ -128,18 +136,45 @@ object ChatController {
         }
         val listener = listener(current)
         val connected = mutableMapOf<ChatPlatform, Boolean>()
+
+        // Each platform has its own third-party emotes, loaded once its channel id is known.
+        fun emotes(platform: EmotesPlatform, channelId: String, set: EmoteSet) {
+            if (generation == current) {
+                emoteLoaders += ThirdPartyEmotes(platform, channelId, config.emotes, set).also { it.start() }
+            }
+        }
         if (config.twitchChannelName.isNotEmpty()) {
             connected[ChatPlatform.TWITCH] = false
-            twitch = TwitchChat(config.twitchChannelName, listener).also { it.start() }
+            val set = EmoteSet()
+            // Without a configured id, use the one Twitch sends on joining (first time only).
+            var started = config.twitchChannelId.isNotEmpty()
+            if (started) {
+                emotes(EmotesPlatform.TWITCH, config.twitchChannelId, set)
+            }
+            twitch = TwitchChat(config.twitchChannelName, listener, set, onRoomId = { roomId ->
+                onMain(current) {
+                    if (!started) {
+                        started = true
+                        emotes(EmotesPlatform.TWITCH, roomId, set)
+                    }
+                }
+            }).also { it.start() }
         }
         if (config.kickChannelName.isNotEmpty()) {
             connected[ChatPlatform.KICK] = false
-            kick = KickChat(config.kickChannelName, listener, config.kickIds).also { it.start() }
+            val set = EmoteSet()
+            kick = KickChat(config.kickChannelName, listener, config.kickIds, set, onIds = { ids ->
+                // Upstream passes the chatroom id ("kickChannelId") to the emote APIs.
+                onMain(current) { emotes(EmotesPlatform.KICK, ids.chatroomId, set) }
+            }).also { it.start() }
         }
         if (config.youTubeVideoIds.isNotEmpty()) {
             connected[ChatPlatform.YOUTUBE] = false
             for (videoId in config.youTubeVideoIds) {
-                youTube += YouTubeLiveChat(videoId, listener).also { it.start() }
+                val set = EmoteSet()
+                // As upstream, the video id stands in for the channel id.
+                emotes(EmotesPlatform.YOUTUBE, videoId, set)
+                youTube += YouTubeLiveChat(videoId, listener, set).also { it.start() }
             }
         } else if (config.youTubeHandle.isNotEmpty()) {
             fetchYouTubeVideoId()

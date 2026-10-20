@@ -218,7 +218,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 > polling, video id from the channel handle), shown over the preview. Channels are set per stream.
 > Chat widgets draw the chat into the stream, and browser widgets with Moblin access get chat
 > through `moblin.subscribe({chat: {}})`.
-> Still to do: third-party emotes, a chat appearance screen, OAuth features (sending, EventSub
+> BTTV, FFZ and 7TV emotes can be turned on per stream.
+> Still to do: a chat appearance screen, OAuth features (sending, EventSub
 > alerts, viewers).
 
 

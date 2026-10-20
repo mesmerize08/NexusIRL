@@ -179,6 +179,18 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         ChatTextField(stringResource(R.string.youtube_video_ids), stream.youTubeVideoIds) {
             stream = stream.copy(youTubeVideoIds = it.replace(" ", ""))
         }
+        Text(stringResource(R.string.emotes_help), style = MaterialTheme.typography.bodySmall)
+        EmoteSwitch("BTTV", stream.chat.bttvEmotes) { stream = stream.copy(chat = stream.chat.copy(bttvEmotes = it)) }
+        EmoteSwitch("FFZ", stream.chat.ffzEmotes) { stream = stream.copy(chat = stream.chat.copy(ffzEmotes = it)) }
+        EmoteSwitch("7TV", stream.chat.seventvEmotes) { stream = stream.copy(chat = stream.chat.copy(seventvEmotes = it)) }
+    }
+}
+
+@Composable
+private fun EmoteSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.emotes_provider, label), modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

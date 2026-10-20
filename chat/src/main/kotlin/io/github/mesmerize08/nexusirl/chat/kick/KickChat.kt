@@ -99,6 +99,8 @@ class KickChat(
     private val client: OkHttpClient = ReconnectingWebSocket.SHARED_CLIENT,
     private val pusherUrl: String = PUSHER_URL,
     private val apiBaseUrl: String = "https://kick.com/api/v1/channels/",
+    /** The ids once known (from settings or the lookup); third-party emotes need them. */
+    private val onIds: (KickChatIds) -> Unit = {},
 ) {
     private var socket: ReconnectingWebSocket? = null
 
@@ -117,6 +119,7 @@ class KickChat(
                 return@Thread
             }
             ids = resolved
+            onIds(resolved)
             val socket = ReconnectingWebSocket(
                 pusherUrl,
                 object : ReconnectingWebSocket.Listener {

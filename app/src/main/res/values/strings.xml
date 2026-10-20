@@ -141,4 +141,6 @@
     <string name="border">Border</string>
     <string name="bold_username">Bold username</string>
     <string name="bold_message">Bold message</string>
+    <string name="emotes_help">Third-party emotes are downloaded from each provider when chat connects.</string>
+    <string name="emotes_provider">%1$s emotes</string>
 </resources>

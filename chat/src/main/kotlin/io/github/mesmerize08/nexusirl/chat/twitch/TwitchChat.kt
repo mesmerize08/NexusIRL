@@ -21,6 +21,11 @@ class TwitchChat(
     private val emoteSet: EmoteSet = EmoteSet(),
     url: String = URL,
     client: OkHttpClient = ReconnectingWebSocket.SHARED_CLIENT,
+    /**
+     * The channel's numeric id from ROOMSTATE after joining. Anonymous chat has no other way to
+     * learn it; it is needed for the channel's third-party emotes.
+     */
+    private val onRoomId: (String) -> Unit = {},
 ) {
     private val socket = ReconnectingWebSocket(
         url,
@@ -69,6 +74,7 @@ class TwitchChat(
             TwitchChatCommand.CLEAR_MSG -> message.targetMessageId?.let { listener.onDeleteMessage(it) }
             TwitchChatCommand.CLEAR_CHAT -> message.targetUserId?.let { listener.onDeleteUser(it) }
             TwitchChatCommand.PING -> socket.send("PONG ${message.parameters.joinToString(" ")}")
+            TwitchChatCommand.ROOM_STATE -> message.roomId?.let(onRoomId)
         }
     }
 

@@ -11,6 +11,7 @@ enum class TwitchChatCommand(val rawValue: String) {
     USER_NOTICE("USERNOTICE"),
     CLEAR_CHAT("CLEARCHAT"),
     CLEAR_MSG("CLEARMSG"),
+    ROOM_STATE("ROOMSTATE"),
 }
 
 class InvalidTwitchMessageException(message: String) : Exception(message)
@@ -41,6 +42,7 @@ class TwitchChatMessage private constructor(val command: TwitchChatCommand, val 
     var targetMessageId: String? = null
     var targetUserId: String? = null
     var sourceRoomId: String? = null
+    var roomId: String? = null
 
     val isGigantifiedEmote: Boolean
         get() = messageId == "gigantified-emote-message"
@@ -185,6 +187,7 @@ class TwitchChatMessage private constructor(val command: TwitchChatCommand, val 
             "target-msg-id" -> targetMessageId = value
             "target-user-id" -> targetUserId = value
             "source-room-id" -> sourceRoomId = value
+            "room-id" -> roomId = value
         }
     }
 }
