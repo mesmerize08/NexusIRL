@@ -204,7 +204,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - browser widgets (WebView on a private virtual display rendering straight into the compositor;
 >     https only; the `moblin` object only with Moblin access, messages logged until Phase 5)
 >
->   Still to do: chat and map widgets, LUTs, scene transitions, quick buttons (effects are
+>   - the "Blur" scene switch transition while a new camera starts
+>
+>   Still to do: chat and map widgets, LUTs, the "Freeze" and "Blur & zoom" transitions, quick buttons (effects are
 >   toggled from a chip row for now and are not saved).
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).

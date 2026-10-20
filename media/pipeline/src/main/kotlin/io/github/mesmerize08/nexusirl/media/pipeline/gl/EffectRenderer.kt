@@ -45,9 +45,34 @@ internal class EffectRenderer {
         else -> parameter
     }
 
+    private var blurProgram: Program? = null
+    private val blurDirection: Int by lazy { GLES20.glGetUniformLocation(blurProgram!!.id, "uDirection") }
+
+    /**
+     * One pass of a separable Gaussian blur of [radius] pixels, along x ([horizontal]) or y
+     * (upstream's scene switch transition uses CIGaussianBlur).
+     */
+    fun blur(sourceTexture: Int, width: Int, height: Int, radius: Float, horizontal: Boolean) {
+        val program = blurProgram ?: Program(GlPrograms.create(VERTEX_SHADER, PRELUDE + BLUR_SHADER)).also { blurProgram = it }
+        GLES20.glViewport(0, 0, width, height)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glUseProgram(program.id)
+        GLES20.glUniform2f(program.size, width.toFloat(), height.toFloat())
+        GLES20.glUniform1f(program.parameter, radius)
+        GLES20.glUniform2f(blurDirection, if (horizontal) 1f else 0f, if (horizontal) 0f else 1f)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, sourceTexture)
+        quad.position(0)
+        GLES20.glVertexAttribPointer(program.position, 2, GLES20.GL_FLOAT, false, 8, quad)
+        GLES20.glEnableVertexAttribArray(program.position)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    }
+
     fun release() {
         programs.values.forEach { GLES20.glDeleteProgram(it.id) }
         programs.clear()
+        blurProgram?.let { GLES20.glDeleteProgram(it.id) }
+        blurProgram = null
     }
 
     private fun fragmentShader(effect: VideoEffect): String = when (effect) {
@@ -160,6 +185,23 @@ internal class EffectRenderer {
             attribute vec4 aPosition;
             void main() {
                 gl_Position = aPosition;
+            }
+        """
+
+        /** 25 taps spread over 3 sigma, sigma = radius / 3. */
+        const val BLUR_SHADER = """
+            uniform vec2 uDirection;
+            void main() {
+                vec2 step = uDirection * (uParameter / 12.0) / uSize;
+                float sigma = 4.0;
+                vec4 sum = vec4(0.0);
+                float total = 0.0;
+                for (int i = -12; i <= 12; i++) {
+                    float weight = exp(-float(i * i) / (2.0 * sigma * sigma));
+                    sum += texture2D(uTexture, uv() + float(i) * step) * weight;
+                    total += weight;
+                }
+                gl_FragColor = sum / total;
             }
         """
         const val PRELUDE = """

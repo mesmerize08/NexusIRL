@@ -62,6 +62,12 @@ class VideoPipeline(
     @Volatile
     var effectSettings = EffectSettings()
 
+    /**
+     * Upstream scene switch transition "Blur": while a new camera starts, the last frame is shown
+     * with a growing blur until the new camera's first frame arrives (GL thread only).
+     */
+    private var transitionStartNanos: Long? = null
+
     private class OverlayTexture(val textureId: Int, var x: Float, var y: Float, var width: Float, var height: Float)
 
     private val overlays = LinkedHashMap<String, OverlayTexture>()
@@ -288,6 +294,9 @@ class VideoPipeline(
             }
             cameraSource?.release()
             cameraSource = null
+            if (hasFrame) {
+                transitionStartNanos = System.nanoTime()
+            }
             startCamera(texture, cameraId)
         }
     }
@@ -457,6 +466,8 @@ class VideoPipeline(
         if (!hasFrame) {
             android.util.Log.i(TAG, "First frame, transform ${textureMatrix.joinToString(",") { "%.2f".format(it) }}")
         }
+        // The new camera delivered a frame: the transition ends.
+        transitionStartNanos = null
         hasFrame = true
         lastFrameWallNanos = System.nanoTime()
         render(presentationNanos)
@@ -514,6 +525,18 @@ class VideoPipeline(
             renderer.draw(drawMatrix, target.width, target.height, sourceAspect)
         } else {
             renderer.drawBlack(target.width, target.height)
+        }
+        transitionStartNanos?.let { start ->
+            // Upstream calcBlurRadius: 15 + 15 per second (up to 2 s), scaled to the canvas.
+            val seconds = ((System.nanoTime() - start) / 1e9).coerceAtMost(2.0).toFloat()
+            val radius = (15 + seconds * 15) * (maxOf(target.width, target.height) / 1920f)
+            for (horizontal in listOf(true, false)) {
+                other.bind()
+                effectRenderer.blur(target.textureId, target.width, target.height, radius, horizontal)
+                val previous = target
+                target = other
+                other = previous
+            }
         }
         val active = effects
         val parameters = effectSettings
