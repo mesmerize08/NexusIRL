@@ -128,4 +128,11 @@
     <string name="lut_bundled">Bundled</string>
     <string name="lut_import_failed">LUT import failed</string>
     <string name="luts_help">Colour lookup tables applied to the camera image, in this order. Import .cube files or LUT images (N³ pixels in N×N tiles).</string>
+    <string name="chat">Chat</string>
+    <string name="chat_channels_help">Chat is read without signing in. Leave a field empty to skip that platform.</string>
+    <string name="twitch_channel_name">Twitch channel name</string>
+    <string name="kick_channel_name">Kick channel name</string>
+    <string name="youtube_handle">YouTube handle (for example @name)</string>
+    <string name="youtube_video_ids">YouTube video ID (found from the handle when you go live)</string>
+    <string name="show_chat">Show chat</string>
 </resources>

@@ -206,6 +206,18 @@ data class SettingsStreamRecording(
     object Serializer : SwiftPreservingSerializer<SettingsStreamRecording>(generatedSerializer())
 }
 
+/** Upstream `SettingsStreamChat` (v1 subset): third-party emote providers. */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsStreamChat.Serializer::class)
+data class SettingsStreamChat(
+    val bttvEmotes: Boolean = false,
+    val ffzEmotes: Boolean = false,
+    val seventvEmotes: Boolean = false,
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsStreamChat>(generatedSerializer())
+}
+
 /**
  * Upstream `SettingsStream` (v1 subset). The selected stream is the one with [enabled] set, as
  * upstream. Upstream's key names are kept even where the Swift property differs
@@ -234,7 +246,20 @@ data class SettingsStream(
     val audioBitrate: Int = 128_000,
     val recording: SettingsStreamRecording = SettingsStreamRecording(),
     val portrait: Boolean = false,
+    val twitchChannelName: String = "",
+    val twitchChannelId: String = "",
+    val kickChannelName: String = "",
+    val kickChannelId: String? = null,
+    val kickChatroomChannelId: String? = null,
+    /** Comma separated, as upstream. */
+    val youTubeVideoIds: String = "",
+    val youTubeHandle: String = "",
+    val chat: SettingsStreamChat = SettingsStreamChat(),
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsStream>(generatedSerializer())
+
+    /** Upstream `getYouTubeVideoIds`. */
+    val youTubeVideoIdList: List<String>
+        get() = youTubeVideoIds.split(",").filter { it.isNotEmpty() }
 }

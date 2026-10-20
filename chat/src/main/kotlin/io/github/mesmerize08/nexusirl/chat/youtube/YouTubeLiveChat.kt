@@ -10,6 +10,7 @@ import io.github.mesmerize08.nexusirl.chat.ChatPost
 import io.github.mesmerize08.nexusirl.chat.ChatPostSegment
 import io.github.mesmerize08.nexusirl.chat.EmoteSet
 import io.github.mesmerize08.nexusirl.chat.net.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.settings.RgbColor
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -131,17 +132,17 @@ class YouTubeLiveChat(
             val item = action.obj("addChatItemAction").obj("item") ?: continue
             item.obj("liveChatTextMessageRenderer")?.let { numberOfMessages += handleChatDescription(it, null, null) }
             item.obj("liveChatPaidMessageRenderer")?.let {
-                numberOfMessages += handleChatDescription(it, purchaseText(it, "Super Chat"), highlight("Super Chat"))
+                numberOfMessages += handleChatDescription(it, purchaseText(it, "Super Chat"), superChat)
             }
             item.obj("liveChatPaidStickerRenderer")?.let {
-                numberOfMessages += handleChatDescription(it, purchaseText(it, "Super Sticker"), highlight("Super Sticker"))
+                numberOfMessages += handleChatDescription(it, purchaseText(it, "Super Sticker"), superSticker)
             }
-            item.obj("liveChatMembershipItemRenderer")?.let { numberOfMessages += handleChatDescription(it, null, highlight("Member")) }
+            item.obj("liveChatMembershipItemRenderer")?.let { numberOfMessages += handleChatDescription(it, null, member) }
             item.obj("liveChatSponsorshipsGiftPurchaseAnnouncementRenderer").obj("header").obj("liveChatSponsorshipsHeaderRenderer")?.let {
                 numberOfMessages += handleGiftPurchase(it)
             }
             item.obj("liveChatSponsorshipsGiftRedemptionAnnouncementRenderer")?.let {
-                numberOfMessages += handleChatDescription(it, null, highlight("Gifted Memberships"))
+                numberOfMessages += handleChatDescription(it, null, giftedMemberships)
             }
             item.obj("giftMessageViewModel")?.let { numberOfMessages += handleGiftMessage(it) }
         }
@@ -156,7 +157,14 @@ class YouTubeLiveChat(
         delayMillis = delayMillis.coerceIn(MINIMUM_POLL_DELAY_MILLIS, MAXIMUM_POLL_DELAY_MILLIS)
     }
 
-    private fun highlight(title: String) = ChatHighlight(ChatHighlightKind.OTHER, title)
+    // Upstream `ChatHighlight.makePaidMessage()` and friends.
+    private val superChat = highlight("Super Chat", ChatHighlight.Colors.ORANGE)
+    private val superSticker = highlight("Super Sticker", ChatHighlight.Colors.GREEN)
+    private val member = highlight("Member", ChatHighlight.Colors.BLUE)
+    private val giftedMemberships = highlight("Gifted Memberships", ChatHighlight.Colors.BLUE)
+    private val jewels = highlight("Jewels", ChatHighlight.Colors.BLUE)
+
+    private fun highlight(title: String, color: RgbColor) = ChatHighlight(ChatHighlightKind.OTHER, title, barColor = color)
 
     private fun purchaseText(description: JsonObject, what: String): String =
         description.obj("purchaseAmountText").string("simpleText")?.let { "sent a $it $what!" } ?: "sent a $what!"
@@ -214,7 +222,7 @@ class YouTubeLiveChat(
             segments,
             isOwner,
             isModerator,
-            highlight("Gifted Memberships"),
+            giftedMemberships,
         )
         return 1
     }
@@ -222,7 +230,7 @@ class YouTubeLiveChat(
     private fun handleGiftMessage(model: JsonObject): Int {
         val user = model.obj("authorName").string("content") ?: return 0
         val text = model.obj("text").string("content") ?: return 0
-        emit(user, null, emoteSet.createSegments(text, intArrayOf(0)), false, false, highlight("Jewels"))
+        emit(user, null, emoteSet.createSegments(text, intArrayOf(0)), false, false, jewels)
         return 1
     }
 

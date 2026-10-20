@@ -163,5 +163,32 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 })
             }
         }
+        HorizontalDivider()
+        Text(stringResource(R.string.chat), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.chat_channels_help), style = MaterialTheme.typography.bodySmall)
+        ChatTextField(stringResource(R.string.twitch_channel_name), stream.twitchChannelName) {
+            stream = stream.copy(twitchChannelName = it)
+        }
+        // Upstream forgets the looked-up Kick ids when the channel changes.
+        ChatTextField(stringResource(R.string.kick_channel_name), stream.kickChannelName) {
+            stream = stream.copy(kickChannelName = it, kickChannelId = null, kickChatroomChannelId = null)
+        }
+        ChatTextField(stringResource(R.string.youtube_handle), stream.youTubeHandle) {
+            stream = stream.copy(youTubeHandle = it)
+        }
+        ChatTextField(stringResource(R.string.youtube_video_ids), stream.youTubeVideoIds) {
+            stream = stream.copy(youTubeVideoIds = it.replace(" ", ""))
+        }
     }
+}
+
+@Composable
+private fun ChatTextField(label: String, value: String, onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

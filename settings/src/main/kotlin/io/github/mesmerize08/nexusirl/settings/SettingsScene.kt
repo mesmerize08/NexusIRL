@@ -163,6 +163,7 @@ data class SettingsWidget(
     val text: SettingsWidgetText = SettingsWidgetText(),
     val qrCode: SettingsWidgetQrCode = SettingsWidgetQrCode(),
     val browser: SettingsWidgetBrowser = SettingsWidgetBrowser(),
+    val chat: SettingsWidgetChat = SettingsWidgetChat(),
     val enabled: Boolean = true,
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {

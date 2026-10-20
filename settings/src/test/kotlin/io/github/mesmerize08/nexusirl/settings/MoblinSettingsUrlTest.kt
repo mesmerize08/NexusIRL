@@ -52,7 +52,7 @@ class MoblinSettingsUrlTest {
         assertEquals(160_000, irl.audioBitrate)
         assertEquals(2500, irl.srt.latency)
         assertEquals(false, irl.srt.adaptiveBitrateEnabled)
-        assertEquals("\"someone\"", irl.extra["twitchChannelName"].toString())
+        assertEquals("someone", irl.twitchChannelName)
         // OBS (holds a password), remote control and Moblin Cloud are not applied.
         assertNull(irl.extra["obsWebSocketPassword"])
         assertEquals(listOf("OBS WebSocket", "remote control", "Moblin Cloud"), link.ignoredParts)

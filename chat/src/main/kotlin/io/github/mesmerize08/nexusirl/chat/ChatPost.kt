@@ -21,8 +21,22 @@ data class ChatPostSegment(val id: Int, val text: String? = null, val url: ChatE
 /** Upstream `ChatHighlightKind`. */
 enum class ChatHighlightKind { OTHER, REDEMPTION, FIRST_MESSAGE, NEW_FOLLOWER, REPLY, MODERATOR, GIGANTIFIED_EMOTE }
 
-/** Upstream `ChatHighlight` (bar colour is chosen by the UI from [kind]). */
-data class ChatHighlight(val kind: ChatHighlightKind, val title: String, val segments: List<ChatPostSegment> = emptyList())
+/** Upstream `ChatHighlight`. A null [barColor] is upstream's `.clear` (replies). */
+data class ChatHighlight(
+    val kind: ChatHighlightKind,
+    val title: String,
+    val segments: List<ChatPostSegment> = emptyList(),
+    val barColor: RgbColor? = null,
+) {
+    /** iOS system colours upstream's `ChatHighlight.make*` use for the bar. */
+    object Colors {
+        val GREEN = RgbColor(52, 199, 89)
+        val YELLOW = RgbColor(255, 204, 0)
+        val ORANGE = RgbColor(255, 149, 0)
+        val BLUE = RgbColor(0, 122, 255)
+        val PURPLE = RgbColor(175, 82, 222)
+    }
+}
 
 /** One chat message (upstream `ChatPost`). */
 data class ChatPost(

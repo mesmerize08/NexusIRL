@@ -213,6 +213,11 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.
+>
+> **Phase 5 progress:** anonymous chat read for Twitch (IRC), Kick (Pusher) and YouTube (innertube
+> polling, video id from the channel handle), shown over the preview. Channels are set per stream.
+> Still to do: chat widget in the stream, browser widget chat events, third-party emotes, OAuth
+> features (sending, EventSub alerts, viewers).
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

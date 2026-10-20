@@ -5,7 +5,6 @@ package io.github.mesmerize08.nexusirl.settings
 import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import java.net.URLDecoder
 
 @Serializable
@@ -101,14 +100,10 @@ data class MoblinSettingsUrl(
                 srt.latency?.let { target = target.copy(srt = target.srt.copy(latency = it)) }
                 srt.adaptiveBitrateEnabled?.let { target = target.copy(srt = target.srt.copy(adaptiveBitrateEnabled = it)) }
             }
-            // Channel names are not secret; they are kept for the chat features of later phases.
-            val extra = target.extra.toMutableMap()
             linkStream.twitch?.let {
-                extra["twitchChannelName"] = JsonPrimitive(it.channelName.trim())
-                extra["twitchChannelId"] = JsonPrimitive(it.channelId.trim())
+                target = target.copy(twitchChannelName = it.channelName.trim(), twitchChannelId = it.channelId.trim())
             }
-            linkStream.kick?.let { extra["kickChannelName"] = JsonPrimitive(it.channelName.trim()) }
-            target = target.copy(extra = JsonObject(extra))
+            linkStream.kick?.let { target = target.copy(kickChannelName = it.channelName.trim()) }
             result = if (existing != null) result.updateStream(target) else result.copy(streams = result.streams + target)
             if (linkStream.selected == true) {
                 newSelected = target

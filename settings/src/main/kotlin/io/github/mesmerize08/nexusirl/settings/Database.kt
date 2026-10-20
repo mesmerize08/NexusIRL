@@ -81,6 +81,7 @@ data class Database(
     val whirlpoolAngle: SFloat = (Math.PI / 2).toFloat(),
     val pinchScale: SFloat = 0.5f,
     val color: SettingsColor = SettingsColor(),
+    val chat: SettingsChat = SettingsChat(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

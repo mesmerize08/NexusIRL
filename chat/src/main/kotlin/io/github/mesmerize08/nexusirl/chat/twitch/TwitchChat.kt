@@ -96,9 +96,17 @@ class TwitchChat(
         }
         val segments = createTwitchSegments(text, message.emotes, emoteSet, intArrayOf(0))
         val highlight = when {
-            announcement -> ChatHighlight(ChatHighlightKind.OTHER, "Announcement")
-            isPrivate && message.firstMessage -> ChatHighlight(ChatHighlightKind.FIRST_MESSAGE, "First time chatter")
-            isPrivate && message.isGigantifiedEmote -> ChatHighlight(ChatHighlightKind.GIGANTIFIED_EMOTE, "Gigantified emote")
+            announcement -> ChatHighlight(ChatHighlightKind.OTHER, "Announcement", barColor = ChatHighlight.Colors.GREEN)
+            isPrivate && message.firstMessage -> ChatHighlight(
+                ChatHighlightKind.FIRST_MESSAGE,
+                "First time chatter",
+                barColor = ChatHighlight.Colors.YELLOW,
+            )
+            isPrivate && message.isGigantifiedEmote -> ChatHighlight(
+                ChatHighlightKind.GIGANTIFIED_EMOTE,
+                "Gigantified emote",
+                barColor = ChatHighlight.Colors.PURPLE,
+            )
             message.replySender != null && message.replyText != null -> ChatHighlight(
                 ChatHighlightKind.REPLY,
                 "Replying to ${message.replySender}:",

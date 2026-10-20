@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.view.Surface
+import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.core.secrets.KeystoreSecretStore
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
 import io.github.mesmerize08.nexusirl.effects.TextVariables
@@ -254,6 +255,8 @@ object StreamController {
         val newSession = StreamSession(context.applicationContext, config, video, audio(context)) { mutableStatus.value = it }
         session = newSession
         newSession.start()
+        // Upstream starts looking up the YouTube live video when going live.
+        ChatController.fetchYouTubeVideoId()
         updateService(context)
         return null
     }

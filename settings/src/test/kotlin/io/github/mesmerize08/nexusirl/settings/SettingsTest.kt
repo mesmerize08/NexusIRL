@@ -40,6 +40,27 @@ class SettingsTest {
     """.trimIndent()
 
     @Test
+    fun chatSettings() {
+        val database = Database.fromJson(
+            """{"chat": {"fontSize": 25, "height": 0.5, "usernameColor": {"red": 1, "green": 2, "blue": 3}, "botEnabled": true},
+               "streams": [{"twitchChannelName": "a", "kickChannelName": "b", "kickChannelId": "12", "youTubeVideoIds": "x,y",
+                            "chat": {"bttvEmotes": true}}]}""",
+        )
+        assertEquals(25f, database.chat.fontSize)
+        assertEquals(0.5, database.chat.height)
+        assertEquals(RgbColor(1, 2, 3), database.chat.usernameColor)
+        assertTrue(database.chat.enabled)
+        val stream = database.streams.single()
+        assertEquals(listOf("a", "b", "12"), listOf(stream.twitchChannelName, stream.kickChannelName, stream.kickChannelId))
+        assertEquals(null, stream.kickChatroomChannelId)
+        assertEquals(listOf("x", "y"), stream.youTubeVideoIdList)
+        assertTrue(stream.chat.bttvEmotes)
+        val json = SwiftJson.parseToJsonElement(database.toJson()).jsonObject
+        assertEquals("true", json["chat"]!!.jsonObject["botEnabled"].toString())
+        assertFalse("kickChatroomChannelId" in json["streams"]!!.jsonArray[0].jsonObject)
+    }
+
+    @Test
     fun decodesAnIosExport() {
         val database = Database.fromJson(iosJson)
         assertEquals(2, database.streams.size)

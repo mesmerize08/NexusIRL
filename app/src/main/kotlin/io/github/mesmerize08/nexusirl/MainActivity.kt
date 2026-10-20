@@ -38,12 +38,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.ui.CameraPreview
+import io.github.mesmerize08.nexusirl.ui.ChatControls
+import io.github.mesmerize08.nexusirl.ui.ChatOverlay
 import io.github.mesmerize08.nexusirl.ui.EffectsPicker
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
@@ -75,6 +78,7 @@ class MainActivity : ComponentActivity() {
         }
         requestPermissionsIfNeeded()
         updateDisplayRotation()
+        ChatController.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -284,7 +288,7 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
     // Landscape: preview on the left (as large as fits at 16:9), controls scroll on the right.
     Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            CameraPreview()
+            CameraPreview(overlay = { ChatOverlay(database.chat, Modifier.padding(8.dp)) })
         }
         Column(
             modifier = Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
@@ -315,6 +319,7 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
             }
             ScenePicker(store)
             EffectsPicker()
+            ChatControls(store)
             RecordingControls()
             Text(
                 "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +
