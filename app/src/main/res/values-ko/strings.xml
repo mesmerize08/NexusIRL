@@ -40,13 +40,6 @@
     <string name="text_format">텍스트</string>
     <string name="font_size">폰트 크기</string>
     <string name="background">배경</string>
-    <string name="effect_gray_scale">흑백</string>
-    <string name="effect_sepia">세피아</string>
-    <string name="effect_pixellate">모자이크</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_crt">CRT</string>
-    <string name="effect_whirlpool">소용돌이</string>
-    <string name="effect_pinch">핀치</string>
     <string name="browser_url">URL</string>
     <string name="width">폭</string>
     <string name="height">높이</string>

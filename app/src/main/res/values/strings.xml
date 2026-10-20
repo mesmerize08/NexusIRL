@@ -110,13 +110,6 @@
     <string name="image_set">An image is set.</string>
     <string name="image_missing">No image chosen yet.</string>
     <string name="qr_message">QR code text</string>
-    <string name="effect_gray_scale">Gray scale</string>
-    <string name="effect_sepia">Sepia</string>
-    <string name="effect_pixellate">Pixellate</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_crt">CRT</string>
-    <string name="effect_whirlpool">Whirlpool</string>
-    <string name="effect_pinch">Pinch</string>
     <string name="browser_url">URL</string>
     <string name="browser_url_help">An https:// page, e.g. a chat or alerts overlay. Plain http:// is not allowed.</string>
     <string name="width">Width</string>
@@ -149,4 +142,7 @@
     <string name="mirrored">Mirrored</string>
     <string name="maximum_age">Remove old messages</string>
     <string name="chat_settings">Chat settings</string>
+    <string name="stealth_mode_exit">Double tap to leave stealth mode</string>
+    <string name="quick_buttons">Quick buttons</string>
+    <string name="quick_buttons_help">Choose which buttons are shown on the main screen and their order. Buttons Android does not support yet are kept for iOS settings exports.</string>
 </resources>

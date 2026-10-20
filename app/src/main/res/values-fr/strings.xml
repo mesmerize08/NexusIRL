@@ -29,8 +29,6 @@
     <string name="widgets">Widgets</string>
     <string name="font_size">Taille de police</string>
     <string name="background">Arrière-plan</string>
-    <string name="effect_gray_scale">Niveaux de gris</string>
-    <string name="effect_sepia">Sépia</string>
     <string name="browser_url">URL</string>
     <string name="width">Largeur</string>
     <string name="height">Hauteur</string>

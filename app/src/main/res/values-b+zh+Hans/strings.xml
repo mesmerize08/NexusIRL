@@ -39,12 +39,6 @@
     <string name="text_format">文本</string>
     <string name="font_size">字号</string>
     <string name="background">背景</string>
-    <string name="effect_gray_scale">灰度</string>
-    <string name="effect_sepia">怀旧滤镜</string>
-    <string name="effect_pixellate">马赛克</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_whirlpool">涡流特效</string>
-    <string name="effect_pinch">扭曲特效</string>
     <string name="browser_url">URL</string>
     <string name="width">宽度</string>
     <string name="height">高度</string>

@@ -37,12 +37,6 @@
     <string name="text_format">Texto</string>
     <string name="font_size">Tamanho da fonte</string>
     <string name="background">Fundo</string>
-    <string name="effect_gray_scale">Escala de cinza</string>
-    <string name="effect_sepia">Sépia</string>
-    <string name="effect_pixellate">Pixelado</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_whirlpool">Whirlpool</string>
-    <string name="effect_pinch">Beliscar</string>
     <string name="browser_url">URL</string>
     <string name="width">Largura</string>
     <string name="height">Altura</string>

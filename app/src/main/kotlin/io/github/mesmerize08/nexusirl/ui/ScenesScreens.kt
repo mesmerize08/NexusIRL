@@ -40,7 +40,6 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.R
-import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.HorizontalAlignment
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl.Companion.makeUniqueName
@@ -62,31 +61,6 @@ private val SUPPORTED_WIDGET_TYPES = listOf(WidgetType.TEXT, WidgetType.IMAGE, W
 private val CAMERAS = listOf("Back", "Front", "None")
 
 /** Effect toggles (upstream quick buttons), in upstream's application order. */
-@Composable
-fun EffectsPicker() {
-    val context = LocalContext.current
-    val effects by StreamController.effects.collectAsState()
-    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((effect, label) in EFFECT_LABELS) {
-            FilterChip(
-                selected = effect in effects,
-                onClick = { StreamController.setEffect(context, effect, effect !in effects) },
-                label = { Text(stringResource(label)) },
-            )
-        }
-    }
-}
-
-private val EFFECT_LABELS = listOf(
-    VideoEffect.GRAY_SCALE to R.string.effect_gray_scale,
-    VideoEffect.SEPIA to R.string.effect_sepia,
-    VideoEffect.PIXELLATE to R.string.effect_pixellate,
-    VideoEffect.FOUR_THREE to R.string.effect_four_three,
-    VideoEffect.CRT to R.string.effect_crt,
-    VideoEffect.WHIRLPOOL to R.string.effect_whirlpool,
-    VideoEffect.PINCH to R.string.effect_pinch,
-)
-
 /** Scene buttons on the main screen (upstream scene picker). */
 @Composable
 fun ScenePicker(store: SettingsStore) {

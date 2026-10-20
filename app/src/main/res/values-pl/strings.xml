@@ -39,11 +39,6 @@
     <string name="text_format">Tekst</string>
     <string name="font_size">Wielkość czcionki</string>
     <string name="background">Tło</string>
-    <string name="effect_gray_scale">Skala szarości</string>
-    <string name="effect_sepia">Sepia</string>
-    <string name="effect_pixellate">Pixelizacja</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_whirlpool">Wir</string>
     <string name="browser_url">URL</string>
     <string name="width">Szerokość</string>
     <string name="height">Wysokość</string>

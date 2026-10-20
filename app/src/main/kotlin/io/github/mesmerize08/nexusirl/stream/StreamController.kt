@@ -26,6 +26,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.LutLoader
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
+import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsColor
@@ -36,6 +37,7 @@ import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.settings.VideoStabilizationMode
 import io.github.mesmerize08.nexusirl.settings.WidgetType
+import io.github.mesmerize08.nexusirl.settings.addMissingQuickButtons
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -111,20 +113,61 @@ object StreamController {
     }
     private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
 
-    private val mutableEffects = MutableStateFlow<Set<VideoEffect>>(emptySet())
+    // Quick buttons (upstream QuickButtonsView actions and ModelQuickButtons.swift)
 
-    /** Global effects that are on (upstream quick buttons). Not saved yet: they reset on restart. */
-    val effects: StateFlow<Set<VideoEffect>> = mutableEffects
+    /** Global effects each quick button turns on (upstream order is applied by the pipeline). */
+    private val effectButtons = mapOf(
+        QuickButtonType.GRAY_SCALE to VideoEffect.GRAY_SCALE,
+        QuickButtonType.SEPIA to VideoEffect.SEPIA,
+        QuickButtonType.PIXELLATE to VideoEffect.PIXELLATE,
+        QuickButtonType.FOUR_THREE to VideoEffect.FOUR_THREE,
+        QuickButtonType.CRT to VideoEffect.CRT,
+        QuickButtonType.WHIRLPOOL to VideoEffect.WHIRLPOOL,
+        QuickButtonType.PINCH to VideoEffect.PINCH,
+    )
 
-    fun setEffect(context: Context, effect: VideoEffect, on: Boolean) {
-        mutableEffects.value = if (on) mutableEffects.value + effect else mutableEffects.value - effect
+    /**
+     * Upstream `addMissingQuickButtons` and its start-up reset, once per process: every button
+     * exists and all start off.
+     */
+    fun ensureQuickButtons(context: Context) {
+        if (quickButtonsLoaded) {
+            return
+        }
+        quickButtonsLoaded = true
+        val store = settings(context)
+        val buttons = addMissingQuickButtons(store.current.quickButtons)
+        if (buttons != store.current.quickButtons) {
+            store.update { it.copy(quickButtons = buttons) }
+        }
+    }
+
+    private var quickButtonsLoaded = false
+
+    fun isQuickButtonOn(context: Context, type: QuickButtonType): Boolean =
+        settings(context).current.quickButtons.firstOrNull { it.type == type }?.isOn == true
+
+    /** Upstream `setGlobalButtonState`: saves the button state and applies what it controls. */
+    fun setQuickButton(context: Context, type: QuickButtonType, on: Boolean) {
+        settings(context).update { database ->
+            database.copy(quickButtons = database.quickButtons.map { if (it.type == type) it.copy(isOn = on) else it })
+        }
+        when (type) {
+            QuickButtonType.TORCH -> setTorch(on)
+            else -> applyQuickButtons(context)
+        }
+    }
+
+    /** Applies effect and mute buttons (also after imports and when capture starts). */
+    fun applyQuickButtons(context: Context) {
         applyEffects(context)
+        sharedAudio?.muted = isQuickButtonOn(context, QuickButtonType.MUTE)
     }
 
     private fun applyEffects(context: Context) {
         val database = settings(context).current
         pipeline?.effectSettings = EffectSettings(database.pixellateStrength, database.whirlpoolAngle, database.pinchScale)
-        pipeline?.effects = mutableEffects.value
+        pipeline?.effects = database.quickButtons.filter { it.isOn }.mapNotNull { effectButtons[it.type] }.toSet()
     }
 
     /** The scene being shown; runtime state like upstream's `sceneSelector`. */
@@ -223,7 +266,10 @@ object StreamController {
         )
     }
 
-    private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(context).also { sharedAudio = it }
+    private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(context).also {
+        sharedAudio = it
+        it.muted = isQuickButtonOn(context, QuickButtonType.MUTE)
+    }
 
     // Streaming
 

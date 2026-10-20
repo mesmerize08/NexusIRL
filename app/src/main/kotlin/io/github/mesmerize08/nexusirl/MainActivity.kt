@@ -9,6 +9,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,12 +37,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
+import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
@@ -48,9 +53,10 @@ import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.ChatControls
 import io.github.mesmerize08.nexusirl.ui.ChatOverlay
 import io.github.mesmerize08.nexusirl.ui.ChatSettingsScreen
-import io.github.mesmerize08.nexusirl.ui.EffectsPicker
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
+import io.github.mesmerize08.nexusirl.ui.QuickButtonBar
+import io.github.mesmerize08.nexusirl.ui.QuickButtonsScreen
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
 import io.github.mesmerize08.nexusirl.ui.ScenesScreen
@@ -100,6 +106,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         StreamController.ensureDefaultScenes(this)
         StreamController.ensureBundledLuts(this)
+        StreamController.ensureQuickButtons(this)
         StreamController.setUiVisible(this, true)
     }
 
@@ -183,6 +190,8 @@ private sealed interface Screen {
     data object Luts : Screen
 
     data object Chat : Screen
+
+    data object QuickButtons : Screen
 }
 
 @Composable
@@ -235,6 +244,10 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
     LaunchedEffect(database.color) {
         StreamController.refreshLuts(context)
     }
+    // Effects and mute follow the quick buttons, including after imports.
+    LaunchedEffect(database.quickButtons) {
+        StreamController.applyQuickButtons(context)
+    }
     BackHandler(enabled = screen != Screen.Main) {
         screen = when (screen) {
             is Screen.EditStream -> Screen.Streams
@@ -243,13 +256,33 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             else -> Screen.Main
         }
     }
+    // Upstream stealth mode ("Black screen" quick button): the screen goes black while capture
+    // continues; a double tap brings it back.
+    if (database.quickButtons.any { it.type == QuickButtonType.BLACK_SCREEN && it.isOn }) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = { StreamController.setQuickButton(context, QuickButtonType.BLACK_SCREEN, false) })
+                },
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Text(stringResource(R.string.stealth_mode_exit), color = Color.DarkGray, modifier = Modifier.padding(16.dp))
+        }
+        return
+    }
     when (val current = screen) {
         Screen.Main -> MainScreen(
             onStreams = { screen = Screen.Streams },
             onScenes = { screen = Screen.Scenes },
             onImportExport = { screen = Screen.ImportExport },
             onChat = { screen = Screen.Chat },
+            onWidgets = { screen = Screen.Widgets },
+            onLuts = { screen = Screen.Luts },
+            onQuickButtons = { screen = Screen.QuickButtons },
         )
+        Screen.QuickButtons -> QuickButtonsScreen(store, onBack = { screen = Screen.Main })
         Screen.Chat -> ChatSettingsScreen(store, onBack = { screen = Screen.Main })
         Screen.Streams -> StreamsScreen(
             store,
@@ -276,7 +309,15 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
 }
 
 @Composable
-private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExport: () -> Unit, onChat: () -> Unit) {
+private fun MainScreen(
+    onStreams: () -> Unit,
+    onScenes: () -> Unit,
+    onImportExport: () -> Unit,
+    onChat: () -> Unit,
+    onWidgets: () -> Unit,
+    onLuts: () -> Unit,
+    onQuickButtons: () -> Unit,
+) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
     val database by store.database.collectAsState()
@@ -293,7 +334,12 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
     // Landscape: preview on the left (as large as fits at 16:9), controls scroll on the right.
     Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            CameraPreview(overlay = { ChatOverlay(database.chat, Modifier.padding(8.dp)) })
+            val localOverlaysHidden = database.quickButtons.any { it.type == QuickButtonType.LOCAL_OVERLAYS && it.isOn }
+            CameraPreview(showControls = !localOverlaysHidden, overlay = {
+                if (!localOverlaysHidden) {
+                    ChatOverlay(database.chat, Modifier.padding(8.dp))
+                }
+            })
         }
         Column(
             modifier = Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
@@ -323,7 +369,7 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
                 OutlinedButton(onClick = onScenes) { Text(stringResource(R.string.scenes)) }
             }
             ScenePicker(store)
-            EffectsPicker()
+            QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onEdit = onQuickButtons)
             ChatControls(store, onSettings = onChat)
             RecordingControls()
             Text(
@@ -347,10 +393,9 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
     }
 }
 
-/** Record button and indicator (upstream record quick button and recording status). */
+/** Recording indicator (upstream recording status); recording starts from the quick buttons. */
 @Composable
 private fun RecordingControls() {
-    val context = LocalContext.current
     val recording by StreamController.recording.collectAsState()
     var elapsedSeconds by remember { mutableStateOf(0L) }
     LaunchedEffect(recording) {
@@ -360,23 +405,6 @@ private fun RecordingControls() {
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedButton(onClick = {
-            if (recording == null) {
-                StreamController.startRecording(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-            } else {
-                val saved = StreamController.stopRecording(context)
-                Toast.makeText(context, if (saved) R.string.recording_saved else R.string.recording_failed, Toast.LENGTH_LONG).show()
-            }
-        }) {
-            Text(stringResource(if (recording == null) R.string.record else R.string.stop_recording))
-        }
-        OutlinedButton(onClick = {
-            StreamController.takeSnapshot(context) { saved ->
-                Toast.makeText(context, if (saved) R.string.snapshot_saved else R.string.snapshot_failed, Toast.LENGTH_SHORT).show()
-            }
-        }) {
-            Text(stringResource(R.string.snapshot))
-        }
         if (recording != null) {
             Text(
                 "● REC %d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60),

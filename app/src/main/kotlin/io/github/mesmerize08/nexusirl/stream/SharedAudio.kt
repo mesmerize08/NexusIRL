@@ -24,6 +24,13 @@ class SharedAudio(context: Context) {
     var microphoneName = ""
         private set
 
+    /** Upstream mute quick button: the microphone keeps running but sends silence. */
+    var muted = false
+        set(value) {
+            field = value
+            pipeline?.muted = value
+        }
+
     val levelDbfs: Float
         get() = pipeline?.levelDbfs ?: -160f
 
@@ -45,6 +52,7 @@ class SharedAudio(context: Context) {
 
     private fun start() {
         val audio = AudioPipeline(fanOut)
+        audio.muted = muted
         pipeline = audio
         microphones.start { _, selected ->
             audio.setPreferredDevice(selected?.device)

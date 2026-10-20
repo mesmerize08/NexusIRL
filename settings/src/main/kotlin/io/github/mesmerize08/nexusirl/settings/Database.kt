@@ -12,6 +12,7 @@ import io.github.mesmerize08.nexusirl.core.codable.SwiftRawValueEnum
 import io.github.mesmerize08.nexusirl.core.codable.SwiftRawValueEnumSerializer
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonObject
@@ -82,6 +83,9 @@ data class Database(
     val pinchScale: SFloat = 0.5f,
     val color: SettingsColor = SettingsColor(),
     val chat: SettingsChat = SettingsChat(),
+    /** Upstream `quickButtons`, stored under "globalButtons" ("quickButtons" holds their layout settings). */
+    @SerialName("globalButtons")
+    val quickButtons: List<SettingsQuickButton> = emptyList(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

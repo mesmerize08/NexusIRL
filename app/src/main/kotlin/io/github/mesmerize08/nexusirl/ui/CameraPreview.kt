@@ -51,7 +51,7 @@ private val ZOOM_PRESETS = listOf(0.5f, 1f, 2f, 5f)
 private fun formatZoom(zoom: Float): String = if (zoom == zoom.roundToInt().toFloat()) "${zoom.roundToInt()}x" else "%.1fx".format(zoom)
 
 @Composable
-fun CameraPreview(modifier: Modifier = Modifier, overlay: @Composable () -> Unit = {}) {
+fun CameraPreview(modifier: Modifier = Modifier, showControls: Boolean = true, overlay: @Composable () -> Unit = {}) {
     val camera by StreamController.camera.collectAsState()
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
     var showSettings by remember { mutableStateOf(false) }
@@ -115,6 +115,10 @@ fun CameraPreview(modifier: Modifier = Modifier, overlay: @Composable () -> Unit
             )
         }
         val current = camera.current
+        // Upstream "Local overlays" quick button hides these.
+        if (!showControls) {
+            return@Box
+        }
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),

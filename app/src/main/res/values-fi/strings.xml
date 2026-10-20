@@ -41,13 +41,6 @@
     <string name="text_format">Teksti</string>
     <string name="font_size">Fonttikoko</string>
     <string name="background">Tausta</string>
-    <string name="effect_gray_scale">Harmaasävy</string>
-    <string name="effect_sepia">Seepia</string>
-    <string name="effect_pixellate">Pikselöi</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_crt">CRT</string>
-    <string name="effect_whirlpool">Tornado</string>
-    <string name="effect_pinch">Nipistys</string>
     <string name="browser_url">URL</string>
     <string name="width">Leveys</string>
     <string name="height">Korkeus</string>

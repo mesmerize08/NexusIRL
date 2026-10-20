@@ -42,13 +42,6 @@
     <string name="text_format">Text</string>
     <string name="font_size">Schriftgröße</string>
     <string name="background">Hintergrund</string>
-    <string name="effect_gray_scale">Graustufen</string>
-    <string name="effect_sepia">Sepia</string>
-    <string name="effect_pixellate">Pixelbild</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_crt">Röhrenbildschirm</string>
-    <string name="effect_whirlpool">Whirlpool</string>
-    <string name="effect_pinch">Pinch</string>
     <string name="browser_url">URL</string>
     <string name="width">Breite</string>
     <string name="height">Höhe</string>

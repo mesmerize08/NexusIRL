@@ -21,6 +21,4 @@
     <string name="stop_recording">停止錄製</string>
     <string name="stabilization">防手震</string>
     <string name="widgets">小工具</string>
-    <string name="effect_gray_scale">灰階</string>
-    <string name="effect_sepia">棕褐色</string>
 </resources>

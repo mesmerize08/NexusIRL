@@ -42,13 +42,6 @@
     <string name="text_format">文字</string>
     <string name="font_size">字體大小</string>
     <string name="background">背景</string>
-    <string name="effect_gray_scale">灰白</string>
-    <string name="effect_sepia">棕色</string>
-    <string name="effect_pixellate">像素化</string>
-    <string name="effect_four_three">4:3</string>
-    <string name="effect_crt">CRT</string>
-    <string name="effect_whirlpool">漩渦特效</string>
-    <string name="effect_pinch">捏合特效</string>
     <string name="browser_url">URL</string>
     <string name="width">寬度</string>
     <string name="height">高度</string>

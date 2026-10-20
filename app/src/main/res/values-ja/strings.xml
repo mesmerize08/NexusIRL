@@ -31,9 +31,6 @@
     <string name="text_format">テキスト</string>
     <string name="font_size">フォントサイズ</string>
     <string name="background">背景</string>
-    <string name="effect_gray_scale">グレースケール</string>
-    <string name="effect_sepia">セピア</string>
-    <string name="effect_pixellate">モザイク</string>
     <string name="browser_url">URL</string>
     <string name="width">幅</string>
     <string name="height">高さ</string>
