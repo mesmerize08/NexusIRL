@@ -34,4 +34,9 @@
     <string name="effect_sepia">Sepia</string>
     <string name="effect_pixellate">Pixelar</string>
     <string name="effect_four_three">4:3</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Ancho</string>
+    <string name="height">Altura</string>
+    <string name="luts">LUTs</string>
+    <string name="lut_bundled">Incluido</string>
 </resources>

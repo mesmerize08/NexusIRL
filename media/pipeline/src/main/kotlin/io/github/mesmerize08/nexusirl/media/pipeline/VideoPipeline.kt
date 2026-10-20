@@ -62,6 +62,40 @@ class VideoPipeline(
     @Volatile
     var effectSettings = EffectSettings()
 
+    /** A LUT as an RGBA strip ([dimension]^2 x [dimension]), see `Luts.toStrip`. */
+    class LutStrip(val id: String, val dimension: Int, val rgba: ByteArray)
+
+    private class LutTexture(val id: String, val textureId: Int, val dimension: Int)
+
+    /** Enabled LUTs in order, applied first like upstream (GL thread only). */
+    private var luts: List<LutTexture> = emptyList()
+
+    /** Replaces the LUTs applied to the camera image. Strips with an id already uploaded are reused. */
+    fun setLuts(strips: List<LutStrip>) {
+        glHandler.post {
+            if (egl == null) {
+                return@post
+            }
+            egl?.makeNothingCurrent()
+            val existing = luts.associateBy { it.id }
+            val updated = strips.map { strip ->
+                existing[strip.id]?.takeIf { it.dimension == strip.dimension } ?: run {
+                    val textureId = GlPrograms.createTexture()
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId)
+                    val buffer = ByteBuffer.allocateDirect(strip.rgba.size).order(ByteOrder.nativeOrder()).put(strip.rgba)
+                    buffer.position(0)
+                    val n = strip.dimension
+                    val format = GLES20.GL_RGBA
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, format, n * n, n, 0, format, GLES20.GL_UNSIGNED_BYTE, buffer)
+                    LutTexture(strip.id, textureId, n)
+                }
+            }
+            val keep = updated.map { it.textureId }.toSet()
+            luts.filter { it.textureId !in keep }.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
+            luts = updated
+        }
+    }
+
     /**
      * Upstream scene switch transition "Blur": while a new camera starts, the last frame is shown
      * with a growing blur until the new camera's first frame arrives (GL thread only).
@@ -526,6 +560,13 @@ class VideoPipeline(
         } else {
             renderer.drawBlack(target.width, target.height)
         }
+        for (lut in luts) {
+            other.bind()
+            effectRenderer.applyLut(target.textureId, lut.textureId, lut.dimension, target.width, target.height)
+            val previous = target
+            target = other
+            other = previous
+        }
         transitionStartNanos?.let { start ->
             // Upstream calcBlurRadius: 15 + 15 per second (up to 2 s), scaled to the canvas.
             val seconds = ((System.nanoTime() - start) / 1e9).coerceAtMost(2.0).toFloat()
@@ -663,6 +704,8 @@ class VideoPipeline(
                 surfaceOverlays.values.forEach { releaseSurfaceOverlay(it) }
                 surfaceOverlays.clear()
                 effectRenderer?.release()
+                luts.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
+                luts = emptyList()
                 canvas?.release()
                 scratch?.release()
                 overlays.values.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }

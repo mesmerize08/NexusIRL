@@ -47,4 +47,11 @@
     <string name="effect_crt">CRT</string>
     <string name="effect_whirlpool">소용돌이</string>
     <string name="effect_pinch">핀치</string>
+    <string name="browser_url">URL</string>
+    <string name="width">폭</string>
+    <string name="height">높이</string>
+    <string name="style_sheet">스타일 시트</string>
+    <string name="moblin_access">Moblin 접근 권한</string>
+    <string name="luts">LUT</string>
+    <string name="lut_bundled">기본 제공</string>
 </resources>

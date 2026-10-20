@@ -43,4 +43,10 @@
     <string name="effect_four_three">4:3</string>
     <string name="effect_whirlpool">Whirlpool</string>
     <string name="effect_pinch">Beliscar</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Largura</string>
+    <string name="height">Altura</string>
+    <string name="moblin_access">Acesso a Moblin</string>
+    <string name="luts">LUTs</string>
+    <string name="lut_bundled">Empacotado</string>
 </resources>

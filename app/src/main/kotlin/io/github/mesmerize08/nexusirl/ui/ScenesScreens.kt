@@ -105,13 +105,14 @@ fun ScenePicker(store: SettingsStore) {
 }
 
 @Composable
-fun ScenesScreen(store: SettingsStore, onEdit: (UUID) -> Unit, onWidgets: () -> Unit, onBack: () -> Unit) {
+fun ScenesScreen(store: SettingsStore, onEdit: (UUID) -> Unit, onWidgets: () -> Unit, onLuts: () -> Unit, onBack: () -> Unit) {
     val database by store.database.collectAsState()
     Page(
         title = stringResource(R.string.scenes),
         onBack = onBack,
         actions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onLuts) { Text(stringResource(R.string.luts)) }
                 OutlinedButton(onClick = onWidgets) { Text(stringResource(R.string.widgets)) }
                 Button(onClick = {
                     val scene = SettingsScene(name = makeUniqueName("Scene", database.scenes.map { it.name }))

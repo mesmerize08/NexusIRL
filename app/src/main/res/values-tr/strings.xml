@@ -43,4 +43,11 @@
     <string name="effect_four_three">4:3</string>
     <string name="effect_whirlpool">Jakuzi</string>
     <string name="effect_pinch">Pinch</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Genişlik</string>
+    <string name="height">Yükseklik</string>
+    <string name="style_sheet">Style sheet</string>
+    <string name="moblin_access">Moblin Erişimi</string>
+    <string name="luts">LUT\'lar</string>
+    <string name="lut_bundled">Paketlenmiş</string>
 </resources>

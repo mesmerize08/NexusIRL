@@ -34,4 +34,9 @@
     <string name="effect_gray_scale">グレースケール</string>
     <string name="effect_sepia">セピア</string>
     <string name="effect_pixellate">モザイク</string>
+    <string name="browser_url">URL</string>
+    <string name="width">幅</string>
+    <string name="height">高さ</string>
+    <string name="luts">LUT</string>
+    <string name="lut_bundled">同梱</string>
 </resources>

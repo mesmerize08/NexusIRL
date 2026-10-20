@@ -49,4 +49,11 @@
     <string name="effect_crt">CRT</string>
     <string name="effect_whirlpool">漩渦特效</string>
     <string name="effect_pinch">捏合特效</string>
+    <string name="browser_url">URL</string>
+    <string name="width">寬度</string>
+    <string name="height">高度</string>
+    <string name="style_sheet">樣式表</string>
+    <string name="moblin_access">Moblin存取權</string>
+    <string name="luts">LUTs</string>
+    <string name="lut_bundled">捆綁</string>
 </resources>

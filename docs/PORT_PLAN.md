@@ -206,7 +206,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - the "Blur" scene switch transition while a new camera starts
 >
->   Still to do: chat and map widgets, LUTs, the "Freeze" and "Blur & zoom" transitions, quick buttons (effects are
+>   - LUTs: the two bundled upstream LUTs plus imported .cube files and LUT images, applied first
+>
+>   Still to do: chat and map widgets, the "Freeze" and "Blur & zoom" transitions, quick buttons (effects are
 >   toggled from a chip row for now and are not saved).
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).

@@ -45,6 +45,31 @@ internal class EffectRenderer {
         else -> parameter
     }
 
+    private var lutProgram: Program? = null
+    private val lutSampler: Int by lazy { GLES20.glGetUniformLocation(lutProgram!!.id, "uLut") }
+
+    /**
+     * Applies a 3D LUT stored as a 2D strip ([lutDimension]^2 x [lutDimension], one blue slice per
+     * N columns): bilinear within a slice, linear between neighbouring blue slices.
+     */
+    fun applyLut(sourceTexture: Int, lutTexture: Int, lutDimension: Int, width: Int, height: Int) {
+        val program = lutProgram ?: Program(GlPrograms.create(VERTEX_SHADER, PRELUDE + LUT_SHADER)).also { lutProgram = it }
+        GLES20.glViewport(0, 0, width, height)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES20.glUseProgram(program.id)
+        GLES20.glUniform2f(program.size, width.toFloat(), height.toFloat())
+        GLES20.glUniform1f(program.parameter, lutDimension.toFloat())
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, lutTexture)
+        GLES20.glUniform1i(lutSampler, 1)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, sourceTexture)
+        quad.position(0)
+        GLES20.glVertexAttribPointer(program.position, 2, GLES20.GL_FLOAT, false, 8, quad)
+        GLES20.glEnableVertexAttribArray(program.position)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    }
+
     private var blurProgram: Program? = null
     private val blurDirection: Int by lazy { GLES20.glGetUniformLocation(blurProgram!!.id, "uDirection") }
 
@@ -73,6 +98,8 @@ internal class EffectRenderer {
         programs.clear()
         blurProgram?.let { GLES20.glDeleteProgram(it.id) }
         blurProgram = null
+        lutProgram?.let { GLES20.glDeleteProgram(it.id) }
+        lutProgram = null
     }
 
     private fun fragmentShader(effect: VideoEffect): String = when (effect) {
@@ -185,6 +212,25 @@ internal class EffectRenderer {
             attribute vec4 aPosition;
             void main() {
                 gl_Position = aPosition;
+            }
+        """
+
+        /** uParameter is the LUT size N. */
+        const val LUT_SHADER = """
+            uniform sampler2D uLut;
+            vec2 lutPosition(vec2 redGreen, float slice) {
+                float n = uParameter;
+                return vec2((slice * n + redGreen.x * (n - 1.0) + 0.5) / (n * n), (redGreen.y * (n - 1.0) + 0.5) / n);
+            }
+            void main() {
+                vec4 c = texture2D(uTexture, uv());
+                float blue = clamp(c.b, 0.0, 1.0) * (uParameter - 1.0);
+                float slice0 = floor(blue);
+                float slice1 = min(slice0 + 1.0, uParameter - 1.0);
+                vec2 redGreen = clamp(c.rg, 0.0, 1.0);
+                vec3 low = texture2D(uLut, lutPosition(redGreen, slice0)).rgb;
+                vec3 high = texture2D(uLut, lutPosition(redGreen, slice1)).rgb;
+                gl_FragColor = vec4(mix(low, high, blue - slice0), c.a);
             }
         """
 

@@ -4,6 +4,7 @@
 package io.github.mesmerize08.nexusirl.settings
 
 import io.github.mesmerize08.nexusirl.core.codable.SFloat
+import io.github.mesmerize08.nexusirl.core.codable.SUuid
 import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreserving
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreservingSerializer
@@ -27,6 +28,41 @@ enum class VideoStabilizationMode(override val rawValue: String) : SwiftRawValue
     object Serializer : SwiftRawValueEnumSerializer<VideoStabilizationMode>("SettingsVideoStabilizationMode", entries, OFF)
 }
 
+/** Upstream `SettingsColorLut`: a LUT and whether it is applied. [type] is "bundled", "disk" or "diskCube". */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsColorLut.Serializer::class)
+data class SettingsColorLut(
+    val id: SUuid = java.util.UUID.randomUUID(),
+    val type: String = "bundled",
+    val name: String = "",
+    val enabled: Boolean = false,
+    @Transient override var extra: JsonObject = JsonObject(emptyMap()),
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsColorLut>(generatedSerializer())
+}
+
+/** Upstream `SettingsColor` (v1 subset: the LUT lists; colour space stays in `extra`). */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsColor.Serializer::class)
+data class SettingsColor(
+    val bundledLuts: List<SettingsColorLut> = emptyList(),
+    val diskLuts: List<SettingsColorLut> = emptyList(),
+    val diskLutsPng: List<SettingsColorLut> = emptyList(),
+    val diskLutsCube: List<SettingsColorLut> = emptyList(),
+    @Transient override var extra: JsonObject = JsonObject(emptyMap()),
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsColor>(generatedSerializer())
+
+    /** Upstream `allLuts()`: the order LUTs are applied in. */
+    val allLuts: List<SettingsColorLut>
+        get() = bundledLuts + diskLutsCube + diskLutsPng
+
+    companion object {
+        /** Upstream `allBundledLuts` (files in the app's assets under luts/<name>.png). */
+        val BUNDLED_LUT_NAMES = listOf("Apple Log To Rec 709", "Moblin Meme")
+    }
+}
+
 /**
  * The settings document. Upstream keeps the whole app configuration in one forgiving JSON object
  * with no version field: every key has a default and unknown keys are ignored. Android models the
@@ -44,6 +80,7 @@ data class Database(
     val pixellateStrength: SFloat = 0.3f,
     val whirlpoolAngle: SFloat = (Math.PI / 2).toFloat(),
     val pinchScale: SFloat = 0.5f,
+    val color: SettingsColor = SettingsColor(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

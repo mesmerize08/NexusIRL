@@ -49,4 +49,11 @@
     <string name="effect_crt">Röhrenbildschirm</string>
     <string name="effect_whirlpool">Whirlpool</string>
     <string name="effect_pinch">Pinch</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Breite</string>
+    <string name="height">Höhe</string>
+    <string name="style_sheet">Formatvorlage</string>
+    <string name="moblin_access">Moblin Zugriff</string>
+    <string name="luts">LUTs</string>
+    <string name="lut_bundled">Gebündelt</string>
 </resources>

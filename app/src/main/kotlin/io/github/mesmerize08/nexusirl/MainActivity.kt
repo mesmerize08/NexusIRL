@@ -46,6 +46,7 @@ import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.EffectsPicker
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
+import io.github.mesmerize08.nexusirl.ui.LutsScreen
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
 import io.github.mesmerize08.nexusirl.ui.ScenesScreen
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         StreamController.ensureDefaultScenes(this)
+        StreamController.ensureBundledLuts(this)
         StreamController.setUiVisible(this, true)
     }
 
@@ -172,6 +174,8 @@ private sealed interface Screen {
     data object Widgets : Screen
 
     data class EditWidget(val id: UUID) : Screen
+
+    data object Luts : Screen
 }
 
 @Composable
@@ -221,10 +225,13 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
     LaunchedEffect(database.scenes, database.widgets) {
         StreamController.refreshScene(context)
     }
+    LaunchedEffect(database.color) {
+        StreamController.refreshLuts(context)
+    }
     BackHandler(enabled = screen != Screen.Main) {
         screen = when (screen) {
             is Screen.EditStream -> Screen.Streams
-            is Screen.EditScene, Screen.Widgets -> Screen.Scenes
+            is Screen.EditScene, Screen.Widgets, Screen.Luts -> Screen.Scenes
             is Screen.EditWidget -> Screen.Widgets
             else -> Screen.Main
         }
@@ -247,6 +254,7 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             store,
             onEdit = { screen = Screen.EditScene(it) },
             onWidgets = { screen = Screen.Widgets },
+            onLuts = { screen = Screen.Luts },
             onBack = { screen = Screen.Main },
         )
         is Screen.EditScene -> SceneEditorScreen(store, current.id, onEditWidget = { screen = Screen.EditWidget(it) }, onBack = {
@@ -254,6 +262,7 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         })
         Screen.Widgets -> WidgetsScreen(store, onEdit = { screen = Screen.EditWidget(it) }, onBack = { screen = Screen.Scenes })
         is Screen.EditWidget -> WidgetEditorScreen(store, current.id, onBack = { screen = Screen.Widgets })
+        Screen.Luts -> LutsScreen(store, onBack = { screen = Screen.Scenes })
     }
 }
 

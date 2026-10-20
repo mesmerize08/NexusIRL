@@ -44,4 +44,11 @@
     <string name="effect_pixellate">Pixelizacja</string>
     <string name="effect_four_three">4:3</string>
     <string name="effect_whirlpool">Wir</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Szerokość</string>
+    <string name="height">Wysokość</string>
+    <string name="style_sheet">Arkusz stylów</string>
+    <string name="moblin_access">Dostęp Moblina</string>
+    <string name="luts">LUT-y</string>
+    <string name="lut_bundled">W zestawie</string>
 </resources>

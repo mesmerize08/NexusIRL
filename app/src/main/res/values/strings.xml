@@ -123,4 +123,9 @@
     <string name="height">Height</string>
     <string name="style_sheet">Style sheet</string>
     <string name="moblin_access">Moblin access</string>
+    <string name="luts">LUTs</string>
+    <string name="add_lut">Add LUT</string>
+    <string name="lut_bundled">Bundled</string>
+    <string name="lut_import_failed">LUT import failed</string>
+    <string name="luts_help">Colour lookup tables applied to the camera image, in this order. Import .cube files or LUT images (N³ pixels in N×N tiles).</string>
 </resources>

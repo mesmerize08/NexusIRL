@@ -45,4 +45,11 @@
     <string name="effect_four_three">4:3</string>
     <string name="effect_whirlpool">涡流特效</string>
     <string name="effect_pinch">扭曲特效</string>
+    <string name="browser_url">URL</string>
+    <string name="width">宽度</string>
+    <string name="height">高度</string>
+    <string name="style_sheet">样式表</string>
+    <string name="moblin_access">Moblin访问</string>
+    <string name="luts">LUTs</string>
+    <string name="lut_bundled">捆绑式</string>
 </resources>

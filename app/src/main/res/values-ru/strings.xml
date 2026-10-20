@@ -48,4 +48,11 @@
     <string name="effect_crt">ЭЛТ</string>
     <string name="effect_whirlpool">Вихрь</string>
     <string name="effect_pinch">Щипок</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Ширина</string>
+    <string name="height">Высота</string>
+    <string name="style_sheet">Схема стилей</string>
+    <string name="moblin_access">Доступ к Moblin</string>
+    <string name="luts">LUT-ы</string>
+    <string name="lut_bundled">Комплектный</string>
 </resources>

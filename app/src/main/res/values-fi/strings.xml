@@ -48,4 +48,11 @@
     <string name="effect_crt">CRT</string>
     <string name="effect_whirlpool">Tornado</string>
     <string name="effect_pinch">Nipistys</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Leveys</string>
+    <string name="height">Korkeus</string>
+    <string name="style_sheet">Tyylitiedosto</string>
+    <string name="moblin_access">Pääsy Moblin:iin</string>
+    <string name="luts">LUT:t</string>
+    <string name="lut_bundled">Mukana tulevat</string>
 </resources>

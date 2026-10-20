@@ -23,9 +23,12 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
+import io.github.mesmerize08.nexusirl.scene.LutLoader
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
+import io.github.mesmerize08.nexusirl.settings.SettingsColor
+import io.github.mesmerize08.nexusirl.settings.SettingsColorLut
 import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
@@ -143,6 +146,32 @@ object StreamController {
                     ),
                 )
             }
+        }
+    }
+
+    /** Upstream `addMissingBundledLuts`: one entry per bundled LUT, keeping existing ones by name. */
+    fun ensureBundledLuts(context: Context) {
+        val store = settings(context)
+        val existing = store.current.color.bundledLuts
+        val wanted = SettingsColor.BUNDLED_LUT_NAMES.map { name ->
+            existing.firstOrNull {
+                it.name == name
+            } ?: SettingsColorLut(type = "bundled", name = name)
+        }
+        if (wanted != existing) {
+            store.update { it.copy(color = it.color.copy(bundledLuts = wanted)) }
+        }
+    }
+
+    private val lutExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /** Loads the enabled LUTs (off the main thread) and applies them to the camera image. */
+    fun refreshLuts(context: Context) {
+        val video = pipeline ?: return
+        val enabled = settings(context).current.color.let { it.allLuts + it.diskLuts }.filter { it.enabled }
+        val appContext = context.applicationContext
+        lutExecutor.execute {
+            video.setLuts(enabled.mapNotNull { LutLoader.load(appContext, it) })
         }
     }
 
@@ -459,6 +488,7 @@ object StreamController {
         scenes(context).setPipeline(created)
         refreshScene(context)
         applyEffects(context)
+        refreshLuts(context)
         if (mutableCamera.value.cameras.isEmpty()) {
             val probe = CameraSource(context.applicationContext)
             val cameras = try {

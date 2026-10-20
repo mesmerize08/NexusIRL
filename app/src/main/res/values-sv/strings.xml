@@ -49,4 +49,11 @@
     <string name="effect_crt">CRT</string>
     <string name="effect_whirlpool">Virvel</string>
     <string name="effect_pinch">Nypa</string>
+    <string name="browser_url">URL</string>
+    <string name="width">Bredd</string>
+    <string name="height">Höjd</string>
+    <string name="style_sheet">Style sheet</string>
+    <string name="moblin_access">Moblin access</string>
+    <string name="luts">LUTs</string>
+    <string name="lut_bundled">Ingår</string>
 </resources>
