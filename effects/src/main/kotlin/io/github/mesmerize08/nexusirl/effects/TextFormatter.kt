@@ -32,10 +32,17 @@ data class TextVariables(
     val stopwatches: List<StopwatchState> = emptyList(),
     val checkboxes: List<Boolean> = emptyList(),
     val ratings: List<Int> = emptyList(),
-    /** Location values, preformatted with units; empty until location is available. */
-    val speed: String = "",
-    val altitude: String = "",
-    val distance: String = "",
+    /** Location values in metres and metres per second; null (shown as "-") without location. */
+    val speed: Double? = null,
+    val averageSpeed: Double? = null,
+    val altitude: Double? = null,
+    val distance: Double? = null,
+    val splitDistance: Double? = null,
+    val altitudeAscent: Double? = null,
+    val altitudeDescent: Double? = null,
+    val splitAltitudeAscent: Double? = null,
+    val splitAltitudeDescent: Double? = null,
+    val locale: java.util.Locale = java.util.Locale.getDefault(),
 )
 
 object TextFormatter {
@@ -117,13 +124,32 @@ object TextFormatter {
                     ratingIndex += 1
                 }
                 TextFormatPart.Muted -> if (variables.muted) text("🔇")
-                is TextFormatPart.Speed -> text(variables.speed.ifEmpty { UNAVAILABLE })
-                is TextFormatPart.Altitude -> text(variables.altitude.ifEmpty { UNAVAILABLE })
-                is TextFormatPart.Distance -> text(variables.distance.ifEmpty { UNAVAILABLE })
+                is TextFormatPart.Speed -> text(
+                    variables.speed?.let { LocationFormat.speed(it, part.unit, variables.locale) } ?: UNAVAILABLE,
+                )
+                is TextFormatPart.AverageSpeed -> text(
+                    variables.averageSpeed?.let { LocationFormat.speed(it, part.unit, variables.locale) } ?: UNAVAILABLE,
+                )
+                is TextFormatPart.Altitude -> text(
+                    variables.altitude?.let { LocationFormat.altitude(it, part.unit, variables.locale) } ?: UNAVAILABLE,
+                )
+                is TextFormatPart.AltitudeAscent -> text(altitude(variables.altitudeAscent, part.unit, variables))
+                is TextFormatPart.AltitudeDescent -> text(altitude(variables.altitudeDescent, part.unit, variables))
+                is TextFormatPart.SplitAltitudeAscent -> text(altitude(variables.splitAltitudeAscent, part.unit, variables))
+                is TextFormatPart.SplitAltitudeDescent -> text(altitude(variables.splitAltitudeDescent, part.unit, variables))
+                is TextFormatPart.Distance -> text(
+                    variables.distance?.let { LocationFormat.distance(it, part.unit, variables.locale) } ?: UNAVAILABLE,
+                )
+                is TextFormatPart.SplitDistance -> text(
+                    variables.splitDistance?.let { LocationFormat.distance(it, part.unit, variables.locale) } ?: UNAVAILABLE,
+                )
                 else -> text(UNAVAILABLE)
             }
         }
         lines += line
         return lines
     }
+
+    private fun altitude(meters: Double?, unit: LengthUnit, variables: TextVariables): String =
+        meters?.let { LocationFormat.altitude(it, unit, variables.locale) } ?: UNAVAILABLE
 }

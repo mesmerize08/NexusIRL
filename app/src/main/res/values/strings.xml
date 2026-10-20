@@ -147,4 +147,16 @@
     <string name="quick_buttons_help">Choose which buttons are shown on the main screen and their order. Buttons Android does not support yet are kept for iOS settings exports.</string>
     <string name="scene_switch_transition">Scene switch transition</string>
     <string name="force_scene_switch_transition">Show transition on every scene switch</string>
+    <string name="location">Location</string>
+    <string name="location_help">Location is used by text widgets (speed, altitude, distance) and map widgets. It stays on this device.</string>
+    <string name="location_not_permitted">Location permission is needed. Allow it in the app\'s system settings.</string>
+    <string name="location_totals">Distance %1$s · ascent %2$s · descent %3$s</string>
+    <string name="reset_when_going_live">Reset when going live</string>
+    <string name="reset">Reset</string>
+    <string name="privacy_regions">Privacy regions</string>
+    <string name="privacy_regions_help">Map widgets show no position while you are inside a privacy region, for example around your home.</string>
+    <string name="privacy_region_name">Region %1$d (%2$d m wide)</string>
+    <string name="privacy_region_size">Size of new region</string>
+    <string name="add_privacy_region_here">Add region around current position</string>
+    <string name="location_unknown">The current position is not known yet.</string>
 </resources>

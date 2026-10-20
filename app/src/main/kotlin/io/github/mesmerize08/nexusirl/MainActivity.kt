@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.chat.ChatController
+import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
@@ -54,6 +55,7 @@ import io.github.mesmerize08.nexusirl.ui.ChatControls
 import io.github.mesmerize08.nexusirl.ui.ChatOverlay
 import io.github.mesmerize08.nexusirl.ui.ChatSettingsScreen
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
+import io.github.mesmerize08.nexusirl.ui.LocationScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
 import io.github.mesmerize08.nexusirl.ui.QuickButtonBar
 import io.github.mesmerize08.nexusirl.ui.QuickButtonsScreen
@@ -86,6 +88,7 @@ class MainActivity : ComponentActivity() {
         requestPermissionsIfNeeded()
         updateDisplayRotation()
         ChatController.start(this)
+        LocationController.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -154,11 +157,21 @@ class MainActivity : ComponentActivity() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             wanted += Manifest.permission.POST_NOTIFICATIONS
         }
+        // Location only when it is turned on (text and map widgets).
+        if (StreamController.settings(this).current.location.enabled) {
+            wanted += Manifest.permission.ACCESS_FINE_LOCATION
+            wanted += Manifest.permission.ACCESS_COARSE_LOCATION
+        }
         val missing = wanted
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) {
             requestPermissions(missing.toTypedArray(), 1)
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        LocationController.start(this)
     }
 
     companion object {
@@ -192,6 +205,8 @@ private sealed interface Screen {
     data object Chat : Screen
 
     data object QuickButtons : Screen
+
+    data object Location : Screen
 }
 
 @Composable
@@ -281,7 +296,9 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onWidgets = { screen = Screen.Widgets },
             onLuts = { screen = Screen.Luts },
             onQuickButtons = { screen = Screen.QuickButtons },
+            onLocation = { screen = Screen.Location },
         )
+        Screen.Location -> LocationScreen(store, onBack = { screen = Screen.Main })
         Screen.QuickButtons -> QuickButtonsScreen(store, onBack = { screen = Screen.Main })
         Screen.Chat -> ChatSettingsScreen(store, onBack = { screen = Screen.Main })
         Screen.Streams -> StreamsScreen(
@@ -317,6 +334,7 @@ private fun MainScreen(
     onWidgets: () -> Unit,
     onLuts: () -> Unit,
     onQuickButtons: () -> Unit,
+    onLocation: () -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
@@ -385,6 +403,7 @@ private fun MainScreen(
                 Text(status.detail, style = MaterialTheme.typography.bodySmall)
             }
             TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
+            TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
             Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { showLicenses = true }) {
                 Text(stringResource(R.string.open_source_licenses))

@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import io.github.mesmerize08.nexusirl.MainActivity
 import io.github.mesmerize08.nexusirl.R
+import io.github.mesmerize08.nexusirl.location.LocationController
 
 /**
  * Keeps capture alive in the background while live or recording (upstream: UIBackgroundModes
@@ -28,7 +29,7 @@ class StreamingService : Service() {
             startForeground(
                 NOTIFICATION_ID,
                 buildNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or locationType(),
             )
         } else {
             // Camera and microphone service types exist from Android 11; Android 10 has no type check.
@@ -67,4 +68,8 @@ class StreamingService : Service() {
         const val CHANNEL_ID = "streaming"
         const val NOTIFICATION_ID = 1
     }
+
+    /** Location keeps updating in the background only when it is on and permitted. */
+    private fun locationType(): Int =
+        if (LocationController.active.value && LocationController.hasPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
 }

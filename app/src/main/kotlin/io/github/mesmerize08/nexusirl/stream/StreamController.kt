@@ -13,6 +13,7 @@ import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.core.secrets.KeystoreSecretStore
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
 import io.github.mesmerize08.nexusirl.effects.TextVariables
+import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraFactors
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraInfo
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraSource
@@ -265,12 +266,23 @@ object StreamController {
     private fun textVariables(): TextVariables {
         val status = mutableStatus.value
         val canvas = pipeline?.settings
+        val location = LocationController.values()
         return TextVariables(
             date = Date(),
             nowNanos = System.nanoTime(),
             bitrateMbps = if (status.live) "%.1f".format(Locale.US, status.videoBitrateKbps / 1000.0) else "",
             resolution = canvas?.let { "${it.width}x${it.height}" },
             fps = pipeline?.outputFps,
+            muted = sharedAudio?.muted == true,
+            speed = location?.speed,
+            averageSpeed = location?.averageSpeed,
+            altitude = location?.altitude,
+            distance = location?.totals?.distance,
+            splitDistance = location?.totals?.splitDistance,
+            altitudeAscent = location?.totals?.altitudeAscent,
+            altitudeDescent = location?.totals?.altitudeDescent,
+            splitAltitudeAscent = location?.totals?.splitAltitudeAscent,
+            splitAltitudeDescent = location?.totals?.splitAltitudeDescent,
         )
     }
 
@@ -314,6 +326,7 @@ object StreamController {
         val newSession = StreamSession(context.applicationContext, config, video, audio(context)) { mutableStatus.value = it }
         session = newSession
         newSession.start()
+        LocationController.onGoLive()
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
         updateService(context)

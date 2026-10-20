@@ -213,6 +213,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - the "Freeze" and "Blur & zoom" transitions, and showing the transition on every scene switch
 >
+>   - location (upstream totals, privacy regions) for speed, altitude and distance in text widgets
+>
 >   Still to do: map widget.
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
