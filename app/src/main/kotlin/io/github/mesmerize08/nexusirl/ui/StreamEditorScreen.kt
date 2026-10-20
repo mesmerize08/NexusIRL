@@ -77,7 +77,14 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             Button(
                 enabled = stream.name.isNotBlank() && urlValid,
                 onClick = {
-                    val edited = stream.copy(name = stream.name.trim(), url = url)
+                    // The Twitch account is saved by sign-in and sign-out directly; keep it.
+                    val account = store.current.streams.firstOrNull { it.id == stream.id }
+                    val edited = stream.copy(
+                        name = stream.name.trim(),
+                        url = url,
+                        twitchAccessToken = account?.twitchAccessToken.orEmpty(),
+                        twitchLoggedIn = account?.twitchLoggedIn ?: false,
+                    )
                     store.update { if (original == null) it.addStream(edited) else it.updateStream(edited) }
                     onDone()
                 },
@@ -166,6 +173,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         HorizontalDivider()
         Text(stringResource(R.string.chat), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.chat_channels_help), style = MaterialTheme.typography.bodySmall)
+        TwitchSignInSection(store, original?.id) { name, id -> stream = stream.copy(twitchChannelName = name, twitchChannelId = id) }
         ChatTextField(stringResource(R.string.twitch_channel_name), stream.twitchChannelName) {
             stream = stream.copy(twitchChannelName = it)
         }

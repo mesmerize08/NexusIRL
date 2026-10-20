@@ -191,4 +191,12 @@
     <string name="moblink_streamer_url">Streamer URL</string>
     <string name="moblink_streamer_url_help">For example ws://192.168.1.10:7777</string>
     <string name="notification_moblink_relay">Moblink relay: sharing mobile data with a streamer</string>
+    <string name="twitch_sign_in">Sign in to Twitch</string>
+    <string name="twitch_sign_in_help">Optional. Needed for sending chat messages and for follow, subscription, cheer and channel point alerts. Reading chat works without it.</string>
+    <string name="twitch_save_first">Save the stream first to sign in to Twitch.</string>
+    <string name="twitch_signed_in_as">Signed in to Twitch as %1$s</string>
+    <string name="sign_out">Sign out</string>
+    <string name="twitch_enter_code">Go to twitch.tv/activate on any device, sign in, and enter this code:</string>
+    <string name="twitch_waiting">Waiting for you to approve on Twitch. The code is valid for 30 minutes.</string>
+    <string name="twitch_open_activate">Open on this phone</string>
 </resources>

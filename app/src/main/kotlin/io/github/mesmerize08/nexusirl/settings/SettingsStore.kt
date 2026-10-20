@@ -52,7 +52,8 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
         val database = current
         val streams = database.streams.map { stream ->
             val url = if (includeSecrets) resolveUrl(stream) else StreamUrlSecrets.publicPart(stream.url)
-            stream.copy(url = url)
+            // Twitch tokens are never exported; the other device signs in itself.
+            stream.copy(url = url, twitchAccessToken = "", twitchLoggedIn = false)
         }
         val password = if (includeSecrets) remoteControlPassword() else ""
         val moblinkPassword = if (includeSecrets) moblinkPassword() else ""
@@ -73,11 +74,17 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
         return database.copy(
             moblink = database.moblink.copy(password = protect(database.moblink.password)),
             streams = database.streams.map { stream ->
-                stream.copy(url = StreamUrlSecrets.protect(stream.url) { secret -> secrets.put(secret).placeholder })
+                stream.copy(
+                    url = StreamUrlSecrets.protect(stream.url) { secret -> secrets.put(secret).placeholder },
+                    twitchAccessToken = protect(stream.twitchAccessToken),
+                )
             },
             remoteControl = database.remoteControl.copy(password = protect(database.remoteControl.password)),
         )
     }
+
+    /** The stream's stored Twitch secret (tokens), or empty. Keep it in memory only. */
+    fun twitchSecret(stream: SettingsStream): String = SecretRef.resolve(stream.twitchAccessToken, secrets)
 
     /** The Moblink password, from the secret store. Keep it in memory only. */
     fun moblinkPassword(): String = SecretRef.resolve(current.moblink.password, secrets)
@@ -86,7 +93,7 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     fun remoteControlPassword(): String = SecretRef.resolve(current.remoteControl.password, secrets)
 
     private fun removeUnreferencedSecrets(database: Database) {
-        val streamSecrets = database.streams.flatMap { SecretRef.findAll(it.url) }
+        val streamSecrets = database.streams.flatMap { SecretRef.findAll(it.url) + SecretRef.findAll(it.twitchAccessToken) }
         val passwords = SecretRef.findAll(database.remoteControl.password) + SecretRef.findAll(database.moblink.password)
         val referenced = (streamSecrets + passwords).toSet()
         for (ref in secrets.refs()) {

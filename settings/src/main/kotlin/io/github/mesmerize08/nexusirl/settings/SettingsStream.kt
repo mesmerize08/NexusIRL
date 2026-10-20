@@ -248,6 +248,9 @@ data class SettingsStream(
     val portrait: Boolean = false,
     val twitchChannelName: String = "",
     val twitchChannelId: String = "",
+    /** A `{secret:…}` reference to the Twitch tokens (upstream stores the token itself here). */
+    val twitchAccessToken: String = "",
+    val twitchLoggedIn: Boolean = false,
     val kickChannelName: String = "",
     val kickChannelId: String? = null,
     val kickChatroomChannelId: String? = null,
