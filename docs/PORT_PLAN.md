@@ -199,7 +199,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - text widgets (upstream format placeholders, timers, stopwatches), image and QR code widgets
 >   - scene picker and scene/widget editors
 >
->   Still to do: chat, map and browser widgets, global effects (LUT, grayscale, ...), scene transitions.
+>   - global effects: gray scale, sepia, pixellate, 4:3, CRT, whirlpool, pinch (GLSL, upstream order and parameters)
+>
+>   Still to do: chat, map and browser widgets, LUTs, scene transitions, quick buttons (effects are
+>   toggled from a chip row for now and are not saved).
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.

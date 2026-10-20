@@ -15,8 +15,10 @@ import io.github.mesmerize08.nexusirl.effects.TextVariables
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraFactors
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraInfo
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraSource
+import io.github.mesmerize08.nexusirl.media.pipeline.EffectSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.media.pipeline.Mp4Recorder
+import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
@@ -96,6 +98,22 @@ object StreamController {
 
     private var sceneEngine: SceneEngine? = null
     private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
+
+    private val mutableEffects = MutableStateFlow<Set<VideoEffect>>(emptySet())
+
+    /** Global effects that are on (upstream quick buttons). Not saved yet: they reset on restart. */
+    val effects: StateFlow<Set<VideoEffect>> = mutableEffects
+
+    fun setEffect(context: Context, effect: VideoEffect, on: Boolean) {
+        mutableEffects.value = if (on) mutableEffects.value + effect else mutableEffects.value - effect
+        applyEffects(context)
+    }
+
+    private fun applyEffects(context: Context) {
+        val database = settings(context).current
+        pipeline?.effectSettings = EffectSettings(database.pixellateStrength, database.whirlpoolAngle, database.pinchScale)
+        pipeline?.effects = mutableEffects.value
+    }
 
     /** The scene being shown; runtime state like upstream's `sceneSelector`. */
     val selectedSceneId: StateFlow<UUID?> = mutableSelectedSceneId
@@ -431,6 +449,7 @@ object StreamController {
         pipeline = created
         scenes(context).setPipeline(created)
         refreshScene(context)
+        applyEffects(context)
         if (mutableCamera.value.cameras.isEmpty()) {
             val probe = CameraSource(context.applicationContext)
             val cameras = try {

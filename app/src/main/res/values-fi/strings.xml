@@ -33,4 +33,19 @@
     <string name="auto">Auto</string>
     <string name="focus">Keskity</string>
     <string name="stabilization">Videon vakautus</string>
+    <string name="scenes">Näkymät</string>
+    <string name="widgets">Widgetit</string>
+    <string name="position">Sijainti</string>
+    <string name="size">Koko</string>
+    <string name="alignment">Tasaus</string>
+    <string name="text_format">Teksti</string>
+    <string name="font_size">Fonttikoko</string>
+    <string name="background">Tausta</string>
+    <string name="effect_gray_scale">Harmaasävy</string>
+    <string name="effect_sepia">Seepia</string>
+    <string name="effect_pixellate">Pikselöi</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_crt">CRT</string>
+    <string name="effect_whirlpool">Tornado</string>
+    <string name="effect_pinch">Nipistys</string>
 </resources>

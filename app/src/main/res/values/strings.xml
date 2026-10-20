@@ -110,4 +110,11 @@
     <string name="image_set">An image is set.</string>
     <string name="image_missing">No image chosen yet.</string>
     <string name="qr_message">QR code text</string>
+    <string name="effect_gray_scale">Gray scale</string>
+    <string name="effect_sepia">Sepia</string>
+    <string name="effect_pixellate">Pixellate</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_crt">CRT</string>
+    <string name="effect_whirlpool">Whirlpool</string>
+    <string name="effect_pinch">Pinch</string>
 </resources>

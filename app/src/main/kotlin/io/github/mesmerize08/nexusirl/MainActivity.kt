@@ -44,6 +44,7 @@ import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.ui.CameraPreview
+import io.github.mesmerize08.nexusirl.ui.EffectsPicker
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
@@ -304,6 +305,7 @@ private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExpo
                 OutlinedButton(onClick = onScenes) { Text(stringResource(R.string.scenes)) }
             }
             ScenePicker(store)
+            EffectsPicker()
             RecordingControls()
             Text(
                 "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +

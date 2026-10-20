@@ -8,4 +8,10 @@
     <string name="bitrate">Bitrate</string>
     <string name="adaptive_bitrate">Adaptívny bitrate</string>
     <string name="record">Záznam</string>
+    <string name="scenes">Scény</string>
+    <string name="widgets">Widgety</string>
+    <string name="effect_sepia">Sepia</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_whirlpool">Vír</string>
+    <string name="effect_pinch">Štipnuté</string>
 </resources>

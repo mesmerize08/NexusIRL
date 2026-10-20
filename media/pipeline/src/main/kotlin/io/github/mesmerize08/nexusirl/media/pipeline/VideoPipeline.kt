@@ -17,6 +17,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.view.Surface
+import io.github.mesmerize08.nexusirl.media.pipeline.gl.EffectRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.EglCore
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.Framebuffer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.GlPrograms
@@ -45,6 +46,20 @@ class VideoPipeline(
 
     /** The composited canvas (camera + widgets), copied to every output (GL thread only). */
     private var canvas: Framebuffer? = null
+
+    /** Second canvas buffer: effects render from one into the other (GL thread only). */
+    private var scratch: Framebuffer? = null
+
+    /** The buffer holding the finished frame, for outputs and snapshots (GL thread only). */
+    private var composed: Framebuffer? = null
+    private var effectRenderer: EffectRenderer? = null
+
+    /** Global effects to apply to the camera image, before widgets (upstream order). */
+    @Volatile
+    var effects: Set<VideoEffect> = emptySet()
+
+    @Volatile
+    var effectSettings = EffectSettings()
 
     private class OverlayTexture(val textureId: Int, var x: Float, var y: Float, var width: Float, var height: Float)
 
@@ -100,6 +115,8 @@ class VideoPipeline(
             this.renderer = renderer
             textureRenderer = TextureRenderer()
             canvas = Framebuffer(settings.width, settings.height)
+            scratch = Framebuffer(settings.width, settings.height)
+            effectRenderer = EffectRenderer()
             val texture = SurfaceTexture(renderer.textureId)
             surfaceTexture = texture
             texture.setOnFrameAvailableListener({ handleFrameAvailable() }, glHandler)
@@ -146,7 +163,7 @@ class VideoPipeline(
     fun takeSnapshot(onDone: (Bitmap?) -> Unit) {
         glHandler.post {
             val egl = egl
-            val canvas = canvas
+            val canvas = composed
             if (egl == null || canvas == null || !hasFrame) {
                 onDone(null)
                 return@post
@@ -431,19 +448,40 @@ class VideoPipeline(
         output(presentationNanos)
     }
 
-    /** Draws the camera (or black) and then the widgets into the canvas framebuffer. */
+    /**
+     * Builds the frame like upstream's effect chain: the camera (or black), then the global
+     * effects in upstream order, then the scene's widgets on top.
+     */
     private fun compose(camera: Boolean) {
         val egl = egl ?: return
-        val canvas = canvas ?: return
+        var target = canvas ?: return
+        var other = scratch ?: return
         val renderer = renderer ?: return
         val textureRenderer = textureRenderer ?: return
+        val effectRenderer = effectRenderer ?: return
         egl.makeNothingCurrent()
-        canvas.bind()
+        target.bind()
         if (camera) {
-            renderer.draw(drawMatrix, canvas.width, canvas.height, sourceAspect)
+            renderer.draw(drawMatrix, target.width, target.height, sourceAspect)
         } else {
-            renderer.drawBlack(canvas.width, canvas.height)
+            renderer.drawBlack(target.width, target.height)
         }
+        val active = effects
+        val parameters = effectSettings
+        for (effect in VideoEffect.entries.filter { it in active }) {
+            other.bind()
+            val parameter = when (effect) {
+                VideoEffect.PIXELLATE -> parameters.pixellateStrength
+                VideoEffect.WHIRLPOOL -> parameters.whirlpoolAngle
+                VideoEffect.PINCH -> parameters.pinchScale
+                else -> 0f
+            }
+            effectRenderer.apply(effect, target.textureId, target.width, target.height, parameter)
+            val previous = target
+            target = other
+            other = previous
+        }
+        target.bind()
         for (overlay in overlays.values) {
             textureRenderer.drawRect(
                 overlay.textureId,
@@ -451,18 +489,19 @@ class VideoPipeline(
                 overlay.y,
                 overlay.width,
                 overlay.height,
-                canvas.width,
-                canvas.height,
+                target.width,
+                target.height,
                 flipY = true,
             )
         }
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        composed = target
     }
 
-    /** Copies the canvas to every encoder and the preview. */
+    /** Copies the composed frame to every encoder and the preview. */
     private fun output(presentationNanos: Long) {
         val egl = egl ?: return
-        val canvas = canvas ?: return
+        val canvas = composed ?: return
         val textureRenderer = textureRenderer ?: return
         val canvasAspect = canvas.width.toFloat() / canvas.height
         for ((_, encoderSurface) in encoders) {
@@ -525,7 +564,9 @@ class VideoPipeline(
                 }
                 renderer?.release()
                 textureRenderer?.release()
+                effectRenderer?.release()
                 canvas?.release()
+                scratch?.release()
                 overlays.values.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
                 overlays.clear()
                 surfaceTexture?.release()

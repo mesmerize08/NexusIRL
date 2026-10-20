@@ -33,4 +33,19 @@
     <string name="auto">Авто</string>
     <string name="focus">Концентрация</string>
     <string name="stabilization">Стабилизация видео</string>
+    <string name="scenes">Сцены</string>
+    <string name="widgets">Виджеты</string>
+    <string name="position">Позиция</string>
+    <string name="size">Размер</string>
+    <string name="alignment">Выравнивание</string>
+    <string name="text_format">Текст</string>
+    <string name="font_size">Размер шрифта</string>
+    <string name="background">Фон</string>
+    <string name="effect_gray_scale">Оттенки серого</string>
+    <string name="effect_sepia">Сепия</string>
+    <string name="effect_pixellate">Пикселизация</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_crt">ЭЛТ</string>
+    <string name="effect_whirlpool">Вихрь</string>
+    <string name="effect_pinch">Щипок</string>
 </resources>

@@ -25,4 +25,10 @@
     <string name="snapshot">Capture d’écran</string>
     <string name="not_supported_by_camera">Non supporté pour cette caméra</string>
     <string name="stabilization">Stabilisation vidéo</string>
+    <string name="scenes">Scènes</string>
+    <string name="widgets">Widgets</string>
+    <string name="font_size">Taille de police</string>
+    <string name="background">Arrière-plan</string>
+    <string name="effect_gray_scale">Niveaux de gris</string>
+    <string name="effect_sepia">Sépia</string>
 </resources>

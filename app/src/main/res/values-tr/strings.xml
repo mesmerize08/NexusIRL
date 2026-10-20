@@ -29,4 +29,18 @@
     <string name="snapshot">Anlık görüntü</string>
     <string name="not_supported_by_camera">Bu kamera için desteklenmiyor</string>
     <string name="stabilization">Video stabilizasyonu</string>
+    <string name="scenes">Sahneler</string>
+    <string name="widgets">WIDGET’LAR</string>
+    <string name="position">Konum</string>
+    <string name="size">Boyut</string>
+    <string name="alignment">Hizalama</string>
+    <string name="text_format">Metin</string>
+    <string name="font_size">Yazı tipi boyutu</string>
+    <string name="background">Arka plan</string>
+    <string name="effect_gray_scale">Gri tonlama</string>
+    <string name="effect_sepia">Sepya</string>
+    <string name="effect_pixellate">Pikselleştirilmiş</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_whirlpool">Jakuzi</string>
+    <string name="effect_pinch">Pinch</string>
 </resources>

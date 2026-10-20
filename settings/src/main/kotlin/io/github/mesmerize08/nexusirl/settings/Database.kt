@@ -3,6 +3,7 @@
 
 package io.github.mesmerize08.nexusirl.settings
 
+import io.github.mesmerize08.nexusirl.core.codable.SFloat
 import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreserving
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreservingSerializer
@@ -40,6 +41,9 @@ data class Database(
     val tapToFocus: Boolean = false,
     val portrait: Boolean = false,
     val videoStabilizationMode: VideoStabilizationMode = VideoStabilizationMode.OFF,
+    val pixellateStrength: SFloat = 0.3f,
+    val whirlpoolAngle: SFloat = (Math.PI / 2).toFloat(),
+    val pinchScale: SFloat = 0.5f,
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

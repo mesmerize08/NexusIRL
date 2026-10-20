@@ -9,4 +9,6 @@
     <string name="resolution">Resolutie</string>
     <string name="torch">Lamp</string>
     <string name="snapshot">Snapshot</string>
+    <string name="effect_pixellate">Pixellate</string>
+    <string name="effect_whirlpool">Whirlpool</string>
 </resources>

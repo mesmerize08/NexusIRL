@@ -32,4 +32,19 @@
     <string name="not_supported_by_camera">未支援此鏡頭</string>
     <string name="auto">自動</string>
     <string name="stabilization">防震/穩定</string>
+    <string name="scenes">場景</string>
+    <string name="widgets">小工具</string>
+    <string name="position">位置</string>
+    <string name="size">大小</string>
+    <string name="alignment">對齊</string>
+    <string name="text_format">文字</string>
+    <string name="font_size">文字大小</string>
+    <string name="background">背景</string>
+    <string name="effect_gray_scale">灰階</string>
+    <string name="effect_sepia">棕褐色</string>
+    <string name="effect_pixellate">馬賽克</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_crt">CRT</string>
+    <string name="effect_whirlpool">扭曲</string>
+    <string name="effect_pinch">捏</string>
 </resources>

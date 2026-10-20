@@ -23,4 +23,11 @@
     <string name="camera">Камера</string>
     <string name="record">запис</string>
     <string name="stabilization">Стабілізація відео</string>
+    <string name="scenes">Сцени</string>
+    <string name="widgets">Віджети</string>
+    <string name="font_size">Розмір шрифту</string>
+    <string name="background">Фон</string>
+    <string name="effect_gray_scale">Шкала сірого</string>
+    <string name="effect_sepia">сепія</string>
+    <string name="effect_pixellate">Pixellate</string>
 </resources>

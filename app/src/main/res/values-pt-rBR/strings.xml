@@ -29,4 +29,18 @@
     <string name="snapshot">Capturar tela</string>
     <string name="not_supported_by_camera">Não compatível com esta câmera</string>
     <string name="stabilization">Estabilização de vídeo</string>
+    <string name="scenes">Cenas</string>
+    <string name="widgets">Widgets</string>
+    <string name="position">Posição</string>
+    <string name="size">Tamanho</string>
+    <string name="alignment">Alinhamento</string>
+    <string name="text_format">Texto</string>
+    <string name="font_size">Tamanho da fonte</string>
+    <string name="background">Fundo</string>
+    <string name="effect_gray_scale">Escala de cinza</string>
+    <string name="effect_sepia">Sépia</string>
+    <string name="effect_pixellate">Pixelado</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_whirlpool">Whirlpool</string>
+    <string name="effect_pinch">Beliscar</string>
 </resources>

@@ -31,4 +31,17 @@
     <string name="not_supported_by_camera">Nieobsługiwane w tym aparacie</string>
     <string name="auto">Automatyczny(e)</string>
     <string name="stabilization">Stabilizacja wideo</string>
+    <string name="scenes">Sceny</string>
+    <string name="widgets">Widgety</string>
+    <string name="position">Pozycja</string>
+    <string name="size">Rozmiar</string>
+    <string name="alignment">Wyrównanie</string>
+    <string name="text_format">Tekst</string>
+    <string name="font_size">Wielkość czcionki</string>
+    <string name="background">Tło</string>
+    <string name="effect_gray_scale">Skala szarości</string>
+    <string name="effect_sepia">Sepia</string>
+    <string name="effect_pixellate">Pixelizacja</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_whirlpool">Wir</string>
 </resources>

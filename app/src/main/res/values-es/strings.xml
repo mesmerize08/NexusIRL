@@ -26,4 +26,12 @@
     <string name="stop_recording">Detener grabación</string>
     <string name="not_supported_by_camera">No compatible con esta cámara</string>
     <string name="stabilization">Estabilización de vídeo</string>
+    <string name="scenes">Escenas</string>
+    <string name="widgets">Widgets</string>
+    <string name="font_size">Tamaño de la fuente</string>
+    <string name="background">Fondo</string>
+    <string name="effect_gray_scale">Escala de grises</string>
+    <string name="effect_sepia">Sepia</string>
+    <string name="effect_pixellate">Pixelar</string>
+    <string name="effect_four_three">4:3</string>
 </resources>

@@ -32,4 +32,19 @@
     <string name="not_supported_by_camera">이 카메라에서는 지원되지 않습니다.</string>
     <string name="auto">자동</string>
     <string name="stabilization">비디오 안정화</string>
+    <string name="scenes">장면</string>
+    <string name="widgets">위젯</string>
+    <string name="position">위치</string>
+    <string name="size">크기</string>
+    <string name="alignment">정렬</string>
+    <string name="text_format">텍스트</string>
+    <string name="font_size">폰트 크기</string>
+    <string name="background">배경</string>
+    <string name="effect_gray_scale">흑백</string>
+    <string name="effect_sepia">세피아</string>
+    <string name="effect_pixellate">모자이크</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_crt">CRT</string>
+    <string name="effect_whirlpool">소용돌이</string>
+    <string name="effect_pinch">핀치</string>
 </resources>

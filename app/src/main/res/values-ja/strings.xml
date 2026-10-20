@@ -26,4 +26,12 @@
     <string name="record">録画記録</string>
     <string name="not_supported_by_camera">このカメラではサポートされていません</string>
     <string name="stabilization">手振れ補正</string>
+    <string name="scenes">シーン</string>
+    <string name="widgets">ウィジェット</string>
+    <string name="text_format">テキスト</string>
+    <string name="font_size">フォントサイズ</string>
+    <string name="background">背景</string>
+    <string name="effect_gray_scale">グレースケール</string>
+    <string name="effect_sepia">セピア</string>
+    <string name="effect_pixellate">モザイク</string>
 </resources>

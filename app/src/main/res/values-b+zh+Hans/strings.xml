@@ -31,4 +31,18 @@
     <string name="not_supported_by_camera">不支持此相机</string>
     <string name="auto">自动</string>
     <string name="stabilization">视频稳定/防抖</string>
+    <string name="scenes">场景</string>
+    <string name="widgets">小组件</string>
+    <string name="position">位置</string>
+    <string name="size">尺寸</string>
+    <string name="alignment">校正</string>
+    <string name="text_format">文本</string>
+    <string name="font_size">字号</string>
+    <string name="background">背景</string>
+    <string name="effect_gray_scale">灰度</string>
+    <string name="effect_sepia">怀旧滤镜</string>
+    <string name="effect_pixellate">马赛克</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_whirlpool">涡流特效</string>
+    <string name="effect_pinch">扭曲特效</string>
 </resources>

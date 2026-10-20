@@ -34,4 +34,19 @@
     <string name="auto">Auto</string>
     <string name="focus">Fokus</string>
     <string name="stabilization">Videostabilisierung</string>
+    <string name="scenes">Szenen</string>
+    <string name="widgets">Widgets</string>
+    <string name="position">Position</string>
+    <string name="size">Größe</string>
+    <string name="alignment">Ausrichtung</string>
+    <string name="text_format">Text</string>
+    <string name="font_size">Schriftgröße</string>
+    <string name="background">Hintergrund</string>
+    <string name="effect_gray_scale">Graustufen</string>
+    <string name="effect_sepia">Sepia</string>
+    <string name="effect_pixellate">Pixelbild</string>
+    <string name="effect_four_three">4:3</string>
+    <string name="effect_crt">Röhrenbildschirm</string>
+    <string name="effect_whirlpool">Whirlpool</string>
+    <string name="effect_pinch">Pinch</string>
 </resources>
