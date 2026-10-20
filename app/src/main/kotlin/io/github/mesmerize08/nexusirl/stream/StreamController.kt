@@ -11,6 +11,7 @@ import android.provider.MediaStore
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.core.secrets.KeystoreSecretStore
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
+import io.github.mesmerize08.nexusirl.effects.TextVariables
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraFactors
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraInfo
 import io.github.mesmerize08.nexusirl.media.pipeline.CameraSource
@@ -19,7 +20,10 @@ import io.github.mesmerize08.nexusirl.media.pipeline.Mp4Recorder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
+import io.github.mesmerize08.nexusirl.scene.SceneEngine
+import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
+import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
@@ -30,6 +34,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 /** What the camera controls show (upstream: the zoom, torch and camera picker state). */
 data class CameraUiState(
@@ -86,6 +91,75 @@ object StreamController {
     }
 
     private var sharedAudio: SharedAudio? = null
+
+    // Scenes (upstream ModelScene.swift)
+
+    private var sceneEngine: SceneEngine? = null
+    private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
+
+    /** The scene being shown; runtime state like upstream's `sceneSelector`. */
+    val selectedSceneId: StateFlow<UUID?> = mutableSelectedSceneId
+
+    private fun scenes(context: Context): SceneEngine = sceneEngine ?: SceneEngine(context).also { engine ->
+        sceneEngine = engine
+        engine.setVariables(::textVariables)
+    }
+
+    /**
+     * Upstream `createDefault()` scenes: "Back" and "Front". Added when the settings have no scenes
+     * (a fresh install, or an import without them).
+     */
+    fun ensureDefaultScenes(context: Context) {
+        val store = settings(context)
+        if (store.current.scenes.isEmpty()) {
+            store.update {
+                it.copy(
+                    scenes = listOf(
+                        SettingsScene(name = "Back", cameraPosition = "Back"),
+                        SettingsScene(name = "Front", cameraPosition = "Front"),
+                    ),
+                )
+            }
+        }
+    }
+
+    /** Selects a scene (upstream `selectScene`): its widgets are shown and its camera is used. */
+    fun selectScene(context: Context, id: UUID) {
+        mutableSelectedSceneId.value = id
+        val scene = refreshScene(context) ?: return
+        val cameras = mutableCamera.value.cameras
+        val wanted = when (scene.camera) {
+            SceneCamera.FRONT -> cameras.firstOrNull { it.isFront }
+            SceneCamera.BACK -> cameras.firstOrNull { !it.isFront }
+            SceneCamera.NONE -> null
+        }
+        if (wanted != null && wanted.id != mutableCamera.value.current?.id) {
+            switchCamera(wanted.id)
+        }
+    }
+
+    /** Pushes the selected scene (or the first enabled one) and its widgets to the compositor. */
+    fun refreshScene(context: Context): SettingsScene? {
+        val database = settings(context).current
+        val enabled = database.scenes.filter { it.enabled }
+        val scene = enabled.firstOrNull { it.id == mutableSelectedSceneId.value } ?: enabled.firstOrNull()
+        mutableSelectedSceneId.value = scene?.id
+        scenes(context).setScene(scene, database.widgets)
+        return scene
+    }
+
+    /** Values for text widgets, from the live status (upstream `Variables`). */
+    private fun textVariables(): TextVariables {
+        val status = mutableStatus.value
+        val canvas = pipeline?.settings
+        return TextVariables(
+            date = Date(),
+            nowNanos = System.nanoTime(),
+            bitrateMbps = if (status.live) "%.1f".format(Locale.US, status.videoBitrateKbps / 1000.0) else "",
+            resolution = canvas?.let { "${it.width}x${it.height}" },
+            fps = pipeline?.outputFps,
+        )
+    }
 
     private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(context).also { sharedAudio = it }
 
@@ -355,6 +429,8 @@ object StreamController {
         created.start(cameraId)
         previewSurface?.let { created.setPreviewSurface(it) }
         pipeline = created
+        scenes(context).setPipeline(created)
+        refreshScene(context)
         if (mutableCamera.value.cameras.isEmpty()) {
             val probe = CameraSource(context.applicationContext)
             val cameras = try {
@@ -376,6 +452,7 @@ object StreamController {
 
     private fun releasePipeline() {
         android.util.Log.d(TAG, "Releasing camera pipeline ${pipeline != null}")
+        sceneEngine?.setPipeline(null)
         pipeline?.stop()
         pipeline = null
     }

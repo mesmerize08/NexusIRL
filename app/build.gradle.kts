@@ -88,6 +88,8 @@ dependencies {
     implementation(project(":transport:abr"))
     implementation(project(":net"))
     implementation(project(":settings"))
+    implementation(project(":effects"))
+    implementation(libs.zxing.core)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

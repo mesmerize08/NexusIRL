@@ -88,4 +88,26 @@
     <string name="iso">ISO</string>
     <string name="white_balance">White balance</string>
     <string name="stabilization">Video stabilization</string>
+    <string name="scenes">Scenes</string>
+    <string name="add_scene">Add scene</string>
+    <string name="delete_scene_title">Delete %1$s?</string>
+    <string name="widgets">Widgets</string>
+    <string name="add_widget">Add widget</string>
+    <string name="no_widgets">No widgets yet. Create one under Widgets.</string>
+    <string name="delete_widget_title">Delete %1$s?</string>
+    <string name="delete_widget_text">The widget is removed from every scene.</string>
+    <string name="not_shown_on_android">not shown on Android yet</string>
+    <string name="position">Position</string>
+    <string name="size">Size</string>
+    <string name="alignment">Alignment</string>
+    <string name="remove">Remove</string>
+    <string name="text_format">Text</string>
+    <string name="text_format_help">Placeholders such as {time}, {date}, {bitrate}, {fps}, {timer}. \n starts a new line.</string>
+    <string name="font_size">Font size</string>
+    <string name="text_color">Text color</string>
+    <string name="background">Background</string>
+    <string name="choose_image">Choose image</string>
+    <string name="image_set">An image is set.</string>
+    <string name="image_missing">No image chosen yet.</string>
+    <string name="qr_message">QR code text</string>
 </resources>

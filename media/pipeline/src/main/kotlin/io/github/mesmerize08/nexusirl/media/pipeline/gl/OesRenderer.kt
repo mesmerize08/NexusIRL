@@ -8,7 +8,7 @@ import java.nio.FloatBuffer
 
 /**
  * Draws a camera frame (an external OES texture) aspect-filled into the current surface.
- * This is the base of the compositor; scene effects (Phase 4) are added as later passes.
+ * The compositor draws it into the canvas framebuffer first, then widgets on top.
  */
 class OesRenderer {
     private val program: Int
@@ -24,7 +24,7 @@ class OesRenderer {
     }
 
     init {
-        program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER)
+        program = GlPrograms.create(VERTEX_SHADER, FRAGMENT_SHADER)
         positionLocation = GLES20.glGetAttribLocation(program, "aPosition")
         textureCoordinateLocation = GLES20.glGetAttribLocation(program, "aTextureCoordinate")
         textureMatrixLocation = GLES20.glGetUniformLocation(program, "uTextureMatrix")
@@ -77,29 +77,6 @@ class OesRenderer {
     fun release() {
         GLES20.glDeleteProgram(program)
         GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
-    }
-
-    private fun createProgram(vertexSource: String, fragmentSource: String): Int {
-        val vertex = compile(GLES20.GL_VERTEX_SHADER, vertexSource)
-        val fragment = compile(GLES20.GL_FRAGMENT_SHADER, fragmentSource)
-        val program = GLES20.glCreateProgram()
-        GLES20.glAttachShader(program, vertex)
-        GLES20.glAttachShader(program, fragment)
-        GLES20.glLinkProgram(program)
-        val status = IntArray(1)
-        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, status, 0)
-        check(status[0] == GLES20.GL_TRUE) { "Program link failed: ${GLES20.glGetProgramInfoLog(program)}" }
-        return program
-    }
-
-    private fun compile(type: Int, source: String): Int {
-        val shader = GLES20.glCreateShader(type)
-        GLES20.glShaderSource(shader, source)
-        GLES20.glCompileShader(shader)
-        val status = IntArray(1)
-        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
-        check(status[0] == GLES20.GL_TRUE) { "Shader compile failed: ${GLES20.glGetShaderInfoLog(shader)}" }
-        return shader
     }
 
     private companion object {

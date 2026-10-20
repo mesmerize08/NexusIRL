@@ -35,6 +35,8 @@ enum class VideoStabilizationMode(override val rawValue: String) : SwiftRawValue
 @Serializable(with = Database.Serializer::class)
 data class Database(
     val streams: List<SettingsStream> = emptyList(),
+    val scenes: List<SettingsScene> = emptyList(),
+    val widgets: List<SettingsWidget> = emptyList(),
     val tapToFocus: Boolean = false,
     val portrait: Boolean = false,
     val videoStabilizationMode: VideoStabilizationMode = VideoStabilizationMode.OFF,

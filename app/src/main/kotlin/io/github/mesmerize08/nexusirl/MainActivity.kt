@@ -45,9 +45,14 @@ import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
+import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
+import io.github.mesmerize08.nexusirl.ui.ScenePicker
+import io.github.mesmerize08.nexusirl.ui.ScenesScreen
 import io.github.mesmerize08.nexusirl.ui.SettingsLinkDialog
 import io.github.mesmerize08.nexusirl.ui.StreamEditorScreen
 import io.github.mesmerize08.nexusirl.ui.StreamsScreen
+import io.github.mesmerize08.nexusirl.ui.WidgetEditorScreen
+import io.github.mesmerize08.nexusirl.ui.WidgetsScreen
 import io.github.mesmerize08.nexusirl.ui.summary
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.UUID
@@ -86,6 +91,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        StreamController.ensureDefaultScenes(this)
         StreamController.setUiVisible(this, true)
     }
 
@@ -157,6 +163,14 @@ private sealed interface Screen {
     data class EditStream(val id: UUID?) : Screen
 
     data object ImportExport : Screen
+
+    data object Scenes : Screen
+
+    data class EditScene(val id: UUID) : Screen
+
+    data object Widgets : Screen
+
+    data class EditWidget(val id: UUID) : Screen
 }
 
 @Composable
@@ -202,11 +216,24 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             Toast.makeText(context, R.string.thermal_critical, Toast.LENGTH_LONG).show()
         }
     }
+    // Scenes follow the settings: edits, imports and links redraw the widgets.
+    LaunchedEffect(database.scenes, database.widgets) {
+        StreamController.refreshScene(context)
+    }
     BackHandler(enabled = screen != Screen.Main) {
-        screen = if (screen is Screen.EditStream) Screen.Streams else Screen.Main
+        screen = when (screen) {
+            is Screen.EditStream -> Screen.Streams
+            is Screen.EditScene, Screen.Widgets -> Screen.Scenes
+            is Screen.EditWidget -> Screen.Widgets
+            else -> Screen.Main
+        }
     }
     when (val current = screen) {
-        Screen.Main -> MainScreen(onStreams = { screen = Screen.Streams }, onImportExport = { screen = Screen.ImportExport })
+        Screen.Main -> MainScreen(
+            onStreams = { screen = Screen.Streams },
+            onScenes = { screen = Screen.Scenes },
+            onImportExport = { screen = Screen.ImportExport },
+        )
         Screen.Streams -> StreamsScreen(
             store,
             status.active,
@@ -215,11 +242,22 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         )
         is Screen.EditStream -> StreamEditorScreen(store, current.id, onDone = { screen = Screen.Streams })
         Screen.ImportExport -> ImportExportScreen(store, status.active, onBack = { screen = Screen.Main })
+        Screen.Scenes -> ScenesScreen(
+            store,
+            onEdit = { screen = Screen.EditScene(it) },
+            onWidgets = { screen = Screen.Widgets },
+            onBack = { screen = Screen.Main },
+        )
+        is Screen.EditScene -> SceneEditorScreen(store, current.id, onEditWidget = { screen = Screen.EditWidget(it) }, onBack = {
+            screen = Screen.Scenes
+        })
+        Screen.Widgets -> WidgetsScreen(store, onEdit = { screen = Screen.EditWidget(it) }, onBack = { screen = Screen.Scenes })
+        is Screen.EditWidget -> WidgetEditorScreen(store, current.id, onBack = { screen = Screen.Widgets })
     }
 }
 
 @Composable
-private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
+private fun MainScreen(onStreams: () -> Unit, onScenes: () -> Unit, onImportExport: () -> Unit) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
     val database by store.database.collectAsState()
@@ -263,7 +301,9 @@ private fun MainScreen(onStreams: () -> Unit, onImportExport: () -> Unit) {
                     Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
                 }
                 OutlinedButton(onClick = onStreams) { Text(stringResource(R.string.streams)) }
+                OutlinedButton(onClick = onScenes) { Text(stringResource(R.string.scenes)) }
             }
+            ScenePicker(store)
             RecordingControls()
             Text(
                 "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +

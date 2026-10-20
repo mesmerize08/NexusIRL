@@ -193,6 +193,13 @@ It must reproduce Swift `JSONEncoder` defaults:
 >     the rest falls back to English
 >
 >   Everything in Phase 3 that the emulator can check is done.
+> - Phase 4 is in progress. Done:
+>   - scenes and widgets in settings (iOS-compatible, unmodelled widget types kept)
+>   - a GL compositor (camera + widgets drawn once per frame, then copied to the encoders, preview and snapshots)
+>   - text widgets (upstream format placeholders, timers, stopwatches), image and QR code widgets
+>   - scene picker and scene/widget editors
+>
+>   Still to do: chat, map and browser widgets, global effects (LUT, grayscale, ...), scene transitions.
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.

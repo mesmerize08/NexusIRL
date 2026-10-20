@@ -12,14 +12,24 @@ import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.EGLSurface
 import android.opengl.GLES20
+import android.opengl.GLUtils
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.EglCore
+import io.github.mesmerize08.nexusirl.media.pipeline.gl.Framebuffer
+import io.github.mesmerize08.nexusirl.media.pipeline.gl.GlPrograms
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRenderer
+import io.github.mesmerize08.nexusirl.media.pipeline.gl.TextureRenderer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+
+/**
+ * A widget image placed on the canvas (pixels, top-left origin). A null [bitmap] keeps the image
+ * already uploaded for [id] and only moves it. The pipeline takes ownership of bitmaps it is given.
+ */
+class Overlay(val id: String, val bitmap: Bitmap?, val x: Float, val y: Float, val width: Float, val height: Float)
 
 class VideoPipeline(
     private val context: Context,
@@ -31,6 +41,14 @@ class VideoPipeline(
     private val glHandler = Handler(glThread.looper)
     private var egl: EglCore? = null
     private var renderer: OesRenderer? = null
+    private var textureRenderer: TextureRenderer? = null
+
+    /** The composited canvas (camera + widgets), copied to every output (GL thread only). */
+    private var canvas: Framebuffer? = null
+
+    private class OverlayTexture(val textureId: Int, var x: Float, var y: Float, var width: Float, var height: Float)
+
+    private val overlays = LinkedHashMap<String, OverlayTexture>()
     private var surfaceTexture: SurfaceTexture? = null
 
     /** Attached encoders and their EGL surfaces (GL thread only). */
@@ -80,6 +98,8 @@ class VideoPipeline(
             this.egl = egl
             val renderer = OesRenderer()
             this.renderer = renderer
+            textureRenderer = TextureRenderer()
+            canvas = Framebuffer(settings.width, settings.height)
             val texture = SurfaceTexture(renderer.textureId)
             surfaceTexture = texture
             texture.setOnFrameAvailableListener({ handleFrameAvailable() }, glHandler)
@@ -126,18 +146,16 @@ class VideoPipeline(
     fun takeSnapshot(onDone: (Bitmap?) -> Unit) {
         glHandler.post {
             val egl = egl
-            val renderer = renderer
-            if (egl == null || renderer == null || !hasFrame) {
+            val canvas = canvas
+            if (egl == null || canvas == null || !hasFrame) {
                 onDone(null)
                 return@post
             }
-            val width = settings.width
-            val height = settings.height
-            val surface = egl.createOffscreenSurface(width, height)
+            val width = canvas.width
+            val height = canvas.height
             try {
-                egl.makeCurrent(surface)
-                updateDrawMatrix()
-                renderer.draw(drawMatrix, width, height, sourceAspect)
+                egl.makeNothingCurrent()
+                canvas.bind()
                 val pixels = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
                 GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
                 val upsideDown = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -150,9 +168,48 @@ class VideoPipeline(
             } catch (e: Exception) {
                 onDone(null)
             } finally {
-                egl.makeNothingCurrent()
-                egl.releaseSurface(surface)
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
             }
+        }
+    }
+
+    /**
+     * Replaces the widget images drawn over the camera (upstream: the scene's effects). Images
+     * missing from [list] are removed. Drawn in list order, so later ones are on top.
+     */
+    fun setOverlays(list: List<Overlay>) {
+        glHandler.post {
+            if (egl == null) {
+                list.forEach { it.bitmap?.recycle() }
+                return@post
+            }
+            egl?.makeNothingCurrent()
+            val keep = list.map { it.id }.toSet()
+            overlays.keys.filter { it !in keep }.forEach { id ->
+                overlays.remove(id)?.let { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
+            }
+            val ordered = LinkedHashMap<String, OverlayTexture>()
+            for (overlay in list) {
+                var texture = overlays[overlay.id]
+                if (overlay.bitmap != null) {
+                    if (texture == null) {
+                        texture = OverlayTexture(GlPrograms.createTexture(), 0f, 0f, 0f, 0f)
+                    }
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture.textureId)
+                    GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, overlay.bitmap, 0)
+                    overlay.bitmap.recycle()
+                }
+                if (texture == null) {
+                    continue
+                }
+                texture.x = overlay.x
+                texture.y = overlay.y
+                texture.width = overlay.width
+                texture.height = overlay.height
+                ordered[overlay.id] = texture
+            }
+            overlays.clear()
+            overlays.putAll(ordered)
         }
     }
 
@@ -356,40 +413,69 @@ class VideoPipeline(
     }
 
     private fun render(presentationNanos: Long) {
-        val egl = egl ?: return
-        val renderer = renderer ?: return
         if (presentationNanos <= lastPresentationNanos) {
             return
         }
         lastPresentationNanos = presentationNanos
         updateDrawMatrix()
+        compose(camera = true)
+        output(presentationNanos)
+    }
+
+    private fun renderBlack(presentationNanos: Long) {
+        if ((encoders.isEmpty() && previewSurface == null) || presentationNanos <= lastPresentationNanos) {
+            return
+        }
+        lastPresentationNanos = presentationNanos
+        compose(camera = false)
+        output(presentationNanos)
+    }
+
+    /** Draws the camera (or black) and then the widgets into the canvas framebuffer. */
+    private fun compose(camera: Boolean) {
+        val egl = egl ?: return
+        val canvas = canvas ?: return
+        val renderer = renderer ?: return
+        val textureRenderer = textureRenderer ?: return
+        egl.makeNothingCurrent()
+        canvas.bind()
+        if (camera) {
+            renderer.draw(drawMatrix, canvas.width, canvas.height, sourceAspect)
+        } else {
+            renderer.drawBlack(canvas.width, canvas.height)
+        }
+        for (overlay in overlays.values) {
+            textureRenderer.drawRect(
+                overlay.textureId,
+                overlay.x,
+                overlay.y,
+                overlay.width,
+                overlay.height,
+                canvas.width,
+                canvas.height,
+                flipY = true,
+            )
+        }
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+    }
+
+    /** Copies the canvas to every encoder and the preview. */
+    private fun output(presentationNanos: Long) {
+        val egl = egl ?: return
+        val canvas = canvas ?: return
+        val textureRenderer = textureRenderer ?: return
+        val canvasAspect = canvas.width.toFloat() / canvas.height
         for ((_, encoderSurface) in encoders) {
             egl.makeCurrent(encoderSurface)
-            renderer.draw(drawMatrix, settings.width, settings.height, sourceAspect)
+            textureRenderer.drawFill(canvas.textureId, settings.width, settings.height, canvasAspect)
             egl.setPresentationTime(encoderSurface, presentationNanos)
             egl.swapBuffers(encoderSurface)
         }
         previewSurface?.let { preview ->
             egl.makeCurrent(preview)
             val (width, height) = egl.surfaceSize(preview)
-            renderer.draw(drawMatrix, width, height, sourceAspect)
+            textureRenderer.drawFill(canvas.textureId, width, height, canvasAspect)
             egl.swapBuffers(preview)
-        }
-        countFrame()
-    }
-
-    private fun renderBlack(presentationNanos: Long) {
-        val egl = egl ?: return
-        val renderer = renderer ?: return
-        if (encoders.isEmpty() || presentationNanos <= lastPresentationNanos) {
-            return
-        }
-        lastPresentationNanos = presentationNanos
-        for ((_, encoderSurface) in encoders) {
-            egl.makeCurrent(encoderSurface)
-            renderer.drawBlack(settings.width, settings.height)
-            egl.setPresentationTime(encoderSurface, presentationNanos)
-            egl.swapBuffers(encoderSurface)
         }
         countFrame()
     }
@@ -438,6 +524,10 @@ class VideoPipeline(
                     encoder.release()
                 }
                 renderer?.release()
+                textureRenderer?.release()
+                canvas?.release()
+                overlays.values.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
+                overlays.clear()
                 surfaceTexture?.release()
                 egl.release()
             }

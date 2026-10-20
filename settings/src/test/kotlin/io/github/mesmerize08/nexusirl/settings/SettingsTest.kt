@@ -154,6 +154,28 @@ class SettingsTest {
         assertFailsWith<SettingsArchive.InvalidArchiveException> { SettingsArchive.readSettingsJson("hello".toByteArray()) }
     }
 
+    @Test
+    fun scenesAndWidgets() {
+        val json = """
+            {"scenes":[{"name":"Triple","id":"8C7D4E5F-1A2B-4C3D-9E8F-7A6B5C4D3E2F","cameraPosition":"Back triple",
+              "widgets":[{"widgetId":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11","id":"5E0F7D6C-2B1A-4C3D-8E9F-0A1B2C3D4E5F",
+                          "x":2.5,"y":3,"size":30,"alignment":"BottomRight","positioningLock":false}],"fillFrame":true}],
+             "widgets":[{"name":"Clock","id":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11","type":"Text",
+                         "text":{"formatString":"{time}","fontSize":40,"backgroundColor":{"red":0,"green":0,"blue":0,"opacity":0.5},"timers":[]}},
+                        {"name":"Wheel","type":"Wheel of luck","wheelOfLuck":{"options":[]}}]}
+        """.trimIndent()
+        val database = Database.fromJson(json)
+        val scene = database.scenes.single()
+        assertEquals(SceneCamera.BACK, scene.camera)
+        assertEquals(WidgetAlignment.BOTTOM_RIGHT, scene.widgets.single().alignment)
+        assertEquals(2.5, scene.widgets.single().x)
+        assertEquals(40, database.widgets[0].text.fontSize)
+        assertEquals(0x80000000.toInt(), database.widgets[0].text.backgroundColor.argb())
+        assertEquals(WidgetType.WHEEL_OF_LUCK, database.widgets[1].type)
+        // iOS-only values (camera position, wheel of luck, timers, fillFrame) survive a round trip.
+        assertContainsAll(SwiftJson.parseToJsonElement(json), SwiftJson.parseToJsonElement(database.toJson()), "$")
+    }
+
     private fun assertContainsAll(
         expected: kotlinx.serialization.json.JsonElement,
         actual: kotlinx.serialization.json.JsonElement,

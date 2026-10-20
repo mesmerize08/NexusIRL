@@ -43,7 +43,7 @@ class SettingsStoreTest {
         )
 
         assertFalse(key in file.readText())
-        assertTrue("\"scenes\":[{\"name\":\"Back\"}]" in file.readText(), "iOS-only settings are kept")
+        assertEquals(listOf("Back"), Database.fromJson(file.readText()).scenes.map { it.name }, "scenes are kept")
         assertEquals("srt://example.com:4000?streamid=$key", store.resolveUrl(store.current.selectedStream!!))
     }
 
