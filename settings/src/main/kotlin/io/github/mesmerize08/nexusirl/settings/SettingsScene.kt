@@ -151,6 +151,28 @@ data class SettingsWidgetBrowser(
 }
 
 /**
+ * Upstream `SettingsWidgetMap`. [size] is the camera distance in metres (stored as "scale").
+ * [styleUrl] is Android's addition: a MapLibre style, empty for the default (OpenFreeMap).
+ */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsWidgetMap.Serializer::class)
+data class SettingsWidgetMap(
+    val northUp: Boolean = false,
+    val delay: SDouble = 0.0,
+    @SerialName("scale")
+    val size: SDouble = 1000.0,
+    val styleUrl: String = "",
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsWidgetMap>(generatedSerializer())
+
+    companion object {
+        /** OpenFreeMap: free, no key, OpenStreetMap data (docs/PORT_PLAN.md §8.1). */
+        const val DEFAULT_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+    }
+}
+
+/**
  * Upstream `SettingsWidget`. Image widgets keep their picture in a file named after the widget id
  * (upstream `imagesStorageDirectory`), not in the settings.
  */
@@ -164,6 +186,7 @@ data class SettingsWidget(
     val qrCode: SettingsWidgetQrCode = SettingsWidgetQrCode(),
     val browser: SettingsWidgetBrowser = SettingsWidgetBrowser(),
     val chat: SettingsWidgetChat = SettingsWidgetChat(),
+    val map: SettingsWidgetMap = SettingsWidgetMap(),
     val enabled: Boolean = true,
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {

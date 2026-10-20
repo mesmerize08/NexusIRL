@@ -159,4 +159,12 @@
     <string name="privacy_region_size">Size of new region</string>
     <string name="add_privacy_region_here">Add region around current position</string>
     <string name="location_unknown">The current position is not known yet.</string>
+    <string name="map_needs_location">Map widgets need location to be turned on (main screen, Location).</string>
+    <string name="north_up">North up</string>
+    <string name="north_up_help">The map rotates with the direction of movement when off.</string>
+    <string name="map_size">Size</string>
+    <string name="map_delay">Delay</string>
+    <string name="map_delay_help">To show the widget in sync with high latency cameras.</string>
+    <string name="map_style_url">Map style URL</string>
+    <string name="map_style_url_help">A MapLibre style. Empty uses OpenFreeMap (OpenStreetMap data).</string>
 </resources>

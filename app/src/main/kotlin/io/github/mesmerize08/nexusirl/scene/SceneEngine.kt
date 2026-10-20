@@ -38,6 +38,7 @@ class SceneEngine(context: Context) {
     private var widgets: Map<UUID, SettingsWidget> = emptyMap()
     private var variables: () -> TextVariables = { TextVariables() }
     private var chatPosts: () -> List<ChatPost> = { emptyList() }
+    private var mapBitmap: (UUID) -> Bitmap? = { null }
     private val cache = HashMap<String, Cached>()
     private var ticking = false
 
@@ -72,6 +73,11 @@ class SceneEngine(context: Context) {
     /** Supplies the chat for chat widgets (newest first). */
     fun setChatPosts(provider: () -> List<ChatPost>) {
         handler.post { chatPosts = provider }
+    }
+
+    /** Supplies map widget images (MapWidgets). */
+    fun setMapBitmaps(provider: (UUID) -> Bitmap?) {
+        handler.post { mapBitmap = provider }
     }
 
     /** Redraws now instead of at the next tick (new chat messages). */
@@ -120,6 +126,17 @@ class SceneEngine(context: Context) {
                     key = widget.qrCode.message
                     if (key != previous?.key) {
                         bitmap = WidgetBitmaps.qrCode(key, minOf(canvasWidth, canvasHeight)) ?: continue
+                    }
+                }
+                WidgetType.MAP -> {
+                    val map = mapBitmap(widget.id)
+                    if (map == null) {
+                        cache.remove(id)
+                        continue
+                    }
+                    key = "${System.identityHashCode(map)}"
+                    if (key != previous?.key) {
+                        bitmap = map
                     }
                 }
                 WidgetType.CHAT -> {

@@ -27,6 +27,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.LutLoader
+import io.github.mesmerize08.nexusirl.scene.MapWidgets
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SceneCamera
@@ -113,6 +114,12 @@ object StreamController {
     private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: BrowserWidgets(context).also { widgets ->
         browserWidgets = widgets
         ChatController.addPostListener(widgets::sendChat)
+    }
+    private var mapWidgets: MapWidgets? = null
+
+    private fun maps(context: Context): MapWidgets = mapWidgets ?: MapWidgets(context).also { maps ->
+        mapWidgets = maps
+        scenes(context).setMapBitmaps(maps::bitmap)
     }
     private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
 
@@ -259,6 +266,16 @@ object StreamController {
         browsers(
             context,
         ).update(pipeline, database.widgets.filter { it.enabled && it.type == WidgetType.BROWSER && it.id in browserWidgetIds })
+        // Map images are square: upstream uses the layout size % of the canvas's shorter side.
+        val canvas = pipeline?.settings
+        val maps = scene?.widgets.orEmpty().mapNotNull { sceneWidget ->
+            val widget = database.widgets.firstOrNull { it.id == sceneWidget.widgetId && it.enabled && it.type == WidgetType.MAP }
+            if (widget == null || canvas == null) null else widget to (sceneWidget.size / 100 * minOf(canvas.width, canvas.height)).toInt()
+        }
+        if (maps.isNotEmpty() || mapWidgets != null) {
+            val engine = scenes(context)
+            maps(context).update(maps) { engine.invalidate() }
+        }
         return scene
     }
 

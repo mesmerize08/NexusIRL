@@ -215,7 +215,11 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - location (upstream totals, privacy regions) for speed, altitude and distance in text widgets
 >
->   Still to do: map widget.
+>   - map widget (MapLibre, OpenFreeMap by default, hidden in privacy regions)
+>
+>   Phase 4 is feature complete on the emulator. Still to do on a real phone: the checks below.
+>   The release APK is now about 47 MB (MapLibre's native libraries for four CPU types); an
+>   arm64-only APK next to the universal one, as §8.4 plans, would cut most of that.
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.

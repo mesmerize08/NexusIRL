@@ -91,6 +91,7 @@ dependencies {
     implementation(project(":effects"))
     implementation(project(":chat"))
     implementation(libs.zxing.core)
+    implementation(libs.maplibre)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

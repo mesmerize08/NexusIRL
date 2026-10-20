@@ -49,6 +49,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsSceneWidget
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsWidget
 import io.github.mesmerize08.nexusirl.settings.SettingsWidgetChat
+import io.github.mesmerize08.nexusirl.settings.SettingsWidgetMap
 import io.github.mesmerize08.nexusirl.settings.WidgetAlignment
 import io.github.mesmerize08.nexusirl.settings.WidgetType
 import io.github.mesmerize08.nexusirl.stream.StreamController
@@ -57,7 +58,8 @@ import java.util.UUID
 import kotlin.math.roundToInt
 
 /** Widget types Android can show today. */
-private val SUPPORTED_WIDGET_TYPES = listOf(WidgetType.TEXT, WidgetType.IMAGE, WidgetType.QR_CODE, WidgetType.BROWSER, WidgetType.CHAT)
+private val SUPPORTED_WIDGET_TYPES =
+    listOf(WidgetType.TEXT, WidgetType.IMAGE, WidgetType.QR_CODE, WidgetType.BROWSER, WidgetType.CHAT, WidgetType.MAP)
 
 private val CAMERAS = listOf("Back", "Front", "None")
 
@@ -496,6 +498,7 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
                 }
             }
             WidgetType.CHAT -> ChatWidgetEditor(widget.chat) { chat -> update { it.copy(chat = chat) } }
+            WidgetType.MAP -> MapWidgetEditor(widget.map) { map -> update { it.copy(map = map) } }
             else -> Text(stringResource(R.string.not_shown_on_android))
         }
     }
@@ -541,4 +544,28 @@ private fun ChatWidgetEditor(chat: SettingsWidgetChat, onChange: (SettingsWidget
     SwitchRow(stringResource(R.string.border), chat.shadowColorEnabled) { onChange(chat.copy(shadowColorEnabled = it)) }
     SwitchRow(stringResource(R.string.bold_username), chat.boldUsername) { onChange(chat.copy(boldUsername = it)) }
     SwitchRow(stringResource(R.string.bold_message), chat.boldMessage) { onChange(chat.copy(boldMessage = it)) }
+}
+
+/** Upstream `WidgetMapSettingsView`, plus Android's map style. */
+@Composable
+private fun MapWidgetEditor(map: SettingsWidgetMap, onChange: (SettingsWidgetMap) -> Unit) {
+    Text(stringResource(R.string.map_needs_location), style = MaterialTheme.typography.bodySmall)
+    SwitchRow(stringResource(R.string.north_up), map.northUp) { onChange(map.copy(northUp = it)) }
+    Text(stringResource(R.string.north_up_help), style = MaterialTheme.typography.bodySmall)
+    SliderRow(stringResource(R.string.map_size), map.size.toFloat(), 500f..10000f, "${map.size.roundToInt()} m") {
+        onChange(map.copy(size = ((it / 100).roundToInt() * 100).toDouble()))
+    }
+    SliderRow(stringResource(R.string.map_delay), map.delay.toFloat(), 0f..10f, "${map.delay} s") {
+        onChange(map.copy(delay = (it * 2).roundToInt() / 2.0))
+    }
+    Text(stringResource(R.string.map_delay_help), style = MaterialTheme.typography.bodySmall)
+    OutlinedTextField(
+        value = map.styleUrl,
+        onValueChange = { url -> onChange(map.copy(styleUrl = url.trim())) },
+        label = { Text(stringResource(R.string.map_style_url)) },
+        supportingText = { Text(stringResource(R.string.map_style_url_help)) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
