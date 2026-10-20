@@ -230,8 +230,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 > through `moblin.subscribe({chat: {}})`.
 > BTTV, FFZ and 7TV emotes can be turned on per stream.
 > A chat settings screen sets the overlay's appearance.
-> Still to do: OAuth features (sending, EventSub
-> alerts, viewers).
+> Twitch sign-in (Device Code flow) enables sending chat, EventSub alerts and viewer counts.
+> Still to do: Kick and YouTube sign-in, alert toasts and sounds, title and category.
 >
 > **Phase 6 progress:** remote control, streamer side: an iOS Moblin assistant (or the web
 > remote through a compatible assistant) sees status and a preview and controls scenes, going

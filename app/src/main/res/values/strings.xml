@@ -199,4 +199,9 @@
     <string name="twitch_enter_code">Go to twitch.tv/activate on any device, sign in, and enter this code:</string>
     <string name="twitch_waiting">Waiting for you to approve on Twitch. The code is valid for 30 minutes.</string>
     <string name="twitch_open_activate">Open on this phone</string>
+    <string name="twitch_viewers">Twitch viewers: %1$d</string>
+    <string name="twitch_send_message">Message to Twitch chat</string>
+    <string name="send">Send</string>
+    <string name="twitch_alerts_connected">Twitch alerts ✓</string>
+    <string name="twitch_alerts_connecting">Twitch alerts …</string>
 </resources>

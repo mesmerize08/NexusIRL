@@ -2,6 +2,7 @@
 // @97e26d2 (v1 subset: no interactive chat, badges or timestamps yet).
 package io.github.mesmerize08.nexusirl.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,12 +21,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -33,6 +38,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
@@ -164,5 +170,49 @@ fun ChatControls(store: SettingsStore, onSettings: () -> Unit) {
             },
             style = MaterialTheme.typography.bodySmall,
         )
+    }
+    val alerts by ChatController.twitchAlertsConnected.collectAsState()
+    alerts?.let {
+        Text(
+            stringResource(if (it) R.string.twitch_alerts_connected else R.string.twitch_alerts_connecting),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    val viewers by ChatController.twitchViewers.collectAsState()
+    viewers?.let { Text(stringResource(R.string.twitch_viewers, it), style = MaterialTheme.typography.bodySmall) }
+    // Sending is public: only when the selected stream is signed in to Twitch.
+    if (database.chat.enabled && database.selectedStream?.twitchLoggedIn == true) {
+        TwitchSendField()
+    }
+}
+
+/** Upstream's chat send field (Twitch): posts as the signed-in user in their channel. */
+@Composable
+private fun TwitchSendField() {
+    val context = LocalContext.current
+    var text by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it.take(500) },
+            label = { Text(stringResource(R.string.twitch_send_message)) },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            enabled = text.isNotBlank() && !sending,
+            onClick = {
+                sending = true
+                ChatController.sendTwitchMessage(text) { error ->
+                    sending = false
+                    if (error == null) {
+                        text = ""
+                    } else {
+                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+        ) { Text(stringResource(R.string.send)) }
     }
 }

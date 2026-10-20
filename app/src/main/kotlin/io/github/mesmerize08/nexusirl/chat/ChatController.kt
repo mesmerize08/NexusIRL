@@ -5,14 +5,18 @@ package io.github.mesmerize08.nexusirl.chat
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import io.github.mesmerize08.nexusirl.BuildConfig
 import io.github.mesmerize08.nexusirl.chat.kick.KickChat
 import io.github.mesmerize08.nexusirl.chat.kick.KickChatIds
+import io.github.mesmerize08.nexusirl.chat.twitch.TwitchApi
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChat
+import io.github.mesmerize08.nexusirl.chat.twitch.TwitchEventSub
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
 import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
 import io.github.mesmerize08.nexusirl.stream.StreamController
+import io.github.mesmerize08.nexusirl.twitch.TwitchAccount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -54,6 +59,19 @@ object ChatController {
     private var twitch: TwitchChat? = null
     private var kick: KickChat? = null
     private val youTube = mutableListOf<YouTubeLiveChat>()
+    private var eventSub: TwitchEventSub? = null
+    private var appContext: Context? = null
+    private var twitchAccount: Pair<UUID, String>? = null
+
+    private val mutableTwitchViewers = MutableStateFlow<Int?>(null)
+
+    private val mutableTwitchAlertsConnected = MutableStateFlow<Boolean?>(null)
+
+    /** Whether Twitch alerts (EventSub) are subscribed; null when not signed in. */
+    val twitchAlertsConnected: StateFlow<Boolean?> = mutableTwitchAlertsConnected
+
+    /** Twitch viewers while live and signed in (upstream polls Helix `streams`); null otherwise. */
+    val twitchViewers: StateFlow<Int?> = mutableTwitchViewers
     private val emoteLoaders = mutableListOf<ThirdPartyEmotes>()
 
     /** Increases on every reload so callbacks from old connections are ignored. */
@@ -69,6 +87,8 @@ object ChatController {
         val youTubeHandle: String,
         val twitchChannelId: String,
         val emotes: SettingsStreamChat,
+        /** The stream whose Twitch sign-in is used for alerts, viewers and sending, if signed in. */
+        val twitchSignedInStream: UUID?,
     )
 
     private fun config(database: Database): Config {
@@ -85,6 +105,7 @@ object ChatController {
             youTubeHandle = stream?.youTubeHandle?.trim().orEmpty(),
             twitchChannelId = stream?.twitchChannelId?.trim().orEmpty(),
             emotes = stream?.chat ?: SettingsStreamChat(),
+            twitchSignedInStream = stream?.takeIf { it.twitchLoggedIn && it.twitchChannelId.isNotBlank() }?.id,
         )
     }
 
@@ -95,6 +116,7 @@ object ChatController {
         }
         val settings = StreamController.settings(context)
         store = settings
+        appContext = context.applicationContext
         val newScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = newScope
         newScope.launch {
@@ -128,6 +150,12 @@ object ChatController {
         youTube.forEach { it.stop() }
         youTube.clear()
         emoteLoaders.forEach { it.stop() }
+        eventSub?.stop()
+        eventSub = null
+        twitchAccount = null
+        mutableTwitchViewers.value = null
+        mutableTwitchAlertsConnected.value = null
+        handler.removeCallbacks(viewersTick)
         emoteLoaders.clear()
         mutablePosts.value = emptyList()
         if (!config.enabled) {
@@ -142,6 +170,23 @@ object ChatController {
             if (generation == current) {
                 emoteLoaders += ThirdPartyEmotes(platform, channelId, config.emotes, set).also { it.start() }
             }
+        }
+        val signedIn = config.twitchSignedInStream
+        if (signedIn != null && appContext != null) {
+            // Alerts over EventSub with the stream's sign-in (refreshed when it expires).
+            val context = appContext!!
+            twitchAccount = signedIn to config.twitchChannelId
+            // Its own connection state, apart from the anonymous chat connection.
+            val alertsListener = object : ChatListener {
+                override fun onPost(post: ChatPost) = listener.onPost(post)
+
+                override fun onConnectionChanged(platform: ChatPlatform, connected: Boolean) = onMain(current) {
+                    mutableTwitchAlertsConnected.value = connected
+                }
+            }
+            mutableTwitchAlertsConnected.value = false
+            eventSub = TwitchEventSub(config.twitchChannelId, alertsListener, api = { twitchApi(context, signedIn) }).also { it.start() }
+            handler.post(viewersTick)
         }
         if (config.twitchChannelName.isNotEmpty()) {
             connected[ChatPlatform.TWITCH] = false
@@ -187,6 +232,55 @@ object ChatController {
      * up to a minute and saves it to the stream, which reconnects the chat. Upstream starts this
      * when going live, since the video only exists then.
      */
+    private fun twitchApi(context: Context, streamId: UUID): TwitchApi? =
+        TwitchAccount.accessToken(context, streamId)?.let { TwitchApi(BuildConfig.TWITCH_CLIENT_ID, it) }
+
+    /** Upstream `updateTwitchStream`: viewers once a minute, read-only. */
+    private val viewersTick = object : Runnable {
+        override fun run() {
+            val (streamId, userId) = twitchAccount ?: return
+            val context = appContext ?: return
+            val current = generation
+            Thread({
+                val viewers = try {
+                    twitchApi(context, streamId)?.getStream(userId)?.viewerCount
+                } catch (e: Exception) {
+                    null
+                }
+                handler.post {
+                    if (generation == current) {
+                        mutableTwitchViewers.value = viewers
+                    }
+                }
+            }, "twitch-viewers").apply { isDaemon = true }.start()
+            handler.postDelayed(this, 60_000)
+        }
+    }
+
+    /** Whether messages can be sent to Twitch chat (signed in on the selected stream). */
+    val canSendToTwitch: Boolean
+        get() = twitchAccount != null
+
+    /**
+     * Upstream `sendChatMessage`: posts [text] publicly in the signed-in channel's chat as the
+     * signed-in user. [onDone] gets an error message, or null when sent (main thread).
+     */
+    fun sendTwitchMessage(text: String, onDone: (String?) -> Unit) {
+        val (streamId, userId) = twitchAccount ?: return onDone("Sign in to Twitch first")
+        val context = appContext ?: return onDone("Not ready")
+        val message = text.trim().take(500).ifEmpty { return onDone(null) }
+        Thread({
+            val error = try {
+                val api = twitchApi(context, streamId) ?: throw IllegalStateException("Sign in to Twitch again")
+                api.sendChatMessage(broadcasterId = userId, senderId = userId, message = message)
+                null
+            } catch (e: Exception) {
+                e.message ?: "Sending failed"
+            }
+            handler.post { onDone(error) }
+        }, "twitch-send").apply { isDaemon = true }.start()
+    }
+
     fun fetchYouTubeVideoId() {
         val settings = store ?: return
         val stream = settings.current.selectedStream ?: return
