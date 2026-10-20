@@ -97,9 +97,13 @@ class VideoPipeline(
     }
 
     /**
-     * Upstream scene switch transition "Blur": while a new camera starts, the last frame is shown
-     * with a growing blur until the new camera's first frame arrives (GL thread only).
+     * Upstream scene switch transitions: while a new camera starts, the last frame is shown
+     * (blurred, frozen, or blurred and zooming in) until the new camera's first frame arrives.
      */
+    @Volatile
+    var sceneSwitchTransition = SceneSwitchTransitionKind.BLUR
+
+    // GL thread only.
     private var transitionStartNanos: Long? = null
 
     private class OverlayTexture(val textureId: Int, var x: Float, var y: Float, var width: Float, var height: Float)
@@ -319,11 +323,15 @@ class VideoPipeline(
         GLES20.glDeleteTextures(1, intArrayOf(overlay.textureId), 0)
     }
 
-    /** Switches to another camera (upstream `attachCamera`), keeping the pipeline running. */
-    fun switchCamera(cameraId: String) {
+    /**
+     * Switches to another camera (upstream `attachCamera`), keeping the pipeline running. With
+     * [force] the same camera is restarted too, so the transition shows (upstream
+     * `forceSceneSwitchTransition`).
+     */
+    fun switchCamera(cameraId: String, force: Boolean = false) {
         glHandler.post {
             val texture = surfaceTexture ?: return@post
-            if (cameraSource?.current?.id == cameraId) {
+            if (cameraSource?.current?.id == cameraId && !force) {
                 return@post
             }
             cameraSource?.release()
@@ -568,12 +576,33 @@ class VideoPipeline(
             other = previous
         }
         transitionStartNanos?.let { start ->
-            // Upstream calcBlurRadius: 15 + 15 per second (up to 2 s), scaled to the canvas.
-            val seconds = ((System.nanoTime() - start) / 1e9).coerceAtMost(2.0).toFloat()
-            val radius = (15 + seconds * 15) * (maxOf(target.width, target.height) / 1920f)
-            for (horizontal in listOf(true, false)) {
+            val seconds = (System.nanoTime() - start) / 1e9
+            val transition = sceneSwitchTransition
+            val radius = transition.blurRadius(seconds, maxOf(target.width, target.height))
+            if (radius > 0f) {
+                for (horizontal in listOf(true, false)) {
+                    other.bind()
+                    effectRenderer.blur(target.textureId, target.width, target.height, radius, horizontal)
+                    val previous = target
+                    target = other
+                    other = previous
+                }
+            }
+            val scale = transition.zoom(seconds)
+            if (scale > 1f) {
+                val width = target.width * scale
+                val height = target.height * scale
                 other.bind()
-                effectRenderer.blur(target.textureId, target.width, target.height, radius, horizontal)
+                textureRenderer.drawRect(
+                    target.textureId,
+                    (target.width - width) / 2,
+                    (target.height - height) / 2,
+                    width,
+                    height,
+                    target.width,
+                    target.height,
+                    flipY = false,
+                )
                 val previous = target
                 target = other
                 other = previous

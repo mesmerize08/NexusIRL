@@ -245,7 +245,7 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         StreamController.refreshLuts(context)
     }
     // Effects and mute follow the quick buttons, including after imports.
-    LaunchedEffect(database.quickButtons) {
+    LaunchedEffect(database.quickButtons, database.sceneSwitchTransition) {
         StreamController.applyQuickButtons(context)
     }
     BackHandler(enabled = screen != Screen.Main) {

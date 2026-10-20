@@ -43,6 +43,7 @@ import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.HorizontalAlignment
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl.Companion.makeUniqueName
+import io.github.mesmerize08.nexusirl.settings.SceneSwitchTransition
 import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsSceneWidget
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
@@ -109,6 +110,17 @@ fun ScenesScreen(store: SettingsStore, onEdit: (UUID) -> Unit, onWidgets: () -> 
                     store.update { db -> db.copy(scenes = db.scenes.map { if (it.id == scene.id) it.copy(enabled = enabled) else it }) }
                 })
             }
+        }
+        // Upstream scene settings: the transition shown while the camera changes.
+        ChoiceField(
+            stringResource(R.string.scene_switch_transition),
+            database.sceneSwitchTransition,
+            SceneSwitchTransition.entries,
+            { it.rawValue },
+            { transition -> store.update { it.copy(sceneSwitchTransition = transition) } },
+        )
+        SwitchRow(stringResource(R.string.force_scene_switch_transition), database.forceSceneSwitchTransition) { on ->
+            store.update { it.copy(forceSceneSwitchTransition = on) }
         }
     }
 }

@@ -145,4 +145,6 @@
     <string name="stealth_mode_exit">Double tap to leave stealth mode</string>
     <string name="quick_buttons">Quick buttons</string>
     <string name="quick_buttons_help">Choose which buttons are shown on the main screen and their order. Buttons Android does not support yet are kept for iOS settings exports.</string>
+    <string name="scene_switch_transition">Scene switch transition</string>
+    <string name="force_scene_switch_transition">Show transition on every scene switch</string>
 </resources>

@@ -211,7 +211,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - quick buttons: upstream's list and order (iOS round trip), effects, torch, mute, record,
 >     snapshot, stealth mode and local overlays; which are shown and their order is configurable
 >
->   Still to do: map widget, the "Freeze" and "Blur & zoom" transitions.
+>   - the "Freeze" and "Blur & zoom" transitions, and showing the transition on every scene switch
+>
+>   Still to do: map widget.
 >   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
 >   emulator camera accepts the requests but ignores exposure bias and focus distance).
 >   Tap-to-focus point mapping and pinch zoom need checking on a real phone.

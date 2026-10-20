@@ -19,6 +19,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.CameraSource
 import io.github.mesmerize08.nexusirl.media.pipeline.EffectSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.media.pipeline.Mp4Recorder
+import io.github.mesmerize08.nexusirl.media.pipeline.SceneSwitchTransitionKind
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
@@ -28,6 +29,7 @@ import io.github.mesmerize08.nexusirl.scene.LutLoader
 import io.github.mesmerize08.nexusirl.scene.SceneEngine
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SceneCamera
+import io.github.mesmerize08.nexusirl.settings.SceneSwitchTransition
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsColor
 import io.github.mesmerize08.nexusirl.settings.SettingsColorLut
@@ -166,6 +168,11 @@ object StreamController {
 
     private fun applyEffects(context: Context) {
         val database = settings(context).current
+        pipeline?.sceneSwitchTransition = when (database.sceneSwitchTransition) {
+            SceneSwitchTransition.BLUR -> SceneSwitchTransitionKind.BLUR
+            SceneSwitchTransition.FREEZE -> SceneSwitchTransitionKind.FREEZE
+            SceneSwitchTransition.BLUR_AND_ZOOM -> SceneSwitchTransitionKind.BLUR_AND_ZOOM
+        }
         pipeline?.effectSettings = EffectSettings(database.pixellateStrength, database.whirlpoolAngle, database.pinchScale)
         pipeline?.effects = database.quickButtons.filter { it.isOn }.mapNotNull { effectButtons[it.type] }.toSet()
     }
@@ -234,8 +241,9 @@ object StreamController {
             SceneCamera.BACK -> cameras.firstOrNull { !it.isFront }
             SceneCamera.NONE -> null
         }
-        if (wanted != null && wanted.id != mutableCamera.value.current?.id) {
-            switchCamera(wanted.id)
+        val force = settings(context).current.forceSceneSwitchTransition
+        if (wanted != null && (force || wanted.id != mutableCamera.value.current?.id)) {
+            switchCamera(wanted.id, force)
         }
     }
 
@@ -571,9 +579,9 @@ object StreamController {
     }
 
     /** Switches camera (upstream camera picker); remembered while the app runs. */
-    fun switchCamera(id: String) {
+    fun switchCamera(id: String, force: Boolean = false) {
         cameraId = id
-        pipeline?.switchCamera(id)
+        pipeline?.switchCamera(id, force)
         val info = mutableCamera.value.cameras.firstOrNull { it.id == id }
         mutableCamera.value = mutableCamera.value.withAutoControls().copy(current = info, zoom = 1f, torch = false)
     }

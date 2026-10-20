@@ -40,6 +40,16 @@ class SettingsTest {
     """.trimIndent()
 
     @Test
+    fun sceneSwitchTransition() {
+        assertEquals(SceneSwitchTransition.BLUR, Database.fromJson("{}").sceneSwitchTransition)
+        val database = Database.fromJson("""{"sceneSwitchTransition": "Blur & zoom", "forceSceneSwitchTransition": true}""")
+        assertEquals(SceneSwitchTransition.BLUR_AND_ZOOM, database.sceneSwitchTransition)
+        assertTrue(database.forceSceneSwitchTransition)
+        assertTrue(database.toJson().contains("\"Blur & zoom\""))
+        assertEquals(SceneSwitchTransition.BLUR, Database.fromJson("""{"sceneSwitchTransition": "Spin"}""").sceneSwitchTransition)
+    }
+
+    @Test
     fun chatSettings() {
         val database = Database.fromJson(
             """{"chat": {"fontSize": 25, "height": 0.5, "usernameColor": {"red": 1, "green": 2, "blue": 3}, "botEnabled": true},

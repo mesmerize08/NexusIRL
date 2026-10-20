@@ -29,6 +29,17 @@ enum class VideoStabilizationMode(override val rawValue: String) : SwiftRawValue
     object Serializer : SwiftRawValueEnumSerializer<VideoStabilizationMode>("SettingsVideoStabilizationMode", entries, OFF)
 }
 
+/** Upstream `SettingsSceneSwitchTransition`: what the stream shows while a new camera starts. */
+@Serializable(with = SceneSwitchTransition.Serializer::class)
+enum class SceneSwitchTransition(override val rawValue: String) : SwiftRawValueEnum {
+    BLUR("Blur"),
+    FREEZE("Freeze"),
+    BLUR_AND_ZOOM("Blur & zoom"),
+    ;
+
+    object Serializer : SwiftRawValueEnumSerializer<SceneSwitchTransition>("SettingsSceneSwitchTransition", entries, BLUR)
+}
+
 /** Upstream `SettingsColorLut`: a LUT and whether it is applied. [type] is "bundled", "disk" or "diskCube". */
 @KeepGeneratedSerializer
 @Serializable(with = SettingsColorLut.Serializer::class)
@@ -86,6 +97,9 @@ data class Database(
     /** Upstream `quickButtons`, stored under "globalButtons" ("quickButtons" holds their layout settings). */
     @SerialName("globalButtons")
     val quickButtons: List<SettingsQuickButton> = emptyList(),
+    val sceneSwitchTransition: SceneSwitchTransition = SceneSwitchTransition.BLUR,
+    /** Upstream: restart the camera, and so show the transition, on every scene switch. */
+    val forceSceneSwitchTransition: Boolean = false,
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())
