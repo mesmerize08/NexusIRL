@@ -27,6 +27,17 @@ data class SettingsRemoteControlStreamer(
     object Serializer : SwiftPreservingSerializer<SettingsRemoteControlStreamer>(generatedSerializer())
 }
 
+/** Upstream `SettingsRemoteControlAssistant`: this device as the assistant, listening on [port]. */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsRemoteControlAssistant.Serializer::class)
+data class SettingsRemoteControlAssistant(
+    val enabled: Boolean = false,
+    val port: Int = 2345,
+    @Transient override var extra: JsonObject = JsonObject(emptyMap()),
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsRemoteControlAssistant>(generatedSerializer())
+}
+
 /**
  * Upstream `SettingsRemoteControl`. The [password] is a secret: in `settings.json` it is a
  * `{secret:…}` reference to the secret store (docs/PORT_PLAN.md §9.2), and it defaults to a
@@ -35,6 +46,7 @@ data class SettingsRemoteControlStreamer(
 @KeepGeneratedSerializer
 @Serializable(with = SettingsRemoteControl.Serializer::class)
 data class SettingsRemoteControl(
+    val assistant: SettingsRemoteControlAssistant = SettingsRemoteControlAssistant(),
     val streamer: SettingsRemoteControlStreamer = SettingsRemoteControlStreamer(),
     val password: String = generatePassword(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),

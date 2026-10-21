@@ -10,6 +10,7 @@ kotlin {
 dependencies {
     api(project(":core:codable"))
     api(project(":core:websocket"))
+    implementation(libs.java.websocket)
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.mockwebserver)

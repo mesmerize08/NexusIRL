@@ -240,8 +240,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Moblink relay: an Android phone lends its mobile data to a Moblin streamer on the same Wi-Fi
 > (found by mDNS or entered manually), running in the background. Checked on the emulator against
 > a protocol-level test streamer, with UDP passed through the relay both ways.
-> Still to do: the assistant and web servers on Android, the relay server, the Moblink streamer
-> side, and interop with real iOS devices.
+> Assistant: an Android phone controls another phone running Moblin or NexusIRL on the same Wi-Fi,
+> with a lockout after wrong passwords. Checked on the emulator against a protocol-level test
+> streamer.
+> Still to do: the web remote control, the Moblink streamer side, and interop with real iOS devices.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

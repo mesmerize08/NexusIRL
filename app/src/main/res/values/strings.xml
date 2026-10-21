@@ -204,4 +204,19 @@
     <string name="send">Send</string>
     <string name="twitch_alerts_connected">Twitch alerts ✓</string>
     <string name="twitch_alerts_connecting">Twitch alerts …</string>
+    <string name="remote_assistant">Control another phone</string>
+    <string name="remote_assistant_help">Run as an assistant: a phone running Moblin or NexusIRL connects here so you can see and control it. Only accepted on Wi-Fi, hotspot and Tailscale, never on mobile data. After 5 wrong passwords an address is blocked for a minute.</string>
+    <string name="remote_assistant_urls">On the streaming phone, set the remote control assistant URL to one of these:</string>
+    <string name="remote_assistant_password">Use the same password as in this phone\'s Remote control settings.</string>
+    <string name="remote_assistant_waiting">Waiting for the streaming phone to connect…</string>
+    <string name="remote_confirm_go_live">Start streaming on the other phone?</string>
+    <string name="remote_confirm_end">Stop streaming on the other phone?</string>
+    <string name="filter_gray_scale">Gray scale</string>
+    <string name="filter_sepia">Sepia</string>
+    <string name="filter_pixellate">Pixellate</string>
+    <string name="filter_four_three">4:3</string>
+    <string name="filter_crt">CRT</string>
+    <string name="mute">Mute</string>
+    <string name="stealth_mode">Stealth mode</string>
+    <string name="zoom">Zoom</string>
 </resources>

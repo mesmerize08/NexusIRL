@@ -46,6 +46,7 @@ import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
+import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlController
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
@@ -62,6 +63,7 @@ import io.github.mesmerize08.nexusirl.ui.LutsScreen
 import io.github.mesmerize08.nexusirl.ui.MoblinkScreen
 import io.github.mesmerize08.nexusirl.ui.QuickButtonBar
 import io.github.mesmerize08.nexusirl.ui.QuickButtonsScreen
+import io.github.mesmerize08.nexusirl.ui.RemoteAssistantScreen
 import io.github.mesmerize08.nexusirl.ui.RemoteControlScreen
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
@@ -94,6 +96,7 @@ class MainActivity : ComponentActivity() {
         ChatController.start(this)
         LocationController.start(this)
         RemoteControlController.start(this)
+        RemoteControlAssistantController.start(this)
         MoblinkController.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
@@ -217,6 +220,8 @@ private sealed interface Screen {
     data object RemoteControl : Screen
 
     data object Moblink : Screen
+
+    data object RemoteAssistant : Screen
 }
 
 @Composable
@@ -309,7 +314,9 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onLocation = { screen = Screen.Location },
             onRemoteControl = { screen = Screen.RemoteControl },
             onMoblink = { screen = Screen.Moblink },
+            onRemoteAssistant = { screen = Screen.RemoteAssistant },
         )
+        Screen.RemoteAssistant -> RemoteAssistantScreen(store, onBack = { screen = Screen.Main })
         Screen.Moblink -> MoblinkScreen(store, onBack = { screen = Screen.Main })
         Screen.RemoteControl -> RemoteControlScreen(store, onBack = { screen = Screen.Main })
         Screen.Location -> LocationScreen(store, onBack = { screen = Screen.Main })
@@ -351,6 +358,7 @@ private fun MainScreen(
     onLocation: () -> Unit,
     onRemoteControl: () -> Unit,
     onMoblink: () -> Unit,
+    onRemoteAssistant: () -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
@@ -422,6 +430,7 @@ private fun MainScreen(
             TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
             TextButton(onClick = onRemoteControl) { Text(stringResource(R.string.remote_control)) }
             TextButton(onClick = onMoblink) { Text(stringResource(R.string.moblink_relay)) }
+            TextButton(onClick = onRemoteAssistant) { Text(stringResource(R.string.remote_assistant)) }
             Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { showLicenses = true }) {
                 Text(stringResource(R.string.open_source_licenses))

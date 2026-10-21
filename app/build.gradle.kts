@@ -11,6 +11,10 @@ licensee {
     allow("MIT")
     allow("BSD-2-Clause")
     allow("BSD-3-Clause")
+    // Java-WebSocket's POM links its LICENSE file instead of naming it; that file is MIT (checked).
+    allowUrl("https://github.com/TooTallNate/Java-WebSocket/blob/master/LICENSE") {
+        because("MIT, verified from the repository's LICENSE")
+    }
     // Ships the dependency licence list in the APK for the in-app "Open source licences" screen.
     bundleAndroidAsset.set(true)
 }
