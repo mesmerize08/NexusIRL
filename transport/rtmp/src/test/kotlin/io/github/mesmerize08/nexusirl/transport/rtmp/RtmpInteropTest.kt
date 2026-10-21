@@ -28,6 +28,19 @@ class RtmpInteropTest {
         publishAndVerify(directory, streams, MpegTsVideoConfig.Avc(streams.sps, streams.pps), expectedCodec = "h264")
     }
 
+    /**
+     * Like a phone: video carries its camera capture time, about 100 ms older than the audio sent
+     * with it. The first key frame must not be dropped as "before the start" (found on a Galaxy
+     * S26 Ultra: no picture for one key frame interval).
+     */
+    @Test
+    fun firstKeyFrameSurvivesVideoOlderThanAudio() {
+        assumeTrue(Ffmpeg.available, "ffmpeg/ffprobe not installed")
+        val directory = Files.createTempDirectory("rtmp-interop").toFile()
+        val streams = Ffmpeg.generateElementaryStreams(directory, seconds = 3)
+        publishAndVerify(directory, streams, MpegTsVideoConfig.Avc(streams.sps, streams.pps), expectedCodec = "h264", videoLagSeconds = 0.1)
+    }
+
     /** Enhanced RTMP (`hvc1` FourCC) with an hvcC built from raw VPS/SPS/PPS. */
     @Test
     fun ffmpegRtmpServerReceivesEnhancedRtmpHevcStream() {
@@ -37,7 +50,13 @@ class RtmpInteropTest {
         publishAndVerify(directory, streams, MpegTsVideoConfig.Hevc(streams.vps, streams.sps, streams.pps), expectedCodec = "hevc")
     }
 
-    private fun publishAndVerify(directory: File, streams: ElementaryStreams, videoConfig: MpegTsVideoConfig, expectedCodec: String) {
+    private fun publishAndVerify(
+        directory: File,
+        streams: ElementaryStreams,
+        videoConfig: MpegTsVideoConfig,
+        expectedCodec: String,
+        videoLagSeconds: Double = 0.0,
+    ) {
         val port = ServerSocket(0).use { it.localPort }
         val recording = File(directory, "received.flv")
         val server = Ffmpeg.start(
@@ -83,7 +102,7 @@ class RtmpInteropTest {
         streams.forEachInterleaved(
             video = { unit, time ->
                 waitUntil(time)
-                stream.writeVideo(unit.data, base + MediaTime.fromSeconds(time), null, unit.isIdr)
+                stream.writeVideo(unit.data, base + MediaTime.fromSeconds(time - videoLagSeconds), null, unit.isIdr)
             },
             audio = { frame, time ->
                 waitUntil(time)
@@ -103,7 +122,8 @@ class RtmpInteropTest {
         val probed = probeStreams(recording).toMap()
         // RTMP is reliable and nothing is held back, so every frame arrives.
         assertEquals(90, probed[expectedCodec], "video frames: $probed")
-        assertTrue((probed["aac"] ?: 0) >= 140, "audio frames: $probed")
+        // Audio sent before the first video frame waits for it (a frame or two with a lag).
+        assertTrue((probed["aac"] ?: 0) >= 138, "audio frames: $probed")
         directory.deleteRecursively()
     }
 }
