@@ -56,7 +56,10 @@ class ShapingUdpRelay(private val serverPort: Int, queuePackets: Int = 150) : Au
                 if (nextSendNanos > now) {
                     val wait = nextSendNanos - now
                     Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
-                } else {
+                } else if (now - nextSendNanos > MAXIMUM_LAG_NANOS) {
+                    // Idle for a while: no burst to "catch up". Smaller lags are caught up below, so
+                    // the rate holds even when sleeps overshoot (Windows timers can be ~15.6 ms
+                    // coarse, depending on what other programs request).
                     nextSendNanos = now
                 }
                 // Account for IP/UDP overhead like a real link.
@@ -98,5 +101,9 @@ class ShapingUdpRelay(private val serverPort: Int, queuePackets: Int = 150) : Au
         running = false
         clientSide.close()
         serverSide.close()
+    }
+
+    private companion object {
+        const val MAXIMUM_LAG_NANOS = 50_000_000L
     }
 }
