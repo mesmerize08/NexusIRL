@@ -266,9 +266,14 @@ It must reproduce Swift `JSONEncoder` defaults:
 > - SRTLA over Wi-Fi to the desktop receiver: clean, RTT about 5 ms.
 > - Recording (MP4, H.265 + AAC) and snapshots; scenes with a text widget; the web remote control
 >   from a desktop browser.
-> - Still to do on a phone: the other landscape direction and portrait, tap-to-focus and manual
->   camera controls, bonding over a real mobile network, Moblink between two phones, and iOS
->   interop.
+> - Orientation: upright in both landscape directions, also when turned 180 degrees while open
+>   (that needs a display listener: Android sends no configuration change for it); portrait
+>   streams (1080x1920) upright; the Portrait quick button gives a portrait UI with a landscape
+>   stream rendered as if held in landscape, like upstream.
+> - Camera controls: exposure bias, manual focus and long-press autofocus reach the camera;
+>   tap-to-focus lands on the tapped point (mapped into the 16:9 crop of the 4:3 sensor).
+> - Still to do on a phone: bonding over a real mobile network, Moblink between two phones, and
+>   iOS interop.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

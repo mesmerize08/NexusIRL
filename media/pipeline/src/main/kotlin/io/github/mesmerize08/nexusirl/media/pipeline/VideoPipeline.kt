@@ -721,7 +721,17 @@ class VideoPipeline(
      * Rotate further by the display rotation so content is upright as the phone is held, and use
      * the resulting aspect ratio for aspect-fill (upstream: video orientation follows the device).
      */
+    private val loggedTransform = FloatArray(17)
+
     private fun updateDrawMatrix() {
+        // Logged when it changes: camera transforms and rotation handling differ between phones.
+        val changed = loggedTransform[16] != displayRotationDegrees.toFloat() ||
+            !textureMatrix.indices.all { loggedTransform[it] == textureMatrix[it] }
+        if (changed) {
+            textureMatrix.copyInto(loggedTransform)
+            loggedTransform[16] = displayRotationDegrees.toFloat()
+            android.util.Log.i(TAG, "Transform ${textureMatrix.joinToString(",") { "%.0f".format(it) }} display $displayRotationDegrees")
+        }
         val transformRotates = Math.abs(textureMatrix[0]) < 0.5f
         val totalQuarterTurns = ((if (transformRotates) 1 else 0) + displayRotationDegrees / 90) % 2
         sourceAspect = if (totalQuarterTurns == 1) 1f / cameraAspect else cameraAspect

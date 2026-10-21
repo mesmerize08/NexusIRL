@@ -11,9 +11,12 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -59,6 +62,7 @@ private fun zoomPresets(minZoom: Float, maxZoom: Float): List<Float> {
 
 private fun formatZoom(zoom: Float): String = if (zoom == zoom.roundToInt().toFloat()) "${zoom.roundToInt()}x" else "%.1fx".format(zoom)
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CameraPreview(
     modifier: Modifier = Modifier,
@@ -166,13 +170,16 @@ fun CameraPreview(
                 }
             }
         }
-        FilledTonalButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
-            Text(stringResource(R.string.camera_settings))
-        }
-        Row(
-            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+        // One wrapping row: in a narrow (portrait) preview the buttons flow onto a second line
+        // instead of overlapping.
+        FlowRow(
+            modifier = Modifier.align(Alignment.TopStart).fillMaxWidth().padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            FilledTonalButton(onClick = { showSettings = true }) {
+                Text(stringResource(R.string.camera_settings))
+            }
             if (current?.hasTorch == true) {
                 // Filled while the torch is on.
                 if (camera.torch) {

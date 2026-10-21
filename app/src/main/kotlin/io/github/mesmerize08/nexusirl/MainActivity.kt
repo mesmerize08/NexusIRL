@@ -4,7 +4,10 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.hardware.display.DisplayManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -134,8 +137,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Turning the phone 180 degrees (one landscape to the other) changes the display rotation
+     * without a configuration change, so onConfigurationChanged never runs; the display listener
+     * does, and keeps the camera picture upright (found on a Galaxy S26 Ultra).
+     */
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayChanged(displayId: Int) = updateDisplayRotation()
+
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+    }
+
     override fun onStart() {
         super.onStart()
+        getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener, Handler(Looper.getMainLooper()))
+        updateDisplayRotation()
         StreamController.ensureDefaultScenes(this)
         StreamController.ensureBundledLuts(this)
         StreamController.ensureQuickButtons(this)
@@ -144,6 +162,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener)
         StreamController.setUiVisible(this, false)
         super.onStop()
     }
@@ -500,7 +519,7 @@ private fun MainScreen(
         } else {
             // Portrait (portrait streams, or the Portrait quick button): preview on top, controls below.
             Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(modifier = Modifier.fillMaxWidth().weight(0.6f), contentAlignment = Alignment.Center) { preview() }
+                Box(modifier = Modifier.fillMaxWidth().weight(0.6f), contentAlignment = Alignment.TopCenter) { preview() }
                 Column(
                     modifier = Modifier.fillMaxWidth().weight(0.4f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
