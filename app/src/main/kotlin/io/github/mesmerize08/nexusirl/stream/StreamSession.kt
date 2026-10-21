@@ -132,6 +132,10 @@ class StreamSession(
 
     fun start() {
         encoder = video.startEncoder(settings, fanOut)
+        if (encoder == null) {
+            // Keep going (audio still streams) but say why there is no picture.
+            status = status.copy(detail = "The video encoder could not start. Try a lower resolution or H.264.")
+        }
         audio.add(fanOut)
         powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
         executor.execute { startDestination() }
@@ -203,7 +207,7 @@ class StreamSession(
         destination?.let { fanOut.add(it) }
         encoder?.requestKeyFrame()
         liveSince = clock.nanoTime()
-        update(status.copy(state = StreamState.LIVE, detail = ""))
+        update(status.copy(state = StreamState.LIVE, detail = if (encoder == null) status.detail else ""))
     }
 
     private fun handleDisconnected(eventGeneration: Int, message: String) {

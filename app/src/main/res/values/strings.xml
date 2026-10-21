@@ -229,4 +229,5 @@
     <string name="moblink_streamer_help">While live with SRTLA, phones on the same Wi-Fi running a Moblink relay (Moblin, NexusIRL or the Moblink app) add their mobile data as extra paths. They use the password above. Never over mobile data; 5 wrong passwords block an address for a minute.</string>
     <string name="moblink_streamer_password_needed">Set the password above first.</string>
     <string name="moblink_streamer_no_relays">No relays connected.</string>
+    <string name="portrait">Portrait</string>
 </resources>

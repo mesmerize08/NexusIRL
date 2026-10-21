@@ -45,6 +45,7 @@ val SUPPORTED_QUICK_BUTTONS = setOf(
     QuickButtonType.WHIRLPOOL,
     QuickButtonType.PINCH,
     QuickButtonType.LUTS,
+    QuickButtonType.PORTRAIT,
 )
 
 /** Enabled quick buttons in their configured order (upstream pages are shown one after another). */
@@ -65,6 +66,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                 QuickButtonType.LIVE -> status.active
                 QuickButtonType.RECORD -> recording != null
                 QuickButtonType.SNAPSHOT, QuickButtonType.WIDGETS, QuickButtonType.LUTS -> false
+                QuickButtonType.PORTRAIT -> database.portrait
                 else -> button.isOn
             }
             FilterChip(

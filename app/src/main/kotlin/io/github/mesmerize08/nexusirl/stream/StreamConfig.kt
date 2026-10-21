@@ -63,12 +63,13 @@ data class StreamConfig(
             return StreamConfig(
                 url = resolvedUrl,
                 video = VideoEncoderSettings(
-                    width = stream.resolution.width,
-                    height = stream.resolution.height,
+                    width = stream.canvasWidth,
+                    height = stream.canvasHeight,
                     fps = stream.fps,
                     bitrate = stream.bitrate,
                     hevc = stream.codec == StreamCodec.H265_HEVC,
-                    keyFrameIntervalSeconds = stream.maxKeyFrameInterval.coerceIn(1, 10),
+                    // 0 is "Auto" (upstream), which is 2 seconds like recordings.
+                    keyFrameIntervalSeconds = stream.maxKeyFrameInterval.takeIf { it > 0 }?.coerceAtMost(10) ?: 2,
                 ),
                 srtLatency = srt.latency,
                 srtAdaptiveBitrate = choice,

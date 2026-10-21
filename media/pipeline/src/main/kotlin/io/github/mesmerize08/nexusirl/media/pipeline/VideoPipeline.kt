@@ -200,7 +200,14 @@ class VideoPipeline(
         var created: VideoEncoder? = null
         runOnGlThread {
             val egl = egl ?: return@runOnGlThread
-            val encoder = VideoEncoder(encoderSettings, sink)
+            // An unsupported size, profile or bitrate makes MediaCodec throw; on this thread that
+            // would take the whole app down.
+            val encoder = try {
+                VideoEncoder(encoderSettings, sink)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Video encoder failed: $e")
+                return@runOnGlThread
+            }
             encoders += encoder to egl.createWindowSurface(encoder.inputSurface)
             created = encoder
         }
@@ -721,7 +728,10 @@ class VideoPipeline(
         val rotation = FloatArray(16)
         android.opengl.Matrix.setIdentityM(rotation, 0)
         android.opengl.Matrix.translateM(rotation, 0, 0.5f, 0.5f, 0f)
-        android.opengl.Matrix.rotateM(rotation, 0, displayRotationDegrees.toFloat(), 0f, 0f, 1f)
+        // The camera's transform already turns the frame upright for the device's natural
+        // orientation. Display rotation is the opposite of the device's physical turn (ROTATION_90
+        // = turned 90° counter-clockwise), so the picture is turned back clockwise.
+        android.opengl.Matrix.rotateM(rotation, 0, -displayRotationDegrees.toFloat(), 0f, 0f, 1f)
         android.opengl.Matrix.translateM(rotation, 0, -0.5f, -0.5f, 0f)
         android.opengl.Matrix.multiplyMM(drawMatrix, 0, textureMatrix, 0, rotation, 0)
     }

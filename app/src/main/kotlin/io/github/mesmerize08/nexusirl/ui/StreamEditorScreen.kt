@@ -128,6 +128,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 stream = stream.copy(resolution = it)
             },
         )
+        SwitchRow(stringResource(R.string.portrait), stream.portrait) { stream = stream.copy(portrait = it) }
         ChoiceField(stringResource(R.string.fps), stream.fps, STREAM_FPS_CHOICES.sorted(), { "$it" }, { stream = stream.copy(fps = it) })
         ChoiceField(stringResource(R.string.bitrate), stream.bitrate, (BITRATES + stream.bitrate).distinct().sorted(), { formatMbps(it) }, {
             stream = stream.copy(bitrate = it)

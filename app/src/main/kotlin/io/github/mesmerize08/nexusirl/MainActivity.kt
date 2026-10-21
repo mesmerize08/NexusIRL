@@ -2,6 +2,7 @@ package io.github.mesmerize08.nexusirl
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
@@ -13,12 +14,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -42,6 +49,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
@@ -76,6 +84,9 @@ import io.github.mesmerize08.nexusirl.ui.WidgetEditorScreen
 import io.github.mesmerize08.nexusirl.ui.WidgetsScreen
 import io.github.mesmerize08.nexusirl.ui.summary
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -93,6 +104,7 @@ class MainActivity : ComponentActivity() {
             window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         }
         requestPermissionsIfNeeded()
+        followOrientationSettings()
         updateDisplayRotation()
         ChatController.start(this)
         LocationController.start(this)
@@ -102,7 +114,9 @@ class MainActivity : ComponentActivity() {
         MoblinkStreamerController.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                // Android 15+ draws edge to edge: keep content clear of the system bars, the camera
+                // cutout and the keyboard (landscape puts the navigation bar on the side).
+                Surface(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     App(pendingLink)
                 }
             }
@@ -146,6 +160,34 @@ class MainActivity : ComponentActivity() {
         updateDisplayRotation()
     }
 
+    /** Portrait UI with a landscape stream (upstream `isLandscapeStreamAndPortraitUi`). */
+    private var landscapeStreamInPortraitUi = false
+
+    /**
+     * Upstream `updateOrientationLock`: the UI is portrait for portrait streams and with the
+     * Portrait quick button, otherwise landscape either way round.
+     */
+    private fun followOrientationSettings() {
+        val store = StreamController.settings(this)
+        lifecycleScope.launch {
+            store.database
+                .map { database ->
+                    val portraitStream = database.selectedStream?.portrait == true
+                    (portraitStream || database.portrait) to (database.portrait && !portraitStream)
+                }
+                .distinctUntilChanged()
+                .collect { (portraitUi, landscapeInPortrait) ->
+                    landscapeStreamInPortraitUi = landscapeInPortrait
+                    requestedOrientation = if (portraitUi) {
+                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    }
+                    updateDisplayRotation()
+                }
+        }
+    }
+
     private fun updateDisplayRotation() {
         val rotation = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             display?.rotation
@@ -159,7 +201,7 @@ class MainActivity : ComponentActivity() {
             android.view.Surface.ROTATION_270 -> 270
             else -> 0
         }
-        StreamController.setDisplayRotation(degrees)
+        StreamController.setDisplayRotation(degrees, landscapeStreamInPortraitUi)
     }
 
     private fun requestPermissionsIfNeeded() {
@@ -379,67 +421,86 @@ private fun MainScreen(
     if (showLicenses) {
         LicensesDialog(onDismiss = { showLicenses = false })
     }
-    // Landscape: preview on the left (as large as fits at 16:9), controls scroll on the right.
-    Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            val localOverlaysHidden = database.quickButtons.any { it.type == QuickButtonType.LOCAL_OVERLAYS && it.isOn }
-            CameraPreview(showControls = !localOverlaysHidden, overlay = {
-                if (!localOverlaysHidden) {
-                    ChatOverlay(database.chat, Modifier.padding(8.dp))
-                }
-            })
+    // The preview has the canvas's shape (portrait streams are tall, 4:3 resolutions narrower).
+    val aspect = stream?.let { it.canvasWidth.toFloat() / it.canvasHeight } ?: (16f / 9f)
+    val localOverlaysHidden = database.quickButtons.any { it.type == QuickButtonType.LOCAL_OVERLAYS && it.isOn }
+    val preview: @Composable () -> Unit = {
+        CameraPreview(aspect = aspect, showControls = !localOverlaysHidden, overlay = {
+            if (!localOverlaysHidden) {
+                ChatOverlay(database.chat, Modifier.padding(8.dp))
+            }
+        })
+    }
+    val controls: @Composable ColumnScope.() -> Unit = {
+        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+        if (stream != null) {
+            Text(stream.name, style = MaterialTheme.typography.titleMedium)
+            Text(stream.summary(), style = MaterialTheme.typography.bodySmall)
+        } else {
+            Text(stringResource(R.string.no_streams))
         }
-        Column(
-            modifier = Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-            if (stream != null) {
-                Text(stream.name, style = MaterialTheme.typography.titleMedium)
-                Text(stream.summary(), style = MaterialTheme.typography.bodySmall)
-            } else {
-                Text(stringResource(R.string.no_streams))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    if (status.active) {
+                        StreamController.stop(context)
+                    } else {
+                        StreamController.goLive(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                    }
+                },
+                enabled = stream != null || status.active,
+            ) {
+                Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        if (status.active) {
-                            StreamController.stop(context)
-                        } else {
-                            StreamController.goLive(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-                        }
-                    },
-                    enabled = stream != null || status.active,
-                ) {
-                    Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
-                }
-                OutlinedButton(onClick = onStreams) { Text(stringResource(R.string.streams)) }
-                OutlinedButton(onClick = onScenes) { Text(stringResource(R.string.scenes)) }
+            OutlinedButton(onClick = onStreams) { Text(stringResource(R.string.streams)) }
+            OutlinedButton(onClick = onScenes) { Text(stringResource(R.string.scenes)) }
+        }
+        ScenePicker(store)
+        QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onEdit = onQuickButtons)
+        ChatControls(store, onSettings = onChat)
+        RecordingControls()
+        Text(
+            "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +
+                "RTT ${status.rttMs.toInt()} ms  " +
+                "audio ${status.audioLevelDbfs.toInt()} dBFS  mic ${status.microphone}  thermal ${status.thermal}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (status.encoder.isNotEmpty()) {
+            Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)
+        }
+        if (status.detail.isNotEmpty()) {
+            Text(status.detail, style = MaterialTheme.typography.bodySmall)
+        }
+        TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
+        TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
+        TextButton(onClick = onRemoteControl) { Text(stringResource(R.string.remote_control)) }
+        TextButton(onClick = onMoblink) { Text(stringResource(R.string.moblink_relay)) }
+        TextButton(onClick = onRemoteAssistant) { Text(stringResource(R.string.remote_assistant)) }
+        Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { showLicenses = true }) {
+            Text(stringResource(R.string.open_source_licenses))
+        }
+    }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        if (maxWidth >= maxHeight) {
+            // Landscape: preview on the left (as large as fits), controls scroll on the right.
+            Row(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { preview() }
+                Column(
+                    modifier = Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = controls,
+                )
             }
-            ScenePicker(store)
-            QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onEdit = onQuickButtons)
-            ChatControls(store, onSettings = onChat)
-            RecordingControls()
-            Text(
-                "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +
-                    "RTT ${status.rttMs.toInt()} ms  " +
-                    "audio ${status.audioLevelDbfs.toInt()} dBFS  mic ${status.microphone}  thermal ${status.thermal}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (status.encoder.isNotEmpty()) {
-                Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)
-            }
-            if (status.detail.isNotEmpty()) {
-                Text(status.detail, style = MaterialTheme.typography.bodySmall)
-            }
-            TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
-            TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
-            TextButton(onClick = onRemoteControl) { Text(stringResource(R.string.remote_control)) }
-            TextButton(onClick = onMoblink) { Text(stringResource(R.string.moblink_relay)) }
-            TextButton(onClick = onRemoteAssistant) { Text(stringResource(R.string.remote_assistant)) }
-            Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { showLicenses = true }) {
-                Text(stringResource(R.string.open_source_licenses))
+        } else {
+            // Portrait (portrait streams, or the Portrait quick button): preview on top, controls below.
+            Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().weight(0.6f), contentAlignment = Alignment.Center) { preview() }
+                Column(
+                    modifier = Modifier.fillMaxWidth().weight(0.4f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = controls,
+                )
             }
         }
     }

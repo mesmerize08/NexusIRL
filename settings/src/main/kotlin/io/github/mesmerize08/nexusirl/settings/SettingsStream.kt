@@ -262,6 +262,13 @@ data class SettingsStream(
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsStream>(generatedSerializer())
 
+    /** Canvas width, swapped with the height for portrait streams (upstream `dimensions()`). */
+    val canvasWidth: Int
+        get() = if (portrait) resolution.height else resolution.width
+
+    val canvasHeight: Int
+        get() = if (portrait) resolution.width else resolution.height
+
     /** Upstream `getYouTubeVideoIds`. */
     val youTubeVideoIdList: List<String>
         get() = youTubeVideoIds.split(",").filter { it.isNotEmpty() }

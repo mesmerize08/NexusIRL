@@ -48,10 +48,25 @@ import kotlin.math.roundToInt
 /** Zoom presets shown under the preview (upstream default back-camera presets), within the camera's range. */
 private val ZOOM_PRESETS = listOf(0.5f, 1f, 2f, 5f)
 
+/**
+ * The presets the current camera can do. The wide preset is the camera's own minimum when that is
+ * between 0.5x and 1x (e.g. 0.6x on Galaxy phones), so the ultra-wide lens is always one tap away.
+ */
+private fun zoomPresets(minZoom: Float, maxZoom: Float): List<Float> {
+    val wide = if (minZoom < 0.95f) listOf(maxOf(0.5f, (minZoom * 10).roundToInt() / 10f)) else emptyList()
+    return wide + ZOOM_PRESETS.filter { it >= 1f && it <= maxZoom }
+}
+
 private fun formatZoom(zoom: Float): String = if (zoom == zoom.roundToInt().toFloat()) "${zoom.roundToInt()}x" else "%.1fx".format(zoom)
 
 @Composable
-fun CameraPreview(modifier: Modifier = Modifier, showControls: Boolean = true, overlay: @Composable () -> Unit = {}) {
+fun CameraPreview(
+    modifier: Modifier = Modifier,
+    /** Canvas width / height. */
+    aspect: Float = 16f / 9f,
+    showControls: Boolean = true,
+    overlay: @Composable () -> Unit = {},
+) {
     val camera by StreamController.camera.collectAsState()
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
     var showSettings by remember { mutableStateOf(false) }
@@ -64,7 +79,7 @@ fun CameraPreview(modifier: Modifier = Modifier, showControls: Boolean = true, o
             focusPoint = null
         }
     }
-    Box(modifier = modifier.aspectRatio(16f / 9f)) {
+    Box(modifier = modifier.aspectRatio(aspect)) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { viewContext ->
@@ -125,7 +140,8 @@ fun CameraPreview(modifier: Modifier = Modifier, showControls: Boolean = true, o
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (current != null) {
-                for (preset in ZOOM_PRESETS.filter { it >= current.minZoom && it <= current.maxZoom }) {
+                val presets = zoomPresets(current.minZoom, current.maxZoom)
+                for (preset in presets) {
                     val selected = kotlin.math.abs(camera.zoom - preset) < 0.05f
                     Text(
                         formatZoom(preset),
@@ -137,7 +153,7 @@ fun CameraPreview(modifier: Modifier = Modifier, showControls: Boolean = true, o
                             .pointerInput(preset) { detectTapGestures { StreamController.setZoom(preset) } },
                     )
                 }
-                if (ZOOM_PRESETS.none { kotlin.math.abs(camera.zoom - it) < 0.05f }) {
+                if (presets.none { kotlin.math.abs(camera.zoom - it) < 0.05f }) {
                     Text(
                         formatZoom(camera.zoom),
                         color = Color.Yellow,

@@ -166,6 +166,8 @@ object StreamController {
         }
         when (type) {
             QuickButtonType.TORCH -> setTorch(on)
+            // Upstream `setDisplayPortrait`: the UI turns portrait, the stream keeps its shape.
+            QuickButtonType.PORTRAIT -> settings(context).update { it.copy(portrait = on) }
             else -> applyQuickButtons(context)
         }
     }
@@ -539,10 +541,15 @@ object StreamController {
     private val mutableCamera = MutableStateFlow(CameraUiState())
     val camera: StateFlow<CameraUiState> = mutableCamera
 
-    /** Display rotation (0/90/180/270) so camera content stays upright as the phone is held. */
-    fun setDisplayRotation(degrees: Int) {
-        displayRotationDegrees = degrees
-        pipeline?.displayRotationDegrees = degrees
+    /**
+     * Display rotation (0/90/180/270) so camera content stays upright as the phone is held. With a
+     * landscape stream and a portrait UI (upstream `isLandscapeStreamAndPortraitUi`, the Portrait
+     * quick button) the camera is rendered as if the phone were in landscape.
+     */
+    fun setDisplayRotation(degrees: Int, landscapeStreamInPortraitUi: Boolean = false) {
+        val effective = if (landscapeStreamInPortraitUi && (degrees == 0 || degrees == 180)) 90 else degrees
+        displayRotationDegrees = effective
+        pipeline?.displayRotationDegrees = effective
     }
 
     fun setPreviewSurface(surface: Surface?) {
@@ -572,7 +579,7 @@ object StreamController {
     private fun previewSettings(context: Context): VideoEncoderSettings {
         val stream = settings(context).current.selectedStream
             ?: return VideoEncoderSettings(width = 1280, height = 720, fps = 30, bitrate = 0)
-        return VideoEncoderSettings(width = stream.resolution.width, height = stream.resolution.height, fps = stream.fps, bitrate = 0)
+        return VideoEncoderSettings(width = stream.canvasWidth, height = stream.canvasHeight, fps = stream.fps, bitrate = 0)
     }
 
     private fun pipelineMatches(canvas: VideoEncoderSettings): Boolean {
