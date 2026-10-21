@@ -1,3 +1,6 @@
+// Long golden JSON is clearer unsplit.
+@file:Suppress("ktlint:standard:max-line-length")
+
 package io.github.mesmerize08.nexusirl.remotecontrol
 
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket

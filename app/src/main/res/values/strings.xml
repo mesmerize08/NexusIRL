@@ -219,4 +219,10 @@
     <string name="mute">Mute</string>
     <string name="stealth_mode">Stealth mode</string>
     <string name="zoom">Zoom</string>
+    <string name="web_remote_control">Web remote control</string>
+    <string name="web_remote_control_help">Control this phone from a browser on the same Wi-Fi, hotspot or Tailscale. The link contains a private access token: share it only with people who may control your stream. It never works over mobile data.</string>
+    <string name="web_remote_control_not_running">Could not start the web remote control on port %1$d. Another app may be using it.</string>
+    <string name="web_remote_control_no_network">Connect to Wi-Fi or turn on the hotspot to get a link.</string>
+    <string name="web_remote_control_open">Open this link in a browser (or scan the QR code):</string>
+    <string name="web_remote_control_new_link">New link (signs out all browsers)</string>
 </resources>

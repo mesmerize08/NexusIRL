@@ -215,33 +215,43 @@ class RemoteControlStreamer(
     }
 
     private fun handleRequest(id: Int, request: RemoteControlRequest) {
-        var result = RemoteControlResult.OK
-        var data: RemoteControlResponse? = null
-        when (request) {
-            RemoteControlRequest.GetStatus -> data = delegate.getStatus()
-            RemoteControlRequest.GetSettings -> data = RemoteControlResponse.GetSettings(delegate.getSettings())
-            is RemoteControlRequest.SetStream -> delegate.setStream(request.id)
-            is RemoteControlRequest.SetScene -> delegate.setScene(request.id)
-            is RemoteControlRequest.SetMic -> delegate.setMic(request.id)
-            is RemoteControlRequest.SetRecord -> delegate.setRecord(request.on)
-            is RemoteControlRequest.SetLive -> delegate.setLive(request.on)
-            is RemoteControlRequest.SetZoom -> delegate.setZoom(request.x)
-            is RemoteControlRequest.SetMute -> delegate.setMute(request.on)
-            is RemoteControlRequest.SetStealthMode -> delegate.setStealthMode(request.on)
-            is RemoteControlRequest.SetTorch -> delegate.setTorch(request.on)
-            is RemoteControlRequest.SetDebugLogging -> delegate.setDebugLogging(request.on)
-            RemoteControlRequest.ReloadBrowserWidgets -> delegate.reloadBrowserWidgets()
-            RemoteControlRequest.StartPreview -> delegate.startPreview()
-            RemoteControlRequest.StopPreview -> delegate.stopPreview()
-            is RemoteControlRequest.StartStatus -> delegate.startStatus(request.interval, request.filter)
-            RemoteControlRequest.StopStatus -> delegate.stopStatus()
-            is RemoteControlRequest.SetFilter -> delegate.setFilter(request.filter, request.on)
-            is RemoteControlRequest.SendMessage -> delegate.sendMessage(request.text)
-            is RemoteControlRequest.ImportSettings -> if (!delegate.importSettings(request.data)) {
-                result = RemoteControlResult.ERROR
-            }
-            RemoteControlRequest.Unknown -> result = RemoteControlResult.UNKNOWN_REQUEST
-        }
+        val (result, data) = delegate.handle(request)
         send(RemoteControlMessageToAssistant.Response(id, result, data))
     }
+}
+
+/**
+ * Upstream `RemoteControlStreamer.handleRequest` (and `RemoteControlWeb.handleRequest`): runs
+ * [request] on the delegate and returns the result and any response data. Shared by the
+ * assistant connection and the web remote control.
+ */
+fun RemoteControlStreamerDelegate.handle(request: RemoteControlRequest): Pair<RemoteControlResult, RemoteControlResponse?> {
+    var result = RemoteControlResult.OK
+    var data: RemoteControlResponse? = null
+    when (request) {
+        RemoteControlRequest.GetStatus -> data = getStatus()
+        RemoteControlRequest.GetSettings -> data = RemoteControlResponse.GetSettings(getSettings())
+        is RemoteControlRequest.SetStream -> setStream(request.id)
+        is RemoteControlRequest.SetScene -> setScene(request.id)
+        is RemoteControlRequest.SetMic -> setMic(request.id)
+        is RemoteControlRequest.SetRecord -> setRecord(request.on)
+        is RemoteControlRequest.SetLive -> setLive(request.on)
+        is RemoteControlRequest.SetZoom -> setZoom(request.x)
+        is RemoteControlRequest.SetMute -> setMute(request.on)
+        is RemoteControlRequest.SetStealthMode -> setStealthMode(request.on)
+        is RemoteControlRequest.SetTorch -> setTorch(request.on)
+        is RemoteControlRequest.SetDebugLogging -> setDebugLogging(request.on)
+        RemoteControlRequest.ReloadBrowserWidgets -> reloadBrowserWidgets()
+        RemoteControlRequest.StartPreview -> startPreview()
+        RemoteControlRequest.StopPreview -> stopPreview()
+        is RemoteControlRequest.StartStatus -> startStatus(request.interval, request.filter)
+        RemoteControlRequest.StopStatus -> stopStatus()
+        is RemoteControlRequest.SetFilter -> setFilter(request.filter, request.on)
+        is RemoteControlRequest.SendMessage -> sendMessage(request.text)
+        is RemoteControlRequest.ImportSettings -> if (!importSettings(request.data)) {
+            result = RemoteControlResult.ERROR
+        }
+        RemoteControlRequest.Unknown -> result = RemoteControlResult.UNKNOWN_REQUEST
+    }
+    return result to data
 }

@@ -54,13 +54,14 @@ class SettingsStoreTest {
         val store = SettingsStore(file, secrets)
         // An iOS import with a plaintext password.
         store.import(
-            """{"remoteControl":{"password":"$key","streamer":{"enabled":true,"url":"ws://10.0.0.2:2345"},"web":{"enabled":false}}}""",
+            """{"remoteControl":{"password":"$key","streamer":{"enabled":true,"url":"ws://10.0.0.2:2345"},
+                "selectedStreamer":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11"}}""",
         )
         val onDisk = file.readText()
         assertFalse(key in onDisk, onDisk)
         assertEquals(key, store.remoteControlPassword())
         assertEquals("ws://10.0.0.2:2345", store.current.remoteControl.streamer.url)
-        assertTrue("\"web\":{\"enabled\":false}" in onDisk, "iOS-only remote control settings are kept")
+        assertTrue("\"selectedStreamer\":\"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11\"" in onDisk, "iOS-only remote control settings are kept")
         assertFalse(key in store.exportJson())
         assertTrue(key in store.exportJson(includeSecrets = true))
         // A fresh install gets a strong random password, also kept out of the file.
@@ -82,6 +83,20 @@ class SettingsStoreTest {
         assertEquals("", store.current.moblink.relay.validUrl)
         assertFalse(key in store.exportJson())
         assertTrue(key in store.exportJson(includeSecrets = true))
+    }
+
+    @Test
+    fun webControlTokenStaysOnDevice() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        val token = SettingsRemoteControlWeb.generateToken()
+        store.update { it.copy(remoteControl = it.remoteControl.copy(web = SettingsRemoteControlWeb(enabled = true, token = token))) }
+        assertEquals(32, token.length)
+        assertFalse(token in file.readText())
+        assertEquals(token, store.webControlToken())
+        assertEquals(8080, store.current.remoteControl.web.androidPort, "upstream's port 80 is not allowed on Android")
+        // Not exported even with secrets: it is not part of upstream's settings.
+        assertFalse(token in store.exportJson(includeSecrets = true))
     }
 
     @Test

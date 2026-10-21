@@ -243,7 +243,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Assistant: an Android phone controls another phone running Moblin or NexusIRL on the same Wi-Fi,
 > with a lockout after wrong passwords. Checked on the emulator against a protocol-level test
 > streamer.
-> Still to do: the web remote control, the Moblink streamer side, and interop with real iOS devices.
+> Web remote control: upstream's browser frontend served by the app on port 8080, behind an access
+> token link. Checked in a real browser on the emulator.
+> Still to do: the Moblink streamer side, and interop with real iOS devices.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

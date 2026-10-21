@@ -2,7 +2,9 @@
 // @97e26d2.
 package io.github.mesmerize08.nexusirl.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -16,14 +18,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
+import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlConnection
 import io.github.mesmerize08.nexusirl.remote.RemoteControlController
+import io.github.mesmerize08.nexusirl.scene.WidgetBitmaps
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControlStreamer
+import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControlWeb
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 
 private val PREVIEW_FPS_CHOICES = listOf(0f, 0.5f, 1f, 2f, 5f)
@@ -98,6 +105,8 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
                 update { it.copy(previewFps = fps) }
             },
         )
+        HorizontalDivider()
+        WebRemoteControlSection(store)
     }
 }
 
@@ -105,4 +114,51 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
 private fun isLocalAddress(url: String): Boolean {
     val host = url.substringAfter("://").substringBefore('/').substringBeforeLast(':')
     return CleartextPolicy.isLoopback(host) || CleartextPolicy.isLocalNetwork(host)
+}
+
+/**
+ * Upstream's web remote control, with Android's access token (docs/PORT_PLAN.md §9.6): a browser
+ * on the same Wi-Fi opens the link once; making a new link signs every browser out.
+ */
+@Composable
+fun WebRemoteControlSection(store: SettingsStore) {
+    val database by store.database.collectAsState()
+    val running by RemoteControlController.webRunning.collectAsState()
+    val web = database.remoteControl.web
+    Text(stringResource(R.string.web_remote_control), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.web_remote_control_help), style = MaterialTheme.typography.bodySmall)
+    SwitchRow(stringResource(R.string.enabled), web.enabled) { on ->
+        store.update { database ->
+            val current = database.remoteControl.web
+            // A token is made on first use; it is a secret (moved to the secret store on save).
+            val token = if (on && current.token.isEmpty()) SettingsRemoteControlWeb.generateToken() else current.token
+            database.copy(remoteControl = database.remoteControl.copy(web = current.copy(enabled = on, token = token)))
+        }
+    }
+    if (!web.enabled) {
+        return
+    }
+    if (!running) {
+        Text(stringResource(R.string.web_remote_control_not_running, web.androidPort), color = MaterialTheme.colorScheme.error)
+        return
+    }
+    val token = store.webControlToken()
+    val links = RemoteControlAssistantController.localAddresses().map { "http://$it:${web.androidPort}/?t=$token" }
+    if (links.isEmpty()) {
+        Text(stringResource(R.string.web_remote_control_no_network))
+        return
+    }
+    Text(stringResource(R.string.web_remote_control_open), style = MaterialTheme.typography.bodySmall)
+    for (link in links) {
+        Text(link, style = MaterialTheme.typography.bodyMedium)
+    }
+    val qr = remember(links.first()) { WidgetBitmaps.qrCode(links.first(), 400) }
+    qr?.let { Image(it.asImageBitmap(), contentDescription = null, modifier = Modifier.size(200.dp)) }
+    OutlinedButton(onClick = {
+        store.update {
+            it.copy(
+                remoteControl = it.remoteControl.copy(web = it.remoteControl.web.copy(token = SettingsRemoteControlWeb.generateToken())),
+            )
+        }
+    }) { Text(stringResource(R.string.web_remote_control_new_link)) }
 }

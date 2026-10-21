@@ -22,6 +22,7 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopLeft
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopRight
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamer
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamerDelegate
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlWeb
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
@@ -55,9 +56,16 @@ object RemoteControlController {
     private var store: SettingsStore? = null
     private var scope: CoroutineScope? = null
     private var streamer: RemoteControlStreamer? = null
-    private var statusIntervalMillis = 0L
-    private var previewing = false
+    private var web: RemoteControlWeb? = null
+
+    // What each output asked for: the assistant connection and the web pages.
+    private var streamerStatusMillis = 0L
+    private var webStatus = false
+    private var streamerPreview = false
+    private var webPreview = false
     private var previewIntervalMillis = 1000L
+    private var ticking = false
+    private var previewTicking = false
 
     /** Increases per connection; callbacks from a replaced connection are ignored. */
     private var generation = 0
@@ -67,6 +75,13 @@ object RemoteControlController {
 
     /** What a (re)connect depends on. The password is only read from the secret store here. */
     private data class Config(val enabled: Boolean, val url: String, val passwordRef: String)
+
+    private data class WebConfig(val enabled: Boolean, val port: Int, val tokenRef: String)
+
+    private val mutableWebRunning = MutableStateFlow(false)
+
+    /** Whether the web remote control is listening. */
+    val webRunning: StateFlow<Boolean> = mutableWebRunning
 
     fun start(context: Context) {
         if (scope != null) {
@@ -84,6 +99,12 @@ object RemoteControlController {
                 .distinctUntilChanged()
                 .collect(::reload)
         }
+        newScope.launch {
+            settings.database
+                .map { WebConfig(it.remoteControl.web.enabled, it.remoteControl.web.androidPort, it.remoteControl.web.token) }
+                .distinctUntilChanged()
+                .collect(::reloadWeb)
+        }
         // Tell the assistant about changes (upstream `remoteControlStreamerSendStateChanged`).
         newScope.launch {
             combine(
@@ -94,15 +115,18 @@ object RemoteControlController {
                 settings.database,
             ) { _, _, _, _, _ ->
                 state()
-            }.distinctUntilChanged().collect { streamer?.stateChanged(it) }
+            }.distinctUntilChanged().collect {
+                streamer?.stateChanged(it)
+                web?.stateChanged(it)
+            }
         }
     }
 
     private fun reload(config: Config) {
         streamer?.stop()
         streamer = null
-        stopStatus()
-        previewing = false
+        streamerStatusMillis = 0
+        streamerPreview = false
         val password = store?.remoteControlPassword().orEmpty()
         if (!config.enabled || config.url.isEmpty() || password.isEmpty()) {
             mutableConnection.value = RemoteControlConnection.OFF
@@ -110,7 +134,82 @@ object RemoteControlController {
         }
         mutableConnection.value = RemoteControlConnection.CONNECTING
         generation += 1
-        streamer = RemoteControlStreamer(config.url, password, streamerId(), Delegate(generation)).also { it.start() }
+        val owner = generation
+        streamer = RemoteControlStreamer(config.url, password, streamerId(), Delegate { owner == generation }).also { it.start() }
+    }
+
+    /** Increases per web server; callbacks from a stopped one are ignored. */
+    private var webGeneration = 0
+
+    /** The browser remote control (docs/PORT_PLAN.md §9.6: token, local interfaces only). */
+    private fun reloadWeb(config: WebConfig) {
+        web?.stop()
+        web = null
+        webStatus = false
+        webPreview = false
+        webGeneration += 1
+        mutableWebRunning.value = false
+        val context = context ?: return
+        val token = store?.webControlToken().orEmpty()
+        if (!config.enabled || token.length < 32) {
+            return
+        }
+        val owner = webGeneration
+        val server = RemoteControlWeb(
+            port = config.port,
+            token = token,
+            delegate = Delegate(web = true) { owner == webGeneration },
+            asset = { path -> runCatching { context.assets.open("web/$path").use { it.readBytes() } }.getOrNull() },
+            acceptLocalAddress = RemoteControlAssistantController::isAllowedLocalAddress,
+            snapshot = ::snapshotJpeg,
+            onPreviewWanted = { wanted ->
+                handler.post {
+                    if (owner == webGeneration) {
+                        webPreview = wanted
+                        updateLoops()
+                    }
+                }
+            },
+        )
+        try {
+            server.start()
+            web = server
+            mutableWebRunning.value = true
+        } catch (e: Exception) {
+            // The port is in use: shown as not running.
+            server.stop()
+        }
+    }
+
+    /** The current frame as a full-size JPEG for the web `/snapshot` route. Blocking. */
+    private fun snapshotJpeg(): ByteArray? {
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var result: ByteArray? = null
+        handler.post {
+            StreamController.currentFrame { frame ->
+                result = frame?.let {
+                    val output = ByteArrayOutputStream()
+                    it.compress(Bitmap.CompressFormat.JPEG, 90, output)
+                    it.recycle()
+                    output.toByteArray()
+                }
+                latch.countDown()
+            }
+        }
+        latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        return result
+    }
+
+    /** Starts or stops the status and preview loops to match what the outputs asked for. */
+    private fun updateLoops() {
+        if ((streamerStatusMillis > 0 || webStatus) && !ticking) {
+            ticking = true
+            handler.post(statusTick)
+        }
+        if ((streamerPreview || webPreview) && !previewTicking) {
+            previewTicking = true
+            handler.post(previewTick)
+        }
     }
 
     /** Upstream `getRemoteControlStreamerId`: a per-device id, not part of the settings. */
@@ -208,29 +307,36 @@ object RemoteControlController {
         )
     }
 
-    private fun stopStatus() {
-        statusIntervalMillis = 0
-        handler.removeCallbacks(statusTick)
-    }
-
     private val statusTick = object : Runnable {
         override fun run() {
-            if (statusIntervalMillis <= 0) {
+            if (streamerStatusMillis <= 0 && !webStatus) {
+                ticking = false
                 return
             }
             val status = status()
-            streamer?.sendStatus(status.general, status.topLeft, status.topRight)
-            handler.postDelayed(this, statusIntervalMillis)
+            if (streamerStatusMillis > 0) {
+                streamer?.sendStatus(status.general, status.topLeft, status.topRight)
+            }
+            if (webStatus) {
+                web?.sendStatus(status.general, status.topLeft, status.topRight)
+            }
+            handler.postDelayed(this, if (streamerStatusMillis > 0) streamerStatusMillis else 1000)
         }
     }
 
     private val previewTick = object : Runnable {
         override fun run() {
-            if (!previewing) {
+            if (!streamerPreview && !webPreview) {
+                previewTicking = false
                 return
             }
+            val toStreamer = streamerPreview
+            val toWeb = webPreview
             StreamController.currentFrame { frame ->
-                frame?.let { streamer?.sendPreview(jpeg(it)) }
+                frame?.let { jpeg(it) }?.let {
+                    if (toStreamer) streamer?.sendPreview(it)
+                    if (toWeb) web?.sendPreview(it)
+                }
             }
             handler.postDelayed(this, previewIntervalMillis)
         }
@@ -254,11 +360,12 @@ object RemoteControlController {
         return output.toByteArray()
     }
 
-    private class Delegate(private val owner: Int) : RemoteControlStreamerDelegate {
+    /** Requests from the assistant connection or (with [web]) from web pages. */
+    private class Delegate(private val web: Boolean = false, private val isCurrent: () -> Boolean) : RemoteControlStreamerDelegate {
         /** Runs [block] on the main thread with the app context, if this connection is still current. */
         private fun main(block: (Context) -> Unit) {
             handler.post {
-                if (owner == generation) {
+                if (isCurrent()) {
                     context?.let(block)
                 }
             }
@@ -271,8 +378,8 @@ object RemoteControlController {
 
         override fun disconnected() = main {
             mutableConnection.value = RemoteControlConnection.CONNECTING
-            RemoteControlController.stopStatus()
-            previewing = false
+            streamerStatusMillis = 0
+            streamerPreview = false
         }
 
         override fun wrongPassword() = main { mutableConnection.value = RemoteControlConnection.WRONG_PASSWORD }
@@ -311,25 +418,32 @@ object RemoteControlController {
         }
 
         override fun startStatus(interval: Int, filter: RemoteControlStartStatusFilter) = main {
-            // The controller's, not this delegate's (which would queue another stop).
-            RemoteControlController.stopStatus()
-            statusIntervalMillis = interval.coerceAtLeast(1) * 1000L
-            handler.post(statusTick)
+            if (web) {
+                webStatus = true
+            } else {
+                streamerStatusMillis = interval.coerceAtLeast(1) * 1000L
+            }
+            updateLoops()
         }
 
-        override fun stopStatus() = main { RemoteControlController.stopStatus() }
+        override fun stopStatus() = main {
+            if (web) webStatus = false else streamerStatusMillis = 0
+        }
 
+        // Web pages ask for previews per page (RemoteControlWeb.onPreviewWanted).
         override fun startPreview() = main {
             val fps = store?.current?.remoteControl?.streamer?.previewFps ?: 1f
-            if (fps > 0 && !previewing) {
-                previewing = true
+            if (!web && fps > 0) {
+                streamerPreview = true
                 // Upstream: an interval of 1/fps, between 0.2 and 1 second.
                 previewIntervalMillis = (1000 / fps).toLong().coerceIn(200, 1000)
-                handler.post(previewTick)
+                updateLoops()
             }
         }
 
-        override fun stopPreview() = main { previewing = false }
+        override fun stopPreview() = main {
+            if (!web) streamerPreview = false
+        }
     }
 
     /** Whether remote control is set up enough to try (upstream `isRemoteControlStreamerConfigured`). */

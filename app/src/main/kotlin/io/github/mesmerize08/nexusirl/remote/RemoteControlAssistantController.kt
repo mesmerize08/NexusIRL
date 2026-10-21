@@ -102,7 +102,7 @@ object RemoteControlAssistantController {
      * docs/PORT_PLAN.md §9.6: never on mobile data. The address must be loopback, LAN, hotspot or
      * Tailscale, and not on a cellular interface (carrier-grade NAT shares Tailscale's range).
      */
-    private fun isAllowedLocalAddress(address: InetAddress): Boolean {
+    fun isAllowedLocalAddress(address: InetAddress): Boolean {
         val host = address.hostAddress.orEmpty()
         if (!CleartextPolicy.isLoopback(host) && !CleartextPolicy.isLocalNetwork(host)) {
             return false
@@ -124,7 +124,10 @@ object RemoteControlAssistantController {
     }
 
     /** This device's LAN addresses, to show which URL the streamer should use. */
-    fun localUrls(port: Int): List<String> {
+    fun localUrls(port: Int): List<String> = localAddresses().map { "ws://$it:$port" }
+
+    /** This device's LAN, hotspot and Tailscale IPv4 addresses (not mobile data). */
+    fun localAddresses(): List<String> {
         val cellular = cellularInterfaces()
         return try {
             NetworkInterface.getNetworkInterfaces().toList()
@@ -133,7 +136,6 @@ object RemoteControlAssistantController {
                 .filterIsInstance<Inet4Address>()
                 .map { it.hostAddress.orEmpty() }
                 .filter { CleartextPolicy.isLocalNetwork(it) }
-                .map { "ws://$it:$port" }
         } catch (e: Exception) {
             emptyList()
         }
