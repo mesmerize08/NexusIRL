@@ -10,3 +10,6 @@ captures/
 *.keystore
 *.jks
 .DS_Store
+
+# Browser-automation scratch files (screenshots, page snapshots)
+.playwright-mcp/
