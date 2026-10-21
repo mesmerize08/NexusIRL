@@ -28,7 +28,8 @@ import java.util.UUID
 
 /** One-line summary: `scheme://host · 1080p 30 fps · 5 Mbps · H.265` (never the key). */
 fun SettingsStream.summary(): String =
-    "${StreamUrlSecrets.display(url)} · ${resolution.shortName} $fps fps · ${formatMbps(bitrate)} · ${codec.shortName}"
+    "${StreamUrlSecrets.display(url)} · ${resolution.shortName}${if (portrait) " portrait" else ""} $fps fps · " +
+        "${formatMbps(bitrate)} · ${codec.shortName}"
 
 fun formatMbps(bitrate: Long): String {
     val mbps = bitrate / 1_000_000.0

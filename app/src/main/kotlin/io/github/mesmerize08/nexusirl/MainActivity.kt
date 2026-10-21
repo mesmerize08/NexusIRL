@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -59,6 +60,7 @@ import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlController
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
+import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
@@ -67,6 +69,7 @@ import io.github.mesmerize08.nexusirl.ui.ChatControls
 import io.github.mesmerize08.nexusirl.ui.ChatOverlay
 import io.github.mesmerize08.nexusirl.ui.ChatSettingsScreen
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
+import io.github.mesmerize08.nexusirl.ui.LiveStatusBar
 import io.github.mesmerize08.nexusirl.ui.LocationScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
 import io.github.mesmerize08.nexusirl.ui.MoblinkScreen
@@ -112,6 +115,7 @@ class MainActivity : ComponentActivity() {
         RemoteControlAssistantController.start(this)
         MoblinkController.start(this)
         MoblinkStreamerController.start(this)
+        Microphones.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 // Android 15+ draws edge to edge: keep content clear of the system bars, the camera
@@ -135,6 +139,7 @@ class MainActivity : ComponentActivity() {
         StreamController.ensureDefaultScenes(this)
         StreamController.ensureBundledLuts(this)
         StreamController.ensureQuickButtons(this)
+        StreamController.ensureBitratePresets(this)
         StreamController.setUiVisible(this, true)
     }
 
@@ -432,44 +437,44 @@ private fun MainScreen(
         })
     }
     val controls: @Composable ColumnScope.() -> Unit = {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+        LiveStatusBar(status)
+        if (status.detail.isNotEmpty()) {
+            Text(status.detail, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         if (stream != null) {
             Text(stream.name, style = MaterialTheme.typography.titleMedium)
             Text(stream.summary(), style = MaterialTheme.typography.bodySmall)
         } else {
             Text(stringResource(R.string.no_streams))
         }
+        // The main action, full width and red while live so it is hard to miss or mis-tap.
+        Button(
+            onClick = {
+                if (status.active) {
+                    StreamController.stop(context)
+                } else {
+                    StreamController.goLive(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                }
+            },
+            enabled = stream != null || status.active,
+            colors = if (status.active) {
+                ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            } else {
+                ButtonDefaults.buttonColors()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = {
-                    if (status.active) {
-                        StreamController.stop(context)
-                    } else {
-                        StreamController.goLive(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-                    }
-                },
-                enabled = stream != null || status.active,
-            ) {
-                Text(stringResource(if (status.active) R.string.end_stream else R.string.go_live))
-            }
-            OutlinedButton(onClick = onStreams) { Text(stringResource(R.string.streams)) }
-            OutlinedButton(onClick = onScenes) { Text(stringResource(R.string.scenes)) }
+            OutlinedButton(onClick = onStreams, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.streams), maxLines = 1) }
+            OutlinedButton(onClick = onScenes, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.scenes), maxLines = 1) }
         }
         ScenePicker(store)
         QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onEdit = onQuickButtons)
         ChatControls(store, onSettings = onChat)
-        RecordingControls()
-        Text(
-            "${status.state}  ${status.uptimeSeconds}s  ${status.fps} fps  ${status.videoBitrateKbps} kbps  " +
-                "RTT ${status.rttMs.toInt()} ms  " +
-                "audio ${status.audioLevelDbfs.toInt()} dBFS  mic ${status.microphone}  thermal ${status.thermal}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
         if (status.encoder.isNotEmpty()) {
             Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)
-        }
-        if (status.detail.isNotEmpty()) {
-            Text(status.detail, style = MaterialTheme.typography.bodySmall)
         }
         TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
         TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
@@ -502,28 +507,6 @@ private fun MainScreen(
                     content = controls,
                 )
             }
-        }
-    }
-}
-
-/** Recording indicator (upstream recording status); recording starts from the quick buttons. */
-@Composable
-private fun RecordingControls() {
-    val recording by StreamController.recording.collectAsState()
-    var elapsedSeconds by remember { mutableStateOf(0L) }
-    LaunchedEffect(recording) {
-        while (recording != null) {
-            elapsedSeconds = (android.os.SystemClock.elapsedRealtime() - recording!!.startedAtElapsedMillis) / 1000
-            kotlinx.coroutines.delay(500)
-        }
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (recording != null) {
-            Text(
-                "● REC %d:%02d".format(elapsedSeconds / 60, elapsedSeconds % 60),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.labelLarge,
-            )
         }
     }
 }

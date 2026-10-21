@@ -35,6 +35,7 @@ import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SceneSwitchTransition
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
+import io.github.mesmerize08.nexusirl.settings.SettingsBitratePreset
 import io.github.mesmerize08.nexusirl.settings.SettingsColor
 import io.github.mesmerize08.nexusirl.settings.SettingsColorLut
 import io.github.mesmerize08.nexusirl.settings.SettingsScene
@@ -155,6 +156,26 @@ object StreamController {
     }
 
     private var quickButtonsLoaded = false
+
+    /** Upstream: the default bitrate presets when there are none (fresh install, or an old import). */
+    fun ensureBitratePresets(context: Context) {
+        val store = settings(context)
+        if (store.current.bitratePresets.isEmpty()) {
+            store.update { it.copy(bitratePresets = SettingsBitratePreset.defaults()) }
+        }
+    }
+
+    /**
+     * Upstream `setBitrate`: saves [bitrate] as the selected stream's bitrate and applies it now if
+     * live (as the adaptive bitrate's ceiling, or directly).
+     */
+    fun setBitrate(context: Context, bitrate: Long) {
+        settings(context).update { database ->
+            val stream = database.selectedStream ?: return@update database
+            database.updateStream(stream.copy(bitrate = bitrate))
+        }
+        session?.setBitrate(bitrate)
+    }
 
     fun isQuickButtonOn(context: Context, type: QuickButtonType): Boolean =
         settings(context).current.quickButtons.firstOrNull { it.type == type }?.isOn == true

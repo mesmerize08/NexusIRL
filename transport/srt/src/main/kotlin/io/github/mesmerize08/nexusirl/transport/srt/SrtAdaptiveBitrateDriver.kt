@@ -34,6 +34,11 @@ class SrtAdaptiveBitrateDriver(
         }
     }
 
+    /** The highest bitrate to adapt up to, e.g. after picking a bitrate preset while live. */
+    fun setTargetBitrate(bitrate: Long) {
+        executor.execute { adaptiveBitrate.setTargetBitrate(bitrate) }
+    }
+
     fun stop() {
         executor.execute {
             tick20ms?.cancel()

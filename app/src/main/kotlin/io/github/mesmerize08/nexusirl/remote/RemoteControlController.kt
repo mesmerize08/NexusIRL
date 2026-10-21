@@ -12,6 +12,8 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioLevel
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlFilter
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlResponse
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettings
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsBitratePreset
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsMic
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsScene
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsStream
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStartStatusFilter
@@ -26,6 +28,7 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlWeb
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
 import kotlinx.coroutines.CoroutineScope
@@ -113,12 +116,12 @@ object RemoteControlController {
                 StreamController.camera,
                 StreamController.selectedSceneId,
                 settings.database,
-            ) { _, _, _, _, _ ->
-                state()
-            }.distinctUntilChanged().collect {
-                streamer?.stateChanged(it)
-                web?.stateChanged(it)
-            }
+            ) { _, _, _, _, _ -> }
+                .combine(Microphones.selected) { _, _ -> state() }
+                .distinctUntilChanged().collect {
+                    streamer?.stateChanged(it)
+                    web?.stateChanged(it)
+                }
         }
     }
 
@@ -237,6 +240,11 @@ object RemoteControlController {
         val camera = StreamController.camera.value
         return RemoteControlAssistantStreamerState(
             scene = StreamController.selectedSceneId.value,
+            mic = Microphones.selected.value?.id,
+            // Upstream: the preset matching the stream's bitrate, if any.
+            bitrate = store?.current?.let { database ->
+                database.bitratePresets.firstOrNull { it.bitrate == database.selectedStream?.bitrate }?.id
+            },
             zoom = camera.zoom,
             streaming = StreamController.status.value.active,
             recording = StreamController.recording.value != null,
@@ -304,6 +312,8 @@ object RemoteControlController {
         return RemoteControlSettings(
             streams = database?.streams.orEmpty().map { RemoteControlSettingsStream(it.id, it.name) },
             scenes = database?.scenes.orEmpty().filter { it.enabled }.map { RemoteControlSettingsScene(it.id, it.name) },
+            bitratePresets = database?.bitratePresets.orEmpty().map { RemoteControlSettingsBitratePreset(it.id, it.bitrate) },
+            mics = Microphones.mics.value.map { RemoteControlSettingsMic(it.id, it.name) },
         )
     }
 
@@ -372,6 +382,10 @@ object RemoteControlController {
         }
 
         override fun connected() = main {
+            if (web) {
+                this@RemoteControlController.web?.stateChanged(state())
+                return@main
+            }
             mutableConnection.value = RemoteControlConnection.CONNECTED
             streamer?.stateChanged(state())
         }
@@ -396,6 +410,14 @@ object RemoteControlController {
         }
 
         override fun setScene(id: UUID) = main { StreamController.selectScene(it, id) }
+
+        override fun setMic(id: String) = main { Microphones.select(id) }
+
+        override fun setBitratePreset(id: UUID) = main { context ->
+            StreamController.settings(context).current.bitratePresets.firstOrNull { it.id == id }?.let {
+                StreamController.setBitrate(context, it.bitrate)
+            }
+        }
 
         override fun setRecord(on: Boolean) = main { context ->
             if (on) StreamController.startRecording(context) else StreamController.stopRecording(context)

@@ -11,4 +11,19 @@ class SettingsStreamTest {
         val portrait = landscape.copy(portrait = true)
         assertEquals(1080 to 1920, portrait.canvasWidth to portrait.canvasHeight)
     }
+
+    @Test
+    fun defaultBitratePresetsLikeUpstream() {
+        assertEquals(
+            listOf(15, 12, 9, 7, 6, 5, 4, 3, 2, 1).map { it * 1_000_000L },
+            SettingsBitratePreset.defaults().map { it.bitrate },
+        )
+    }
+
+    @Test
+    fun bitratePresetsRoundTripIosJson() {
+        val json = """{"streams":[],"bitratePresets":[{"id":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11","bitrate":3000000}]}"""
+        val database = io.github.mesmerize08.nexusirl.core.codable.SwiftJson.decodeFromString(Database.Serializer, json)
+        assertEquals(3_000_000L, database.bitratePresets.single().bitrate)
+    }
 }

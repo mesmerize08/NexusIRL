@@ -4,18 +4,27 @@
 package io.github.mesmerize08.nexusirl.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +34,7 @@ import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsQuickButton
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.StreamController
 
 /** The quick buttons Android implements so far; the others stay in settings for iOS round trips. */
@@ -32,6 +42,8 @@ val SUPPORTED_QUICK_BUTTONS = setOf(
     QuickButtonType.TORCH,
     QuickButtonType.MUTE,
     QuickButtonType.LIVE,
+    QuickButtonType.MIC,
+    QuickButtonType.BITRATE,
     QuickButtonType.RECORD,
     QuickButtonType.SNAPSHOT,
     QuickButtonType.WIDGETS,
@@ -59,13 +71,21 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
     val camera by StreamController.camera.collectAsState()
     val buttons = database.quickButtons.filter { it.enabled && it.type in SUPPORTED_QUICK_BUTTONS }.sortedBy { it.page }
     fun toast(message: String) = Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    var picker by remember { mutableStateOf<QuickButtonType?>(null) }
+    when (picker) {
+        QuickButtonType.MIC -> MicPicker(onDismiss = { picker = null })
+        QuickButtonType.BITRATE -> BitratePicker(store, onDismiss = { picker = null })
+        else -> Unit
+    }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (button in buttons) {
             val selected = when (button.type) {
                 QuickButtonType.TORCH -> camera.torch
                 QuickButtonType.LIVE -> status.active
                 QuickButtonType.RECORD -> recording != null
-                QuickButtonType.SNAPSHOT, QuickButtonType.WIDGETS, QuickButtonType.LUTS -> false
+                QuickButtonType.SNAPSHOT, QuickButtonType.WIDGETS, QuickButtonType.LUTS, QuickButtonType.MIC,
+                QuickButtonType.BITRATE,
+                -> false
                 QuickButtonType.PORTRAIT -> database.portrait
                 else -> button.isOn
             }
@@ -93,6 +113,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
+                        QuickButtonType.MIC, QuickButtonType.BITRATE -> picker = button.type
                         QuickButtonType.WIDGETS -> onWidgets()
                         QuickButtonType.LUTS -> onLuts()
                         QuickButtonType.TORCH -> StreamController.setQuickButton(context, button.type, !camera.torch)
@@ -142,4 +163,67 @@ fun QuickButtonsScreen(store: SettingsStore, onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** Upstream mic picker: the connected microphones; picking one stops automatic switching. */
+@Composable
+private fun MicPicker(onDismiss: () -> Unit) {
+    val mics by Microphones.mics.collectAsState()
+    val selected by Microphones.selected.collectAsState()
+    PickerDialog(
+        title = stringResource(R.string.microphone),
+        options = mics.map { it.id to it.name },
+        selected = selected?.id,
+        onPick = { Microphones.select(it) },
+        onDismiss = onDismiss,
+    )
+}
+
+/** Upstream bitrate picker: the presets; the stream keeps the choice and it applies at once when live. */
+@Composable
+private fun BitratePicker(store: SettingsStore, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val database by store.database.collectAsState()
+    val current = database.selectedStream?.bitrate
+    PickerDialog(
+        title = stringResource(R.string.bitrate),
+        options = database.bitratePresets.sortedByDescending { it.bitrate }.map { it.bitrate.toString() to formatMbps(it.bitrate) },
+        selected = current?.toString(),
+        onPick = { StreamController.setBitrate(context, it.toLong()) },
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+private fun PickerDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String?,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                for ((id, name) in options) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            onPick(id)
+                            onDismiss()
+                        },
+                    ) {
+                        RadioButton(selected = id == selected, onClick = {
+                            onPick(id)
+                            onDismiss()
+                        })
+                        Text(name)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

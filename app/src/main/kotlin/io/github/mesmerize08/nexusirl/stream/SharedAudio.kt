@@ -4,7 +4,7 @@ import android.content.Context
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
 import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
-import io.github.mesmerize08.nexusirl.media.pipeline.MicrophoneManager
+import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
 
 /**
  * One microphone capture and AAC encoder shared by everything that needs audio (the stream and
@@ -14,8 +14,11 @@ import io.github.mesmerize08.nexusirl.media.pipeline.MicrophoneManager
  * Capture runs only while at least one consumer is attached. Call from the main thread.
  */
 class SharedAudio(context: Context) {
+    init {
+        Microphones.start(context)
+    }
+
     private val fanOut = FanOutSink()
-    private val microphones = MicrophoneManager(context.applicationContext)
     private val consumers = mutableSetOf<MediaSink>()
     private var pipeline: AudioPipeline? = null
 
@@ -54,22 +57,19 @@ class SharedAudio(context: Context) {
         val audio = AudioPipeline(fanOut)
         audio.muted = muted
         pipeline = audio
-        microphones.start { _, selected ->
-            audio.setPreferredDevice(selected?.device)
-            microphoneName = if (audio.microphoneAvailable) selected?.name ?: "" else NO_MICROPHONE
-        }
+        // Route to the selected mic before capture starts, then follow later changes.
+        audio.setPreferredDevice(Microphones.selected.value?.device)
         try {
             audio.start()
-            if (!audio.microphoneAvailable) {
-                microphoneName = NO_MICROPHONE
-            }
         } catch (e: Exception) {
             // The AAC encoder failed: stream and record without audio rather than crash.
             android.util.Log.w("SharedAudio", "Audio failed: $e")
-            microphones.stop()
             pipeline = null
             microphoneName = NO_MICROPHONE
+            return
         }
+        follow(Microphones.selected.value)
+        Microphones.addListener(followListener)
     }
 
     private companion object {
@@ -77,8 +77,17 @@ class SharedAudio(context: Context) {
         const val NO_MICROPHONE = "No microphone (sending silence)"
     }
 
+    private val followListener: (Microphone?) -> Unit = ::follow
+
+    /** Routes capture to the selected mic. */
+    private fun follow(selected: Microphone?) {
+        val audio = pipeline ?: return
+        audio.setPreferredDevice(selected?.device)
+        microphoneName = if (audio.microphoneAvailable) selected?.name ?: "" else NO_MICROPHONE
+    }
+
     private fun stop() {
-        microphones.stop()
+        Microphones.removeListener(followListener)
         pipeline?.stop()
         pipeline = null
     }

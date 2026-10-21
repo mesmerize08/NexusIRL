@@ -253,6 +253,8 @@ class RemoteControlWeb(
                 return
             }
             pages += socket
+            // Upstream `remoteControlWebConnected`: a new page gets the whole current state.
+            delegate.connected()
         }
 
         override fun onClose(socket: WebSocket, code: Int, reason: String?, remote: Boolean) {

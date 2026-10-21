@@ -57,6 +57,8 @@ class RemoteControlTest {
             """{"setFilter":{"filter":{"grayScale":{}},"on":true}}""" to RemoteControlRequest.SetFilter(RemoteControlFilter.GRAY_SCALE, true),
             """{"startStatus":{"interval":1,"filter":{"topRight":false}}}""" to RemoteControlRequest.StartStatus(1, RemoteControlStartStatusFilter(false)),
             """{"sendMessage":{"text":"Hello"}}""" to RemoteControlRequest.SendMessage("Hello"),
+            """{"setMic":{"id":"15:Built-in"}}""" to RemoteControlRequest.SetMic("15:Built-in"),
+            """{"setBitratePreset":{"id":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11"}}""" to RemoteControlRequest.SetBitratePreset(id),
             """{"setGimbalTracking":{"on":true}}""" to RemoteControlRequest.Unknown,
             """{"music":{"command":{"play":{}}}}""" to RemoteControlRequest.Unknown,
         )

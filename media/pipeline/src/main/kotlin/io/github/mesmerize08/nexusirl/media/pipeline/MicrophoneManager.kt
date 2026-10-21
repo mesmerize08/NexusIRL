@@ -68,9 +68,14 @@ class MicrophoneManager(context: Context) {
         }
         .distinctBy { it.id }
 
-    /** Manually selects a mic (disables nothing; auto switch still reacts to later changes). */
+    /**
+     * Manually selects a mic. Automatic switching stops, so plugging something else in later does
+     * not take over; if the chosen mic goes away, the best remaining one is used.
+     */
     fun select(id: String) {
-        selected = available().firstOrNull { it.id == id }
+        val mic = available().firstOrNull { it.id == id } ?: return
+        autoSwitch = false
+        selected = mic
         listener?.invoke(available(), selected)
     }
 

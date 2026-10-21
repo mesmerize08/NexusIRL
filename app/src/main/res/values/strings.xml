@@ -230,4 +230,10 @@
     <string name="moblink_streamer_password_needed">Set the password above first.</string>
     <string name="moblink_streamer_no_relays">No relays connected.</string>
     <string name="portrait">Portrait</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_live">LIVE</string>
+    <string name="status_reconnecting">Reconnecting (%1$d)</string>
+    <string name="status_thermal">Thermal: %1$s</string>
+    <string name="microphone">Microphone</string>
 </resources>

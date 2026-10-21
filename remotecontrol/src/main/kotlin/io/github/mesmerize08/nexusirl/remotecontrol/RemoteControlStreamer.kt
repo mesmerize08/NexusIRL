@@ -30,6 +30,8 @@ interface RemoteControlStreamerDelegate {
 
     fun setMic(id: String) {}
 
+    fun setBitratePreset(id: UUID) {}
+
     fun setRecord(on: Boolean) {}
 
     fun setLive(on: Boolean) {}
@@ -234,6 +236,7 @@ fun RemoteControlStreamerDelegate.handle(request: RemoteControlRequest): Pair<Re
         is RemoteControlRequest.SetStream -> setStream(request.id)
         is RemoteControlRequest.SetScene -> setScene(request.id)
         is RemoteControlRequest.SetMic -> setMic(request.id)
+        is RemoteControlRequest.SetBitratePreset -> setBitratePreset(request.id)
         is RemoteControlRequest.SetRecord -> setRecord(request.on)
         is RemoteControlRequest.SetLive -> setLive(request.on)
         is RemoteControlRequest.SetZoom -> setZoom(request.x)

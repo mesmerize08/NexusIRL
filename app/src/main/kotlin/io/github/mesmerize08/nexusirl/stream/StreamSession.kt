@@ -127,6 +127,9 @@ class StreamSession(
 
         fun rttMs(): Double
 
+        /** A new ceiling for adaptive bitrate; false when there is none (the encoder takes it). */
+        fun setTargetBitrate(bitrate: Long): Boolean = false
+
         fun debugStats(): String = ""
     }
 
@@ -140,6 +143,18 @@ class StreamSession(
         powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
         executor.execute { startDestination() }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
+    }
+
+    /** Target video bitrate; starts at the stream's and follows bitrate presets picked while live. */
+    @Volatile
+    private var targetBitrate = settings.bitrate
+
+    /** Upstream `setStreamBitrate`: applies a new bitrate while live. Any thread. */
+    fun setBitrate(bitrate: Long) = executor.execute {
+        targetBitrate = bitrate
+        if (destination?.setTargetBitrate(bitrate) != true) {
+            encoder?.setBitrate(bitrate)
+        }
     }
 
     /** Adds a Moblink relay's tunnel to the running SRTLA connection. Any thread. */
@@ -249,12 +264,12 @@ class StreamSession(
         val driver = config.srtAdaptiveBitrate?.let { choice ->
             val setBitrate = AdaptiveBitrateListener { encoder?.setBitrate(it) }
             val adaptiveBitrate = if (choice.belabox) {
-                AdaptiveBitrateSrtBelabox(settings.bitrate, setBitrate, clock)
+                AdaptiveBitrateSrtBelabox(targetBitrate, setBitrate, clock)
             } else {
-                AdaptiveBitrateSrtFight(settings.bitrate, setBitrate, clock)
+                AdaptiveBitrateSrtFight(targetBitrate, setBitrate, clock)
             }
             adaptiveBitrate.setSettings(choice.settings)
-            SrtAdaptiveBitrateDriver(stream, adaptiveBitrate, executor, settings.bitrate)
+            SrtAdaptiveBitrateDriver(stream, adaptiveBitrate, executor, targetBitrate)
         }
         // SRTLA bonds every available network (cellular, Wi-Fi, Ethernet) at once.
         val networks = if (url.startsWith("srtla", ignoreCase = true)) MultiNetworkManager(context) else null
@@ -294,6 +309,11 @@ class StreamSession(
             }
 
             override fun rttMs(): Double = stream.getPerformanceData()?.msRtt ?: 0.0
+
+            override fun setTargetBitrate(bitrate: Long): Boolean {
+                driver?.setTargetBitrate(bitrate)
+                return driver != null
+            }
 
             override fun debugStats(): String {
                 val performance = stream.getPerformanceData() ?: return ""
