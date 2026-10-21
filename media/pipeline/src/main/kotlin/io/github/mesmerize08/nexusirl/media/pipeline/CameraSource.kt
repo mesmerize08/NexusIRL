@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Rect
 import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -224,56 +225,64 @@ class CameraSource(private val context: Context) {
         surfaceTexture.setDefaultBufferSize(size.width, size.height)
         val surface = Surface(surfaceTexture)
         this.surface = surface
-        manager.openCamera(
-            cameraId,
-            executor,
-            object : CameraDevice.StateCallback() {
-                override fun onOpened(camera: CameraDevice) {
-                    device = camera
-                    val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-                        addTarget(surface)
-                        set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
-                        set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                        set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
-                    }
-                    request = builder
-                    applyZoom(builder)
-                    applyStabilization(builder, stabilization)
-                    val configuration = SessionConfiguration(
-                        SessionConfiguration.SESSION_REGULAR,
-                        listOf(OutputConfiguration(surface)),
-                        executor,
-                        object : CameraCaptureSession.StateCallback() {
-                            override fun onConfigured(captureSession: CameraCaptureSession) {
-                                session = captureSession
-                                try {
-                                    captureSession.setRepeatingRequest(builder.build(), captureCallback, handler)
-                                } catch (e: Exception) {
-                                    listener.onError("Camera request failed: ${e.message}")
+        // No permission yet (first start, before the user answers), another app holds the camera, or
+        // a device policy disables it: report it instead of crashing; the caller may retry later.
+        try {
+            manager.openCamera(
+                cameraId,
+                executor,
+                object : CameraDevice.StateCallback() {
+                    override fun onOpened(camera: CameraDevice) {
+                        device = camera
+                        val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                            addTarget(surface)
+                            set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)
+                            set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
+                            set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+                        }
+                        request = builder
+                        applyZoom(builder)
+                        applyStabilization(builder, stabilization)
+                        val configuration = SessionConfiguration(
+                            SessionConfiguration.SESSION_REGULAR,
+                            listOf(OutputConfiguration(surface)),
+                            executor,
+                            object : CameraCaptureSession.StateCallback() {
+                                override fun onConfigured(captureSession: CameraCaptureSession) {
+                                    session = captureSession
+                                    try {
+                                        captureSession.setRepeatingRequest(builder.build(), captureCallback, handler)
+                                    } catch (e: Exception) {
+                                        listener.onError("Camera request failed: ${e.message}")
+                                    }
                                 }
-                            }
 
-                            override fun onConfigureFailed(captureSession: CameraCaptureSession) {
-                                listener.onError("Camera session configuration failed")
-                            }
-                        },
-                    )
-                    camera.createCaptureSession(configuration)
-                }
+                                override fun onConfigureFailed(captureSession: CameraCaptureSession) {
+                                    listener.onError("Camera session configuration failed")
+                                }
+                            },
+                        )
+                        camera.createCaptureSession(configuration)
+                    }
 
-                override fun onDisconnected(camera: CameraDevice) {
-                    camera.close()
-                    device = null
-                    listener.onError("Camera disconnected")
-                }
+                    override fun onDisconnected(camera: CameraDevice) {
+                        camera.close()
+                        device = null
+                        listener.onError("Camera disconnected")
+                    }
 
-                override fun onError(camera: CameraDevice, error: Int) {
-                    camera.close()
-                    device = null
-                    listener.onError("Camera error $error")
-                }
-            },
-        )
+                    override fun onError(camera: CameraDevice, error: Int) {
+                        camera.close()
+                        device = null
+                        listener.onError("Camera error $error")
+                    }
+                },
+            )
+        } catch (e: SecurityException) {
+            listener.onError("No camera permission")
+        } catch (e: CameraAccessException) {
+            listener.onError("Camera unavailable (${e.reason})")
+        }
     }
 
     /** Sets the zoom factor, clamped to the camera's range (upstream `setCameraZoomX`). */

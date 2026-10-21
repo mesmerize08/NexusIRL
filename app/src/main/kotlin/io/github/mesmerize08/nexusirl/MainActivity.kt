@@ -182,6 +182,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        val camera = permissions.indexOf(Manifest.permission.CAMERA)
+        if (camera >= 0 && grantResults.getOrNull(camera) == PackageManager.PERMISSION_GRANTED) {
+            StreamController.cameraPermissionGranted()
+        }
         LocationController.start(this)
     }
 

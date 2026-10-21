@@ -26,6 +26,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.TextureRenderer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 
 /**
  * A widget image placed on the canvas (pixels, top-left origin). A null [bitmap] keeps the image
@@ -153,6 +154,7 @@ class VideoPipeline(
 
     private companion object {
         const val TAG = "VideoPipeline"
+        const val BLACK_FRAME_LAG_NANOS = 250_000_000L
     }
 
     /** Camera in use, for the UI's camera controls. */
@@ -445,6 +447,17 @@ class VideoPipeline(
         done.await(3, java.util.concurrent.TimeUnit.SECONDS)
     }
 
+    /** Opens the current camera again, e.g. after the camera permission was granted. */
+    fun restartCamera() {
+        glHandler.post {
+            val texture = surfaceTexture ?: return@post
+            val id = cameraSource?.current?.id
+            cameraSource?.release()
+            cameraSource = null
+            startCamera(texture, id)
+        }
+    }
+
     private fun startCamera(texture: SurfaceTexture, requestedId: String?) {
         val camera = CameraSource(context)
         this.cameraSource = camera
@@ -489,8 +502,16 @@ class VideoPipeline(
         if (cameraSource?.timestampsAreRealtime != true) {
             return sensorNanos
         }
-        // Shift boot-time (elapsedRealtime) stamps into the CLOCK_MONOTONIC domain.
-        return sensorNanos - (SystemClock.elapsedRealtimeNanos() - System.nanoTime())
+        // Shift boot-time (elapsedRealtime) stamps into the CLOCK_MONOTONIC domain. The sensor may
+        // say REALTIME while the camera service already delivers MONOTONIC stamps to the
+        // SurfaceTexture (seen on a Galaxy S26 Ultra, Android 17), so go by the clock the stamp is
+        // closest to. The two clocks differ by the time spent in deep sleep since boot.
+        val monotonic = System.nanoTime()
+        val realtime = SystemClock.elapsedRealtimeNanos()
+        if (abs(sensorNanos - monotonic) <= abs(sensorNanos - realtime)) {
+            return sensorNanos
+        }
+        return sensorNanos - (realtime - monotonic)
     }
 
     private fun handleFrameAvailable() {
@@ -522,7 +543,10 @@ class VideoPipeline(
         }
         val now = System.nanoTime()
         if (!hasFrame) {
-            renderBlack(now)
+            // Camera frames arrive some time after capture (about 85 ms on a Galaxy S26 Ultra) and
+            // keep their capture time; stamping black frames "now" would make every camera frame
+            // look older than the last output, and the monotonic-PTS rule would drop them all.
+            renderBlack(now - BLACK_FRAME_LAG_NANOS)
         } else if (now - lastFrameWallNanos > 50_000_000) {
             // Re-emit the last frame with its PTS advanced by the time since it arrived.
             render(lastPresentationNanos + (now - lastFrameWallNanos).coerceAtLeast(frameIntervalNanos))

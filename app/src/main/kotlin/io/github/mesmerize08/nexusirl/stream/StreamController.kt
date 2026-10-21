@@ -627,6 +627,12 @@ object StreamController {
         pipeline = null
     }
 
+    /** The camera permission was just granted: the preview camera could not open before. */
+    fun cameraPermissionGranted() {
+        mutableStatus.value = mutableStatus.value.copy(detail = "")
+        pipeline?.restartCamera()
+    }
+
     /** Switches camera (upstream camera picker); remembered while the app runs. */
     fun switchCamera(id: String, force: Boolean = false) {
         cameraId = id
