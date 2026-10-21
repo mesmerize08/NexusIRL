@@ -1,8 +1,8 @@
 # Releasing
 
 Releases are built by `.github/workflows/release.yml` when a tag such as `v0.1.0` is pushed.
-The workflow runs the tests and lint, builds a signed APK, and attaches it to a GitHub Release
-together with `SHA256SUMS`. Releases are marked as pre-releases until v1.
+The workflow runs the tests and lint, builds signed APKs (`arm64-v8a` and universal), and attaches
+them to a GitHub Release together with `SHA256SUMS`. Releases are marked as pre-releases until v1.
 
 ## One-time setup: the signing key
 
@@ -35,7 +35,14 @@ Then add four repository secrets (GitHub → Settings → Secrets and variables 
 ## Local release builds
 
 Set the same variables, with `NEXUSIRL_KEYSTORE` pointing at the `.jks` file, then run
-`./gradlew assembleRelease`. Without them, Gradle produces `app-release-unsigned.apk`.
+`./gradlew assembleRelease`. Without them, Gradle produces unsigned APKs
+(`app-<abi>-release-unsigned.apk`). Release builds are split per ABI; debug builds are not.
+
+## Dry run
+
+Run the Release workflow by hand (Actions → Release → Run workflow, or
+`gh workflow run release.yml`). It builds and signs the APKs and uploads them as a workflow
+artifact, but publishes nothing.
 
 ## Licence check
 

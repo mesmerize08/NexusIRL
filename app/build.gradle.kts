@@ -28,7 +28,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.0.1"
+        versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // docs/PORT_PLAN.md §8.1: our own public Twitch client (Device Code flow), overridable per build.
         val twitchClientId = (findProperty("nexusirl.twitchClientId") as String?).orEmpty()
@@ -57,6 +57,17 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    // Release APKs: arm64-v8a (every current phone, smaller download) plus a universal APK for the
+    // rest. Debug builds stay a single APK so emulators (x86_64) and local scripts are unaffected.
+    splits {
+        abi {
+            isEnable = gradle.startParameter.taskNames.any { it.contains("Release") }
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
         }
     }
 

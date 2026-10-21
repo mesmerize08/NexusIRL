@@ -5,11 +5,12 @@
 A free, open-source IRL live-streaming app for Android, ported from
 [Moblin](https://github.com/eerimoq/moblin) (iOS, MIT License).
 
-> **Status: early development.** The app streams camera and microphone over SRT (with AES
-> encryption), SRTLA bonding and RTMP(S), with adaptive bitrate, HEVC, automatic reconnect and
-> mic selection. This is verified on the Android emulator; testing on real phones, settings,
-> scenes, chat and remote control are still to come. See [docs/PORT_PLAN.md](docs/PORT_PLAN.md)
-> for the full plan and phase gates.
+> **Status: early test releases.** The app streams camera and microphone over SRT (with AES
+> encryption), SRTLA bonding and RTMP(S). It has adaptive bitrate, HEVC, scenes and widgets,
+> Twitch/Kick/YouTube chat, remote control (iOS Moblin compatible, plus a web remote control) and
+> Moblink relaying in both directions. It has been checked on the Android emulator. Testing on
+> real phones has only just started, so expect rough edges. See
+> [docs/PORT_PLAN.md](docs/PORT_PLAN.md) for the full plan and phase gates.
 >
 > Privacy policy: [docs/privacy-policy.md](docs/privacy-policy.md).
 
@@ -32,6 +33,19 @@ A free, open-source IRL live-streaming app for Android, ported from
   - stream keys and tokens are encrypted with an Android Keystore-backed key
   - secrets are redacted from logs
   - local control servers are off by default and authenticated (see the plan, §9)
+
+## Installing
+
+Download an APK from [Releases](https://github.com/mesmerize08/NexusIRL/releases):
+
+- `NexusIRL-<version>-arm64-v8a.apk`: for practically every phone from the last several years.
+  It is the smallest download.
+- `NexusIRL-<version>-universal.apk`: for any other device.
+
+Check it against `SHA256SUMS` if you like. Open it on the phone and allow your browser or file
+manager to install apps when Android asks. Android 10 or newer is required. Updates install over
+the old version and keep your settings. [Obtainium](https://github.com/ImranR98/Obtainium) can
+track the releases for you.
 
 ## Repository layout
 
