@@ -29,6 +29,9 @@ private const val HANDSHAKE_PROTOCOL_VERSION = 3
 private const val MAXIMUM_UNSENT_BYTES = 100_000_000L
 private const val NANOS_PER_SECOND = 1_000_000_000L
 
+/** How long audio waits for video to start before going alone (audio-only streams). */
+private const val VIDEO_START_GRACE_NANOS = NANOS_PER_SECOND
+
 /** Splits a stream URL into connection URL and stream key (upstream `makeRtmpUri`/`makeRtmpStreamKey`). */
 object RtmpUrl {
     fun uri(url: String): String {
@@ -358,6 +361,14 @@ class RtmpStream(
             return
         }
         val config = audioConfig ?: return
+        // With video, the stream starts on the first video frame (a key frame). Video timestamps
+        // are camera capture times, older than the audio arriving with them; had audio set the
+        // base, the first key frame would be "before the start" and dropped, leaving viewers
+        // without a picture until the next periodic key frame, seconds later.
+        // Video may still be starting (no config yet) for a moment after publishing begins.
+        if (baseTimeStamp == -1.0 && (videoConfig != null || clock.nanoTime() - startedAt < VIDEO_START_GRACE_NANOS)) {
+            return
+        }
         val rebased = rebaseTimeStamp(presentationTimeStamp.seconds) ?: return
         val delta = prevRebasedAudioTimeStamp?.let { (rebased - it) * 1000 } ?: 0.0
         if (delta < 0) {

@@ -102,6 +102,10 @@ class StreamSession(
     private val executor = SerialExecutor.create("stream")
     private val clock = HostClock.system
     private var destination: Destination? = null
+
+    /** What is attached to the encoders for the current destination (its key frame gate). */
+    private var attached: MediaSink? = null
+    private var keyFrameRetry: Cancellable? = null
     private var generation = 0
     private var reconnectTimer: Cancellable? = null
     private var stopped = false
@@ -206,10 +210,11 @@ class StreamSession(
     }
 
     private fun stopDestination() {
-        destination?.let {
-            fanOut.remove(it)
-            it.stop()
-        }
+        keyFrameRetry?.cancel()
+        keyFrameRetry = null
+        attached?.let { fanOut.remove(it) }
+        attached = null
+        destination?.stop()
         destination = null
         liveSince = null
     }
@@ -219,8 +224,23 @@ class StreamSession(
             return
         }
         // Like processor.startEncoding(stream): attach, replay formats, and start on a key frame.
-        destination?.let { fanOut.add(it) }
-        encoder?.requestKeyFrame()
+        // Video waits for a key frame, and one is asked for until it arrives: an encoder may
+        // ignore a request made just after its own first key frame (seen on Qualcomm), which
+        // left viewers without a picture until the next periodic one, seconds later.
+        destination?.let { current ->
+            val gate = KeyFrameGate(current)
+            attached = gate
+            fanOut.add(gate)
+            encoder?.requestKeyFrame()
+            keyFrameRetry = executor.scheduleRepeating(KEY_FRAME_RETRY_NANOS) {
+                if (gate.started) {
+                    keyFrameRetry?.cancel()
+                    keyFrameRetry = null
+                } else {
+                    encoder?.requestKeyFrame()
+                }
+            }
+        }
         liveSince = clock.nanoTime()
         update(status.copy(state = StreamState.LIVE, detail = if (encoder == null) status.detail else ""))
     }
@@ -398,7 +418,30 @@ class StreamSession(
     private companion object {
         val REDACTOR = Redactor()
 
+        const val KEY_FRAME_RETRY_NANOS = 250_000_000L
+
         /** Upstream: "Attempting again in 5 seconds." */
         const val RECONNECT_DELAY_NANOS = 5_000_000_000L
+    }
+}
+
+/** Passes everything to [sink], except video before the first key frame (it cannot be decoded). */
+internal class KeyFrameGate(private val sink: MediaSink) : MediaSink {
+    @Volatile
+    var started = false
+        private set
+
+    override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = sink.setAudioConfig(config, sampleRate)
+
+    override fun setVideoConfig(config: MpegTsVideoConfig) = sink.setVideoConfig(config)
+
+    override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) = sink.writeAudio(frame, presentationTimeStamp)
+
+    override fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) {
+        if (!started && !isSync) {
+            return
+        }
+        started = true
+        sink.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
     }
 }

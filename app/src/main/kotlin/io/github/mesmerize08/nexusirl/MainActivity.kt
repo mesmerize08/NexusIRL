@@ -479,7 +479,7 @@ private fun MainScreen(
         TextButton(onClick = onImportExport) { Text(stringResource(R.string.import_export)) }
         TextButton(onClick = onLocation) { Text(stringResource(R.string.location)) }
         TextButton(onClick = onRemoteControl) { Text(stringResource(R.string.remote_control)) }
-        TextButton(onClick = onMoblink) { Text(stringResource(R.string.moblink_relay)) }
+        TextButton(onClick = onMoblink) { Text(stringResource(R.string.moblink)) }
         TextButton(onClick = onRemoteAssistant) { Text(stringResource(R.string.remote_assistant)) }
         Text(stringResource(R.string.attribution), style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { showLicenses = true }) {

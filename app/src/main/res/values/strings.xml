@@ -236,4 +236,7 @@
     <string name="status_reconnecting">Reconnecting (%1$d)</string>
     <string name="status_thermal">Thermal: %1$s</string>
     <string name="microphone">Microphone</string>
+    <string name="no_streams_here">No streams yet. Tap Add stream, or import your Moblin settings under Import and export.</string>
+    <string name="no_widgets_here">No widgets yet. Tap Add widget.</string>
+    <string name="moblink">Moblink</string>
 </resources>

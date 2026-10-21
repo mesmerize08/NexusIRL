@@ -46,7 +46,7 @@ fun StreamsScreen(store: SettingsStore, live: Boolean, onEdit: (UUID?) -> Unit, 
         actions = { Button(onClick = { onEdit(null) }) { Text(stringResource(R.string.add_stream)) } },
     ) {
         if (database.streams.isEmpty()) {
-            Text(stringResource(R.string.no_streams))
+            Text(stringResource(R.string.no_streams_here))
         }
         if (live) {
             Text(stringResource(R.string.streams_locked_while_live), style = MaterialTheme.typography.bodySmall)

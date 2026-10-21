@@ -171,8 +171,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - thermal status with a critical warning
 >   - microphone selection with auto-switch to external mics
 >
->   Still needs a physical phone: the 60-minute soak, A/V sync, thermal behaviour and OEM encoder
->   quirks.
+>   On a real phone (see "Real-device testing" below): 15-minute soak with A/V sync and
+>   thermal checks done. Still to do: the 60-minute soak, bonding over a real mobile network, and
+>   more OEMs.
 > - Phase 3 is in progress. Done:
 >   - the settings document (iOS-compatible; unknown keys preserved)
 >   - saved streams with stream keys in the encrypted store
@@ -248,6 +249,26 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Moblink streamer: other phones on the Wi-Fi add their mobile data as SRTLA paths while live.
 > Checked with our relay in tests (UDP through the tunnel) and on the emulator (mDNS, startTunnel).
 > Phase 6 is feature complete on the emulator. Still to do: interop with real iOS devices.
+>
+> **Real-device testing** (Galaxy S26 Ultra, Snapdragon SM8850, Android 17), always to receivers on
+> a desktop, never to a streaming platform:
+> - Found and fixed: a crash on first start (camera opened before the permission was granted), a
+>   black picture (black filler frames stamped "now" made every camera frame look old), the picture
+>   upside down in landscape (display rotation applied the wrong way), content under the navigation
+>   bar, the 0.6x ultra-wide zoom preset missing, empty mic and bitrate menus in the web remote
+>   control, a crash when ending an RTMP stream (a late socket event on the stopped executor), and
+>   RTMP viewers getting no picture for the first 2 s in most starts (audio set the timeline base,
+>   so the first key frame, carrying its earlier camera capture time, was dropped).
+> - 1080p60 H.265 for 5:30: 59.9 fps average, no gaps, battery 33 -> 37 C (thermal "light").
+> - 1080p30 H.265 5 Mbps over RTMP for 15:42: every frame arrived, no gaps, audio/video offset moved
+>   less than 13 ms, battery 30 -> 34 C, thermal state normal. Hardware encoders
+>   `c2.qti.avc.encoder` and `c2.qti.hevc.encoder`; the camera runs at 60 fps for 60 fps streams.
+> - SRTLA over Wi-Fi to the desktop receiver: clean, RTT about 5 ms.
+> - Recording (MP4, H.265 + AAC) and snapshots; scenes with a text widget; the web remote control
+>   from a desktop browser.
+> - Still to do on a phone: the other landscape direction and portrait, tap-to-focus and manual
+>   camera controls, bonding over a real mobile network, Moblink between two phones, and iOS
+>   interop.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

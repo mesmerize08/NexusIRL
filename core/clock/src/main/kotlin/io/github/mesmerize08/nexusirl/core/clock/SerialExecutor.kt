@@ -2,6 +2,7 @@ package io.github.mesmerize08.nexusirl.core.clock
 
 import java.util.PriorityQueue
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
@@ -29,22 +30,39 @@ interface SerialExecutor {
     }
 }
 
+/**
+ * After [shutdown], new tasks are dropped instead of throwing: network threads (socket readers,
+ * UDP receivers) may still report a closed connection after their owner stopped, and a late post
+ * must not crash the app (a released upstream dispatch queue never throws either).
+ */
 class ThreadSerialExecutor(name: String) : SerialExecutor {
     private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
         ThreadFactory { runnable -> Thread(runnable, name).apply { isDaemon = true } },
     )
 
     override fun execute(task: () -> Unit) {
-        executor.execute(task)
+        try {
+            executor.execute(task)
+        } catch (e: RejectedExecutionException) {
+            // Shut down: dropped.
+        }
     }
 
     override fun schedule(delayNanos: Long, task: () -> Unit): Cancellable {
-        val future = executor.schedule(task, delayNanos, TimeUnit.NANOSECONDS)
+        val future = try {
+            executor.schedule(task, delayNanos, TimeUnit.NANOSECONDS)
+        } catch (e: RejectedExecutionException) {
+            return Cancellable {}
+        }
         return Cancellable { future.cancel(false) }
     }
 
     override fun scheduleRepeating(periodNanos: Long, task: () -> Unit): Cancellable {
-        val future = executor.scheduleAtFixedRate(task, periodNanos, periodNanos, TimeUnit.NANOSECONDS)
+        val future = try {
+            executor.scheduleAtFixedRate(task, periodNanos, periodNanos, TimeUnit.NANOSECONDS)
+        } catch (e: RejectedExecutionException) {
+            return Cancellable {}
+        }
         return Cancellable { future.cancel(false) }
     }
 

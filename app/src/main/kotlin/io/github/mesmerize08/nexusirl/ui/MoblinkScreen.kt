@@ -34,7 +34,8 @@ fun MoblinkScreen(store: SettingsStore, onBack: () -> Unit) {
     var password by remember { mutableStateOf(store.moblinkPassword()) }
     fun update(transform: (SettingsMoblinkRelay) -> SettingsMoblinkRelay) =
         store.update { it.copy(moblink = it.moblink.copy(relay = transform(it.moblink.relay))) }
-    Page(title = stringResource(R.string.moblink_relay), onBack = onBack) {
+    Page(title = stringResource(R.string.moblink), onBack = onBack) {
+        Text(stringResource(R.string.moblink_relay), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.moblink_relay_help), style = MaterialTheme.typography.bodySmall)
         SwitchRow(stringResource(R.string.enabled), relay.enabled) { on -> update { it.copy(enabled = on) } }
         if (relay.enabled && database.moblink.password.isEmpty()) {

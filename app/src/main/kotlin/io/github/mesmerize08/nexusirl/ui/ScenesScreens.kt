@@ -284,7 +284,7 @@ fun WidgetsScreen(store: SettingsStore, onEdit: (UUID) -> Unit, onBack: () -> Un
         actions = { Button(onClick = { adding = true }) { Text(stringResource(R.string.add_widget)) } },
     ) {
         if (database.widgets.isEmpty()) {
-            Text(stringResource(R.string.no_widgets))
+            Text(stringResource(R.string.no_widgets_here))
         }
         for (widget in database.widgets) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onEdit(widget.id) }) {
