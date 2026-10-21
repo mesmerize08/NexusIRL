@@ -225,4 +225,8 @@
     <string name="web_remote_control_no_network">Connect to Wi-Fi or turn on the hotspot to get a link.</string>
     <string name="web_remote_control_open">Open this link in a browser (or scan the QR code):</string>
     <string name="web_remote_control_new_link">New link (signs out all browsers)</string>
+    <string name="moblink_streamer">Use other phones as relays</string>
+    <string name="moblink_streamer_help">While live with SRTLA, phones on the same Wi-Fi running a Moblink relay (Moblin, NexusIRL or the Moblink app) add their mobile data as extra paths. They use the password above. Never over mobile data; 5 wrong passwords block an address for a minute.</string>
+    <string name="moblink_streamer_password_needed">Set the password above first.</string>
+    <string name="moblink_streamer_no_relays">No relays connected.</string>
 </resources>

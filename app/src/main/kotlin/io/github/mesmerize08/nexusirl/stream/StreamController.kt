@@ -26,6 +26,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
+import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.LutLoader
 import io.github.mesmerize08.nexusirl.scene.MapWidgets
@@ -354,6 +355,7 @@ object StreamController {
     fun stop(context: Context) {
         session?.stop()
         session = null
+        MoblinkStreamerController.stopTunnels()
         afterCaptureEnded(context)
     }
 

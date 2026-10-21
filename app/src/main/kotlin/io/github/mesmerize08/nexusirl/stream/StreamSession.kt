@@ -13,6 +13,8 @@ import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
+import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
+import io.github.mesmerize08.nexusirl.moblink.MoblinkTunnel
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateListener
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtBelabox
@@ -24,6 +26,7 @@ import io.github.mesmerize08.nexusirl.transport.srt.SrtAdaptiveBitrateDriver
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStreamConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
+import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -117,6 +120,11 @@ class StreamSession(
     private interface Destination : MediaSink {
         fun stop()
 
+        /** A Moblink relay tunnel as an extra SRTLA path (SRTLA only). */
+        fun addMoblink(tunnel: MoblinkTunnel) {}
+
+        fun removeMoblink(tunnel: MoblinkTunnel) {}
+
         fun rttMs(): Double
 
         fun debugStats(): String = ""
@@ -129,6 +137,11 @@ class StreamSession(
         executor.execute { startDestination() }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
     }
+
+    /** Adds a Moblink relay's tunnel to the running SRTLA connection. Any thread. */
+    fun addMoblink(tunnel: MoblinkTunnel) = executor.execute { destination?.addMoblink(tunnel) }
+
+    fun removeMoblink(tunnel: MoblinkTunnel) = executor.execute { destination?.removeMoblink(tunnel) }
 
     fun stop() {
         val done = CountDownLatch(1)
@@ -223,6 +236,9 @@ class StreamSession(
                 override fun onConnected() = handleConnected(eventGeneration)
 
                 override fun onDisconnected(message: String) = handleDisconnected(eventGeneration, message)
+
+                // Upstream moblinkStreamerDestinationAddress: relays tunnel to the SRTLA server.
+                override fun onMoblinkDestinationAddress(host: String, port: Int) = MoblinkStreamerController.startTunnels(host, port)
             },
         )
         // Upstream Media.srtSetAdaptiveBitrateAlgorithm: no algorithm when adaptive bitrate is off.
@@ -255,6 +271,17 @@ class StreamSession(
 
             override fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) =
                 stream.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
+
+            // Relays are on the Wi-Fi: reach them over it even while mobile data is the default.
+            override fun addMoblink(tunnel: MoblinkTunnel) = stream.addMoblink(
+                tunnel.host,
+                tunnel.port,
+                tunnel.relayId,
+                tunnel.relayName,
+                networks?.current()?.firstOrNull { it.type == InterfaceType.WIFI },
+            )
+
+            override fun removeMoblink(tunnel: MoblinkTunnel) = stream.removeMoblink(tunnel.host, tunnel.port)
 
             override fun stop() {
                 driver?.stop()

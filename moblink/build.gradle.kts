@@ -12,6 +12,7 @@ dependencies {
     api(project(":core:websocket"))
     api(project(":remotecontrol"))
     api(project(":transport:srt"))
+    implementation(libs.java.websocket)
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.mockwebserver)

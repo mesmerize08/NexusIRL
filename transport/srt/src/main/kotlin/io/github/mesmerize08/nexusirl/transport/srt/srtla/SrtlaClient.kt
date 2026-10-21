@@ -144,7 +144,8 @@ class SrtlaClient(
             }
         }
         for (bondingInterface in available) {
-            if (kept.any { it.bondingInterface?.id == bondingInterface.id }) {
+            // Moblink relay paths may be bound to Wi-Fi too; they are not the Wi-Fi path itself.
+            if (kept.any { it.relayId == null && it.bondingInterface?.id == bondingInterface.id }) {
                 continue
             }
             val connection = newRemoteConnection(
@@ -168,13 +169,16 @@ class SrtlaClient(
         )
     }
 
-    /** Adds a Moblink relay tunnel endpoint as an extra bonding path. */
-    fun addMoblink(host: String, port: Int, relayId: UUID, name: String) {
+    /**
+     * Adds a Moblink relay tunnel endpoint as an extra bonding path. [via] is the local network the
+     * relay is reached on (Android binds it to Wi-Fi so it works while mobile data is the default).
+     */
+    fun addMoblink(host: String, port: Int, relayId: UUID, name: String, via: BondingInterface? = null) {
         executor.execute {
             if (state == State.IDLE) {
                 return@execute
             }
-            val connection = newRemoteConnection(InterfaceType.OTHER, null, getRelayConnectionPriority(relayId), relayId, name)
+            val connection = newRemoteConnection(InterfaceType.OTHER, via, getRelayConnectionPriority(relayId), relayId, name)
             connection.listener = remoteListener
             connection.start(host, port)
             groupId?.let { connection.register(it) }

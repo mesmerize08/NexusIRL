@@ -100,6 +100,9 @@ class SrtStream(
         fun onConnected()
 
         fun onDisconnected(message: String)
+
+        /** SRTLA: where Moblink relays should tunnel to (upstream `moblinkStreamerDestinationAddress`). */
+        fun onMoblinkDestinationAddress(host: String, port: Int) {}
     }
 
     private val url = SrtUrl.parse(config.url)
@@ -165,6 +168,15 @@ class SrtStream(
             this.interfaces = interfaces
             srtlaClient?.setInterfaces(interfaces)
         }
+    }
+
+    /** Adds a Moblink relay tunnel as a bonding path (SRTLA only). */
+    fun addMoblink(host: String, port: Int, relayId: java.util.UUID, name: String, via: BondingInterface?) {
+        executor.execute { srtlaClient?.addMoblink(host, port, relayId, name, via) }
+    }
+
+    fun removeMoblink(host: String, port: Int) {
+        executor.execute { srtlaClient?.removeMoblink(host, port) }
     }
 
     fun setConnectionPriorities(priorities: ConnectionPriorities) {
@@ -266,6 +278,8 @@ class SrtStream(
         override fun onPacketFromServer(packet: ByteArray) {
             sender?.input(packet)
         }
+
+        override fun onMoblinkDestinationAddress(address: String, port: Int) = listener.onMoblinkDestinationAddress(address, port)
     }
 
     private val senderListener = object : SrtSender.Listener {

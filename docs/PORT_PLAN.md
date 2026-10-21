@@ -245,7 +245,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 > streamer.
 > Web remote control: upstream's browser frontend served by the app on port 8080, behind an access
 > token link. Checked in a real browser on the emulator.
-> Still to do: the Moblink streamer side, and interop with real iOS devices.
+> Moblink streamer: other phones on the Wi-Fi add their mobile data as SRTLA paths while live.
+> Checked with our relay in tests (UDP through the tunnel) and on the emulator (mDNS, startTunnel).
+> Phase 6 is feature complete on the emulator. Still to do: interop with real iOS devices.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

@@ -35,7 +35,7 @@ import java.net.NetworkInterface
 import java.util.UUID
 
 /** A streamer found on the Wi-Fi (upstream `MoblinkScannerStreamer`). */
-data class MoblinkStreamer(val name: String, val url: String)
+data class DiscoveredMoblinkStreamer(val name: String, val url: String)
 
 /**
  * Runs the Moblink relay while it is enabled: finds Moblin streamers on the Wi-Fi (mDNS
@@ -64,10 +64,10 @@ object MoblinkController {
     /** The relay state, or null while the relay is off. */
     val state: StateFlow<MoblinkRelayState?> = mutableState
 
-    private val mutableStreamers = MutableStateFlow<List<MoblinkStreamer>>(emptyList())
+    private val mutableStreamers = MutableStateFlow<List<DiscoveredMoblinkStreamer>>(emptyList())
 
     /** Streamers found on the Wi-Fi. */
-    val streamers: StateFlow<List<MoblinkStreamer>> = mutableStreamers
+    val streamers: StateFlow<List<DiscoveredMoblinkStreamer>> = mutableStreamers
 
     private val relayStates = HashMap<String, MoblinkRelayState>()
 
@@ -262,7 +262,7 @@ object MoblinkController {
             }
             val url = addresses.firstNotNullOfOrNull { websocketUrl(it, resolved.port) }
             if (name != null && url != null) {
-                handler.post { streamerFound(MoblinkStreamer(name, url)) }
+                handler.post { streamerFound(DiscoveredMoblinkStreamer(name, url)) }
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -307,7 +307,7 @@ object MoblinkController {
     }
 
     /** Upstream `moblinkScannerDiscoveredStreamers` and `startMoblinkRelayAutomatic`. */
-    private fun streamerFound(streamer: MoblinkStreamer) {
+    private fun streamerFound(streamer: DiscoveredMoblinkStreamer) {
         if (mutableStreamers.value.none { it.url == streamer.url }) {
             mutableStreamers.value = mutableStreamers.value + streamer
         }

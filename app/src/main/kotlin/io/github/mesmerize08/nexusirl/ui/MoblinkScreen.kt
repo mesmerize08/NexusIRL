@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
 import io.github.mesmerize08.nexusirl.moblink.MoblinkRelayState
+import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
 import io.github.mesmerize08.nexusirl.settings.SettingsMoblinkRelay
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 
@@ -83,5 +84,32 @@ fun MoblinkScreen(store: SettingsStore, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        HorizontalDivider()
+        MoblinkStreamerSection(store)
+    }
+}
+
+/** Upstream's Moblink streamer: other phones on the Wi-Fi lend their mobile data while live with SRTLA. */
+@Composable
+fun MoblinkStreamerSection(store: SettingsStore) {
+    val database by store.database.collectAsState()
+    val relays by MoblinkStreamerController.relays.collectAsState()
+    val streamer = database.moblink.streamer
+    Text(stringResource(R.string.moblink_streamer), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.moblink_streamer_help), style = MaterialTheme.typography.bodySmall)
+    SwitchRow(stringResource(R.string.enabled), streamer.enabled) { on ->
+        store.update { it.copy(moblink = it.moblink.copy(streamer = it.moblink.streamer.copy(enabled = on))) }
+    }
+    if (streamer.enabled && database.moblink.password.isEmpty()) {
+        Text(stringResource(R.string.moblink_streamer_password_needed), color = MaterialTheme.colorScheme.error)
+    }
+    val connected = relays ?: return
+    if (connected.isEmpty()) {
+        Text(stringResource(R.string.moblink_streamer_no_relays))
+    }
+    for (relay in connected) {
+        val battery = relay.batteryPercentage?.let { " · $it %" }.orEmpty()
+        val thermal = relay.thermalState?.let { " · ${it.rawValue}" }.orEmpty()
+        Text("${relay.name}$battery$thermal")
     }
 }

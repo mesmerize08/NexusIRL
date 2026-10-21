@@ -46,6 +46,7 @@ import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
+import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlController
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
@@ -98,6 +99,7 @@ class MainActivity : ComponentActivity() {
         RemoteControlController.start(this)
         RemoteControlAssistantController.start(this)
         MoblinkController.start(this)
+        MoblinkStreamerController.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
