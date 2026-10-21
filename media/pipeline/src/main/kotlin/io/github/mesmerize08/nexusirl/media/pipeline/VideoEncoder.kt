@@ -59,9 +59,15 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
             // Re-send the last frame if the input surface stalls, so the stream keeps its cadence.
             setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 1_000_000L / settings.fps * 2)
         }
-        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        inputSurface = codec.createInputSurface()
-        codec.start()
+        try {
+            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            inputSurface = codec.createInputSurface()
+            codec.start()
+        } catch (e: Exception) {
+            // Hardware encoder instances are few: give this one back before reporting the failure.
+            codec.release()
+            throw e
+        }
         outputThread = Thread({ drain() }, "video-encoder").apply { start() }
     }
 

@@ -51,6 +51,11 @@ class AudioPipeline(
         record?.setPreferredDevice(device)
     }
 
+    /** False when the microphone could not be opened and silence is sent instead. */
+    @Volatile
+    var microphoneAvailable = true
+        private set
+
     /** Peak level in dBFS over the latest buffer (upstream level meter), for the UI. */
     @Volatile
     var levelDbfs = -160f
@@ -66,8 +71,14 @@ class AudioPipeline(
             AudioFormat.ENCODING_PCM_16BIT,
             max(minimum, sampleRate * channels * 2 / 10),
         )
-        check(record.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord init failed (permission?)" }
-        preferredDevice?.let { record.setPreferredDevice(it) }
+        // No permission, or the microphone is busy: send silence so the stream stays valid (MPEG-TS
+        // output needs an audio track, and many RTMP ingests reject video-only streams).
+        val microphone = record.takeIf { it.state == AudioRecord.STATE_INITIALIZED } ?: run {
+            record.release()
+            null
+        }
+        microphoneAvailable = microphone != null
+        microphone?.let { mic -> preferredDevice?.let { mic.setPreferredDevice(it) } }
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channels).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
@@ -76,12 +87,16 @@ class AudioPipeline(
         val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         codec.start()
-        this.record = record
+        this.record = microphone
         this.codec = codec
         running = true
         sink.setAudioConfig(MpegTsAudioConfig.aacLc(sampleRate, channels), sampleRate)
-        record.startRecording()
-        captureThread = Thread({ capture(record, codec) }, "audio-capture").apply { start() }
+        captureThread = if (microphone != null) {
+            microphone.startRecording()
+            Thread({ capture(microphone, codec) }, "audio-capture")
+        } else {
+            Thread({ silence(codec) }, "audio-silence")
+        }.apply { start() }
         outputThread = Thread({ drain(codec) }, "audio-encoder").apply { start() }
     }
 
@@ -116,7 +131,12 @@ class AudioPipeline(
         var windowFrames = 0L
         while (running) {
             val read = record.read(pcm, 0, pcm.size)
-            if (read <= 0) {
+            if (read < 0) {
+                // E.g. ERROR_DEAD_OBJECT after the audio device went away: don't spin.
+                Thread.sleep(20)
+                continue
+            }
+            if (read == 0) {
                 continue
             }
             val frames = read / channels
@@ -151,6 +171,36 @@ class AudioPipeline(
             }
             codec.queueInputBuffer(inputIndex, 0, read * 2, pts / 1000, 0)
             check(read * 2 == frames * bytesPerFrame)
+        }
+    }
+
+    /** Silent AAC frames in real time on the host clock, for when there is no microphone. */
+    private fun silence(codec: MediaCodec) {
+        val chunkFrames = 1024
+        val chunkNanos = chunkFrames * 1_000_000_000L / sampleRate
+        val start = System.nanoTime()
+        var chunks = 0L
+        levelDbfs = -160f
+        while (running) {
+            val pts = start + chunks * chunkNanos
+            val wait = pts + chunkNanos - System.nanoTime()
+            if (wait > 0) {
+                Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
+            }
+            val inputIndex = try {
+                codec.dequeueInputBuffer(10_000)
+            } catch (e: IllegalStateException) {
+                return
+            }
+            chunks++
+            if (inputIndex < 0) {
+                continue
+            }
+            val buffer = codec.getInputBuffer(inputIndex) ?: continue
+            val size = chunkFrames * channels * 2
+            buffer.clear()
+            buffer.put(ByteArray(size))
+            codec.queueInputBuffer(inputIndex, 0, size, pts / 1000, 0)
         }
     }
 

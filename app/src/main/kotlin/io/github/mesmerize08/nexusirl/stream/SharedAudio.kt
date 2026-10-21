@@ -56,9 +56,25 @@ class SharedAudio(context: Context) {
         pipeline = audio
         microphones.start { _, selected ->
             audio.setPreferredDevice(selected?.device)
-            microphoneName = selected?.name ?: ""
+            microphoneName = if (audio.microphoneAvailable) selected?.name ?: "" else NO_MICROPHONE
         }
-        audio.start()
+        try {
+            audio.start()
+            if (!audio.microphoneAvailable) {
+                microphoneName = NO_MICROPHONE
+            }
+        } catch (e: Exception) {
+            // The AAC encoder failed: stream and record without audio rather than crash.
+            android.util.Log.w("SharedAudio", "Audio failed: $e")
+            microphones.stop()
+            pipeline = null
+            microphoneName = NO_MICROPHONE
+        }
+    }
+
+    private companion object {
+        /** Shown in the status line; silence is sent instead (no permission, or busy). */
+        const val NO_MICROPHONE = "No microphone (sending silence)"
     }
 
     private fun stop() {

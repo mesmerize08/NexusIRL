@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -23,10 +24,23 @@ import io.github.mesmerize08.nexusirl.moblink.MoblinkController
  */
 class StreamingService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!StreamController.isCapturing && !MoblinkController.isRunning) {
+            // Capture ended before the service got here. startForeground must still be called;
+            // without a type it would claim the manifest's camera type, which can throw in the
+            // background, so use the type that needs nothing extra, then end.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                startForeground(NOTIFICATION_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            } else {
+                startForeground(NOTIFICATION_ID, buildNotification())
+            }
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Only the types in use: capture, and/or the Moblink relay (a network device role).
             var types = 0
@@ -42,9 +56,31 @@ class StreamingService : Service() {
             startForeground(NOTIFICATION_ID, buildNotification())
         }
         if (wakeLock == null) {
+            // No timeout: the service only runs while live, recording or relaying, and ends with it.
             wakeLock = getSystemService(PowerManager::class.java)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nexusirl:capture")
-                .apply { acquire(12 * 60 * 60 * 1000L) }
+                .apply {
+                    setReferenceCounted(false)
+                    @Suppress("WakelockTimeout")
+                    acquire()
+                }
+        }
+        if (wifiLock == null) {
+            // Wi-Fi power saving delays and drops packets once the screen is off, which SRT(LA)
+            // and Moblink tunnels feel immediately. Low-latency mode applies while the app is in
+            // the foreground; high-performance mode keeps the radio awake in the background.
+            val wifi = applicationContext.getSystemService(WifiManager::class.java)
+
+            @Suppress("DEPRECATION")
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+            } else {
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            }
+            wifiLock = wifi?.createWifiLock(mode, "nexusirl:stream")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
         }
         return START_NOT_STICKY
     }
@@ -52,6 +88,8 @@ class StreamingService : Service() {
     override fun onDestroy() {
         wakeLock?.release()
         wakeLock = null
+        wifiLock?.release()
+        wifiLock = null
         super.onDestroy()
     }
 
