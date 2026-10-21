@@ -17,7 +17,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class RemoteControlWebTest {
-    private val token = "0123456789abcdef0123456789abcdef"
+    // Obviously fake, low-entropy value so secret scanners (gitleaks) do not flag the test.
+    private val token = "a".repeat(32)
 
     /** Two free consecutive ports (HTTP and WebSocket). */
     private fun freePorts(): Int {
