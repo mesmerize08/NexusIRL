@@ -88,6 +88,7 @@ class CameraSource(private val context: Context) {
     private var surface: Surface? = null
     private var request: CaptureRequest.Builder? = null
     private var characteristics: CameraCharacteristics? = null
+    private var outputSize: Size? = null
 
     /** Current camera, or null before [open]. */
     @Volatile
@@ -209,6 +210,7 @@ class CameraSource(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     fun open(cameraId: String, surfaceTexture: SurfaceTexture, size: Size, fps: Int, listener: Listener) {
+        outputSize = size
         val characteristics = manager.getCameraCharacteristics(cameraId)
         this.characteristics = characteristics
         current = describe(cameraId)
@@ -329,14 +331,33 @@ class CameraSource(private val context: Context) {
      * Focuses (and meters exposure) at a point in normalized sensor coordinates, 0..1 on both axes
      * (upstream `setFocusPointOfInterest`). Focus stays there until [setAutoFocus].
      */
+    /** The centred part of [active] the output size shows (its aspect ratio, in sensor orientation). */
+    private fun outputCrop(active: Rect): Rect {
+        val output = outputSize ?: return active
+        val outputAspect = output.width.toFloat() / output.height
+        val activeAspect = active.width().toFloat() / active.height()
+        return if (outputAspect > activeAspect) {
+            val height = (active.width() / outputAspect).roundToInt()
+            val top = active.top + (active.height() - height) / 2
+            Rect(active.left, top, active.right, top + height)
+        } else {
+            val width = (active.height() * outputAspect).roundToInt()
+            val left = active.left + (active.width() - width) / 2
+            Rect(left, active.top, left + width, active.bottom)
+        }
+    }
+
     fun focusAt(sensorX: Float, sensorY: Float) {
         handler.post {
             val builder = request ?: return@post
             val session = session ?: return@post
             val active = characteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return@post
             val size = (minOf(active.width(), active.height()) * 0.1f).roundToInt()
-            val x = (active.left + sensorX.coerceIn(0f, 1f) * active.width()).roundToInt()
-            val y = (active.top + sensorY.coerceIn(0f, 1f) * active.height()).roundToInt()
+            // The output (e.g. 16:9) is a centred crop of the sensor (e.g. 4:3): map into that crop
+            // so the point is where it was tapped, also near the edges.
+            val crop = outputCrop(active)
+            val x = (crop.left + sensorX.coerceIn(0f, 1f) * crop.width()).roundToInt()
+            val y = (crop.top + sensorY.coerceIn(0f, 1f) * crop.height()).roundToInt()
             val region = MeteringRectangle(
                 Rect(
                     (x - size).coerceAtLeast(active.left),

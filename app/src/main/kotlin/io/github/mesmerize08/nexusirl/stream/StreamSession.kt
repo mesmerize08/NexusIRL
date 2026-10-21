@@ -180,7 +180,8 @@ class StreamSession(
         encoder?.let { video.stopEncoder(it) }
         encoder = null
         executor.shutdown()
-        update(status.copy(state = StreamState.STOPPED))
+        // Retry messages no longer apply once the user ended the stream.
+        update(status.copy(state = StreamState.STOPPED, detail = ""))
     }
 
     // Destination lifecycle (executor)
