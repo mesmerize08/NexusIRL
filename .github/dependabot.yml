@@ -1,0 +1,12 @@
+# Monthly update proposals for the GitHub Actions used in CI and releases.
+# Gradle dependencies are updated by hand (docs/RELEASING.md, "Dependency updates"): every update
+# must add reviewed checksums to gradle/verification-metadata.xml, which a bot should not do.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

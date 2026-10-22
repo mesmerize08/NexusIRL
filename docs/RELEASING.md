@@ -55,6 +55,18 @@ artifact, but publishes nothing.
 `./gradlew :app:licensee` (also part of `check`) fails the build if a dependency is not under an
 allowed permissive licence (Apache-2.0, MIT, BSD). See docs/PORT_PLAN.md §8.4.
 
+## Dependency updates
+
+Monthly, and before each release:
+
+1. GitHub Actions: merge Dependabot's grouped pull request once CI passes on it.
+2. Gradle: check for newer versions of the entries in `gradle/libs.versions.toml` (AGP, Kotlin,
+   Compose BOM, OkHttp, kotlinx, MapLibre, Tink, test libraries). Prefer releases that are a few
+   weeks old. Update, regenerate the verification metadata (below), review that the new
+   checksums are for the expected groups, run the full gate and the UI tests, and test on a
+   phone when the camera, codec or network stack changed.
+3. Security advisories (GitHub's Dependabot alerts on the repository) are handled right away.
+
 ## Dependency verification
 
 `gradle/verification-metadata.xml` pins the SHA-256 of every downloaded dependency and plugin, so
