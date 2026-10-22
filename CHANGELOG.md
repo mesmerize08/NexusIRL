@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-22
+
 ### Added
 - UI smoke tests on an emulator in CI (every screen opens; adding a stream never shows its key),
   and unit tests for the camera clock fix found on the Galaxy S26 Ultra.

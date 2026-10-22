@@ -1,0 +1,1 @@
+Adds "Share diagnostics": a bug-report file with app and phone details and the recent log, with stream keys, passwords and tokens removed. Shared only when you choose to.
