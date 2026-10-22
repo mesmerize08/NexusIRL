@@ -29,7 +29,8 @@ Then add four repository secrets (GitHub → Settings → Secrets and variables 
 
 ## Making a release
 
-1. Bump `versionCode` and `versionName` in `app/build.gradle.kts`.
+1. Bump `versionCode` and `versionName` in `app/build.gradle.kts`, and write release notes for
+   testers in `docs/release-notes/v<version>.md` (used instead of GitHub's commit summary).
 2. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## Local release builds

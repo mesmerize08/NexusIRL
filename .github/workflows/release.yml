@@ -62,4 +62,11 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "NexusIRL $GITHUB_REF_NAME" --generate-notes --prerelease
+        run: |
+          # Hand-written notes for testers when they exist, otherwise GitHub's commit summary.
+          notes="docs/release-notes/$GITHUB_REF_NAME.md"
+          if [ -f "$notes" ]; then
+            gh release create "$GITHUB_REF_NAME" dist/* --title "NexusIRL $GITHUB_REF_NAME" --notes-file "$notes" --prerelease
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "NexusIRL $GITHUB_REF_NAME" --generate-notes --prerelease
+          fi
