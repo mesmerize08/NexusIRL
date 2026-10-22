@@ -1,1 +1,1 @@
-First preview release: SRT, SRTLA and RTMP(S) streaming from the camera.
+First test release: SRT, SRTLA and RTMP(S) streaming with adaptive bitrate, scenes and widgets, chat, remote control and Moblink. Tested on a Galaxy S26 Ultra; please report problems on GitHub.

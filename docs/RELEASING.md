@@ -29,8 +29,13 @@ Then add four repository secrets (GitHub → Settings → Secrets and variables 
 
 ## Making a release
 
-1. Bump `versionCode` and `versionName` in `app/build.gradle.kts`, and write release notes for
-   testers in `docs/release-notes/v<version>.md` (used instead of GitHub's commit summary).
+1. Bump `versionCode` (always +1) and `versionName` (semantic versioning) in
+   `app/build.gradle.kts`, and write:
+   - release notes for testers in `docs/release-notes/v<version>.md` (used instead of GitHub's
+     commit summary),
+   - the `CHANGELOG.md` entry (move it from "unreleased" to the release date),
+   - the F-Droid note `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (500
+     characters at most).
 2. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## Local release builds
