@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +46,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +57,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import io.github.mesmerize08.nexusirl.chat.ChatController
+import io.github.mesmerize08.nexusirl.diagnostics.Diagnostics
 import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
@@ -89,10 +92,12 @@ import io.github.mesmerize08.nexusirl.ui.StreamsScreen
 import io.github.mesmerize08.nexusirl.ui.WidgetEditorScreen
 import io.github.mesmerize08.nexusirl.ui.WidgetsScreen
 import io.github.mesmerize08.nexusirl.ui.summary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -445,6 +450,23 @@ private fun MainScreen(
     if (showLicenses) {
         LicensesDialog(onDismiss = { showLicenses = false })
     }
+    var showDiagnostics by remember { mutableStateOf(false) }
+    // The screen's scope, not the dialog's: closing the dialog must not cancel the work.
+    val diagnosticsScope = rememberCoroutineScope()
+    if (showDiagnostics) {
+        DiagnosticsDialog(onDismiss = { showDiagnostics = false }, onCreate = { sections ->
+            diagnosticsScope.launch {
+                val file = withContext(Dispatchers.IO) {
+                    runCatching { Diagnostics.create(context, sections) }.getOrNull()
+                }
+                if (file != null) {
+                    Diagnostics.share(context, file)
+                } else {
+                    Toast.makeText(context, R.string.share_diagnostics_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+        })
+    }
     // The preview has the canvas's shape (portrait streams are tall, 4:3 resolutions narrower).
     val aspect = stream?.let { it.canvasWidth.toFloat() / it.canvasHeight } ?: (16f / 9f)
     val localOverlaysHidden = database.quickButtons.any { it.type == QuickButtonType.LOCAL_OVERLAYS && it.isOn }
@@ -504,6 +526,9 @@ private fun MainScreen(
         TextButton(onClick = { showLicenses = true }) {
             Text(stringResource(R.string.open_source_licenses))
         }
+        TextButton(onClick = { showDiagnostics = true }) {
+            Text(stringResource(R.string.share_diagnostics))
+        }
     }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth >= maxHeight) {
@@ -528,4 +553,23 @@ private fun MainScreen(
             }
         }
     }
+}
+
+/** Explains what a diagnostics report contains, then creates and shares it. */
+@Composable
+private fun DiagnosticsDialog(onDismiss: () -> Unit, onCreate: (List<Pair<String, List<String>>>) -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.share_diagnostics)) },
+        text = { Text(stringResource(R.string.share_diagnostics_text)) },
+        confirmButton = {
+            TextButton(onClick = {
+                // The state is read now, on the main thread; the slow part runs after the dialog closes.
+                onCreate(Diagnostics.sections(context))
+                onDismiss()
+            }) { Text(stringResource(R.string.share_diagnostics_create)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }

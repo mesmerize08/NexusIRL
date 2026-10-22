@@ -1,6 +1,7 @@
 // Port of the storage parts of Moblin/Various/Settings/Settings.swift `Settings` @97e26d2.
 package io.github.mesmerize08.nexusirl.settings
 
+import io.github.mesmerize08.nexusirl.core.secrets.Redactor
 import io.github.mesmerize08.nexusirl.core.secrets.SecretRef
 import io.github.mesmerize08.nexusirl.core.secrets.SecretStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +31,9 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
         mutableDatabase.value = updated
         removeUnreferencedSecrets(updated)
     }
+
+    /** Masks URLs, credential patterns and every stored secret, e.g. for logs and diagnostics. */
+    fun redactor(): Redactor = Redactor(secrets)
 
     /** The full stream URL, with secrets filled in. Keep it in memory only. */
     fun resolveUrl(stream: SettingsStream): String = SecretRef.resolve(stream.url, secrets)

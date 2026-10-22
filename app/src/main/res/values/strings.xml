@@ -239,4 +239,8 @@
     <string name="no_streams_here">No streams yet. Tap Add stream, or import your Moblin settings under Import and export.</string>
     <string name="no_widgets_here">No widgets yet. Tap Add widget.</string>
     <string name="moblink">Moblink</string>
+    <string name="share_diagnostics">Share diagnostics</string>
+    <string name="share_diagnostics_text">Creates a text file for a bug report: app and phone details, what the app is doing, your settings without stream keys, and the app\'s recent log. Stream keys, passwords and tokens are removed. It may still show server addresses and network names, so check it before you send it.</string>
+    <string name="share_diagnostics_create">Create and share</string>
+    <string name="share_diagnostics_failed">Could not create the diagnostics file</string>
 </resources>
