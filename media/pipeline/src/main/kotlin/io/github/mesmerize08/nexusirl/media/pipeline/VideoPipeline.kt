@@ -505,21 +505,12 @@ class VideoPipeline(
         }
     }
 
-    private fun toHostClock(sensorNanos: Long): Long {
-        if (cameraSource?.timestampsAreRealtime != true) {
-            return sensorNanos
-        }
-        // Shift boot-time (elapsedRealtime) stamps into the CLOCK_MONOTONIC domain. The sensor may
-        // say REALTIME while the camera service already delivers MONOTONIC stamps to the
-        // SurfaceTexture (seen on a Galaxy S26 Ultra, Android 17), so go by the clock the stamp is
-        // closest to. The two clocks differ by the time spent in deep sleep since boot.
-        val monotonic = System.nanoTime()
-        val realtime = SystemClock.elapsedRealtimeNanos()
-        if (abs(sensorNanos - monotonic) <= abs(sensorNanos - realtime)) {
-            return sensorNanos
-        }
-        return sensorNanos - (realtime - monotonic)
-    }
+    private fun toHostClock(sensorNanos: Long): Long = CameraClock.toHostClock(
+        sensorNanos,
+        cameraSource?.timestampsAreRealtime == true,
+        System.nanoTime(),
+        SystemClock.elapsedRealtimeNanos(),
+    )
 
     private fun handleFrameAvailable() {
         val texture = surfaceTexture ?: return

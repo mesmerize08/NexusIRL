@@ -69,3 +69,39 @@ jobs:
       - name: Build
         run: ./gradlew assembleDebug --console=plain
       - uses: github/codeql-action/analyze@v3
+
+  ui-tests:
+    # The app's UI smoke tests (app/src/androidTest) on an Android 14 emulator without cameras:
+    # every screen opens, and a stream added through the UI never shows its key.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: UI smoke tests on an emulator
+        # Third-party action, pinned to the commit of v2.38.0.
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: ./gradlew :app:connectedDebugAndroidTest --console=plain
+      - name: Upload UI test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-reports
+          path: app/build/reports/androidTests/

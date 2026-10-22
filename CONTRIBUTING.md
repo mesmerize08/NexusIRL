@@ -14,6 +14,10 @@ privately (see [SECURITY.md](SECURITY.md)).
 - Build with JDK 17 and the Android SDK (platform 36): `./gradlew test assembleDebug`.
 - Before a pull request: `./gradlew ktlintCheck test lint :app:licensee assembleDebug` and
   `sh tools/check-independence.sh`.
+- UI smoke tests run on an emulator in CI. To run them locally, start an emulator and run
+  `ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest`. Always set
+  `ANDROID_SERIAL`: without it Gradle also runs them on any connected phone, where they change
+  the app's settings.
 - Code ported from Moblin starts with a header naming the upstream file and commit, e.g.
   `// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`; add a row to
   [docs/PORTING.md](docs/PORTING.md).
