@@ -1,31 +1,59 @@
 # NexusIRL privacy policy
 
-_Last updated: 2026-10-19_
+_Last updated: 2026-10-23_
 
-NexusIRL is a free, open-source live-streaming app. It has no accounts, ads, analytics, crash
-reporting or tracking, and the developers run no servers that the app talks to.
+NexusIRL is a free, open-source live-streaming app. It has no accounts of its own, no ads,
+analytics, crash reporting or tracking, and the developers run no servers that the app talks to.
+**The developers never receive any of your data.**
 
-## What the app does with your data
+## What stays on your phone
 
-- **Camera and microphone.** Used only while you are streaming. Video and audio are sent to the
-  streaming server **you** enter (for example your Twitch, YouTube or self-hosted server) and
-  nowhere else.
-- **Stream URLs and keys.** Kept only on your phone and removed from logs. The current preview
-  does not save them at all. When saving is added, they will be encrypted with a key held in the
-  Android Keystore and excluded from backups.
-- **Network state.** Read to bond cellular, Wi-Fi and Ethernet together when you use SRTLA. It is
-  not stored or sent anywhere.
-- **Notifications.** A notification shows while you are streaming so Android keeps the stream
-  running in the background.
+- **Camera and microphone.** Used for the preview while the app is open, and while you stream or
+  record. Video and audio go only to the streaming server **you** enter, and recordings and
+  snapshots are saved on your phone (`Movies/NexusIRL`, `Pictures/NexusIRL`).
+- **Stream URLs, stream keys, passwords and sign-ins.** Stored on your phone, encrypted with a key
+  held in the Android Keystore, excluded from backups, and removed from logs and diagnostics.
+- **Location** (off by default). Only when you turn it on, for widgets that show speed, distance
+  or a map. It appears in your stream only through those widgets, and areas you mark as private
+  are hidden.
+- **Network state.** Read to bond mobile data, Wi-Fi and Ethernet together (SRTLA). Not stored or
+  sent anywhere.
+- **Settings.** Saved on your phone. Exports are created only when you ask, without keys unless
+  you choose otherwise.
 
-The developers never receive any of this data.
+## When the app contacts other services
 
-## Third-party services
+Only when you use the feature, and only the service named:
 
-When you stream, your video and audio go to the service you chose, under that service's own
-privacy policy. Future features (chat, emotes, maps) will contact the services they need, such as
-Twitch, Kick, YouTube or emote providers. Each will be listed here before it ships, and those that
-are optional will be possible to turn off.
+| Feature | Service contacted | What it receives |
+|---|---|---|
+| Streaming | The server in your stream URL | Your video and audio |
+| Twitch chat (reading) | `irc-ws.chat.twitch.tv` | The channel name you enter (read anonymously) |
+| Twitch sign-in | `id.twitch.tv`, `api.twitch.tv`, `eventsub.wss.twitch.tv` | Your Twitch sign-in, used to send chat, show alerts and viewer counts, and change your stream's title and category when you ask. Permissions requested: `user:write:chat`, `channel:manage:broadcast`, `moderator:read:followers`, `channel:read:subscriptions`, `bits:read`, `channel:read:redemptions`. Signing out revokes the sign-in at Twitch. |
+| Twitch badges | `static-cdn.jtvnw.net` | Requests for badge images |
+| Kick chat | `kick.com`, `files.kick.com`, `ws-us2.pusher.com` | The channel name you enter |
+| YouTube chat | `www.youtube.com` | The channel handle or video you enter |
+| Emotes (off by default) | `api.betterttv.net`, `cdn.betterttv.net`, `7tv.io` and their image servers | The Twitch channel whose emotes are shown |
+| Map widget | `tiles.openfreemap.org`, or the map style you set | Map tile requests, which reveal the area shown |
+| Browser widgets | The web pages you add | What any website receives from a browser |
+| Remote control | The assistant or relay address you enter | Status and preview images of the stream |
+
+Each service handles data under its own privacy policy.
+
+## Things that never leave your phone unless you share them
+
+- **Diagnostics.** "Share diagnostics" creates a text file (app and phone details, settings
+  without keys, the app's recent log) and opens the share sheet. Nothing is sent unless you
+  choose where to send it.
+- **Local network servers** (web remote control, remote-control assistant, Moblink). Off by
+  default; when on, they accept connections only from your local network, hotspot or Tailscale,
+  protected by an access link or password.
+
+## Permissions
+
+Camera and microphone (streaming and recording), location (only for location widgets, only when
+you turn it on), notifications (the ongoing notification that keeps a stream running in the
+background), and network access.
 
 ## Changes and contact
 
