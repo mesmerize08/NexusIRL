@@ -81,7 +81,7 @@ object RemoteControlController {
     val connection: StateFlow<RemoteControlConnection> = mutableConnection
 
     /** What a (re)connect depends on. The password is only read from the secret store here. */
-    private data class Config(val enabled: Boolean, val url: String, val passwordRef: String)
+    private data class Config(val enabled: Boolean, val urlRef: String, val passwordRef: String)
 
     private data class WebConfig(val enabled: Boolean, val port: Int, val tokenRef: String)
 
@@ -135,14 +135,15 @@ object RemoteControlController {
         streamerStatusMillis = 0
         streamerPreview = false
         val password = store?.remoteControlPassword().orEmpty()
-        if (!config.enabled || config.url.isEmpty() || password.isEmpty()) {
+        val url = store?.remoteControlUrl().orEmpty().trim()
+        if (!config.enabled || url.isEmpty() || password.isEmpty()) {
             mutableConnection.value = RemoteControlConnection.OFF
             return
         }
         mutableConnection.value = RemoteControlConnection.CONNECTING
         generation += 1
         val owner = generation
-        streamer = RemoteControlStreamer(config.url, password, streamerId(), Delegate { owner == generation }).also { it.start() }
+        streamer = RemoteControlStreamer(url, password, streamerId(), Delegate { owner == generation }).also { it.start() }
     }
 
     /** Increases per web server; callbacks from a stopped one are ignored. */

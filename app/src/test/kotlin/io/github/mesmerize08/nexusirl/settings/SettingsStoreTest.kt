@@ -72,6 +72,27 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun remoteControlRelayPathIsSecret() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        val bridge = "5f1d2c3b-9a8e-4f70-8c61-2b3a4d5e6f70"
+        val url = "wss://relay.example.org/streamer/$bridge"
+        store.update { it.copy(remoteControl = it.remoteControl.copy(streamer = it.remoteControl.streamer.copy(url = url))) }
+        assertFalse(bridge in file.readText())
+        assertEquals(url, store.remoteControlUrl())
+        assertFalse(bridge in store.exportJson())
+        assertTrue("wss://relay.example.org" in store.exportJson())
+        assertTrue(url in store.exportJson(includeSecrets = true))
+        assertFalse(bridge in store.redactor().redact("connecting to $url"))
+        // A file from before the URL became secret is fixed on load.
+        val old = File(directory, "old.json")
+        old.writeText("""{"remoteControl":{"streamer":{"enabled":true,"url":"$url"}}}""")
+        val reopened = SettingsStore(old, InMemorySecretStore())
+        assertFalse(bridge in old.readText())
+        assertEquals(url, reopened.remoteControlUrl())
+    }
+
+    @Test
     fun moblinkPasswordIsSecret() {
         val file = File(directory, "settings.json")
         val store = SettingsStore(file, InMemorySecretStore())

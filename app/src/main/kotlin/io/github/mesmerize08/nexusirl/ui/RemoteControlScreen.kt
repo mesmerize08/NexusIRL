@@ -43,6 +43,8 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
     val streamer = database.remoteControl.streamer
     // The password lives in the secret store; it is read only while this screen is open.
     var password by remember { mutableStateOf(store.remoteControlPassword()) }
+    // So is a relay URL's path (the bridge ID); the file keeps only scheme://host.
+    var url by remember { mutableStateOf(store.remoteControlUrl()) }
     fun update(transform: (SettingsRemoteControlStreamer) -> SettingsRemoteControlStreamer) =
         store.update { it.copy(remoteControl = it.remoteControl.copy(streamer = transform(it.remoteControl.streamer))) }
     Page(title = stringResource(R.string.remote_control), onBack = onBack) {
@@ -64,15 +66,18 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
             },
         )
         OutlinedTextField(
-            value = streamer.url,
-            onValueChange = { url -> update { it.copy(url = url.trim()) } },
+            value = url,
+            onValueChange = { value ->
+                url = value.trim()
+                update { it.copy(url = url) }
+            },
             label = { Text(stringResource(R.string.assistant_url)) },
             supportingText = { Text(stringResource(R.string.assistant_url_help)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (streamer.url.startsWith("ws://", ignoreCase = true) && !isLocalAddress(streamer.url)) {
+        if (url.startsWith("ws://", ignoreCase = true) && !isLocalAddress(url)) {
             // docs/PORT_PLAN.md §9.6: the password hash can be sniffed and brute forced over plain ws://.
             Text(
                 stringResource(R.string.assistant_url_unencrypted),

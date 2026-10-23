@@ -23,6 +23,16 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     val current: Database
         get() = mutableDatabase.value
 
+    init {
+        // Files written before a field became secret still hold it in plain text: move it now.
+        val protected = protectSecrets(current)
+        if (protected != current) {
+            save(protected)
+            mutableDatabase.value = protected
+            removeUnreferencedSecrets(protected)
+        }
+    }
+
     /** Applies [transform], moves any new URL secrets into the secret store, and saves. */
     @Synchronized
     fun update(transform: (Database) -> Database) {
@@ -60,11 +70,18 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             stream.copy(url = url, twitchAccessToken = "", twitchLoggedIn = false)
         }
         val password = if (includeSecrets) remoteControlPassword() else ""
+        val streamer = database.remoteControl.streamer.let { streamer ->
+            streamer.copy(url = if (includeSecrets) remoteControlUrl() else StreamUrlSecrets.publicPart(streamer.url))
+        }
         val moblinkPassword = if (includeSecrets) moblinkPassword() else ""
         return database.copy(
             streams = streams,
             // The web access token stays on this device (it is not part of upstream's settings).
-            remoteControl = database.remoteControl.copy(password = password, web = database.remoteControl.web.copy(token = "")),
+            remoteControl = database.remoteControl.copy(
+                password = password,
+                streamer = streamer,
+                web = database.remoteControl.web.copy(token = ""),
+            ),
             moblink = database.moblink.copy(password = moblinkPassword),
         ).toJson()
     }
@@ -86,6 +103,10 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             },
             remoteControl = database.remoteControl.copy(
                 password = protect(database.remoteControl.password),
+                // A relay URL's path holds the bridge ID, which lets anyone take the assistant's place.
+                streamer = database.remoteControl.streamer.copy(
+                    url = StreamUrlSecrets.protect(database.remoteControl.streamer.url) { secret -> secrets.put(secret).placeholder },
+                ),
                 web = database.remoteControl.web.copy(token = protect(database.remoteControl.web.token)),
             ),
         )
@@ -100,13 +121,16 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     /** The Moblink password, from the secret store. Keep it in memory only. */
     fun moblinkPassword(): String = SecretRef.resolve(current.moblink.password, secrets)
 
+    /** The assistant (or relay) URL the streamer connects to, with its secret path. Keep it in memory only. */
+    fun remoteControlUrl(): String = SecretRef.resolve(current.remoteControl.streamer.url, secrets)
+
     /** The remote control password, from the secret store. Keep it in memory only. */
     fun remoteControlPassword(): String = SecretRef.resolve(current.remoteControl.password, secrets)
 
     private fun removeUnreferencedSecrets(database: Database) {
         val streamSecrets = database.streams.flatMap { SecretRef.findAll(it.url) + SecretRef.findAll(it.twitchAccessToken) }
         val passwords = SecretRef.findAll(database.remoteControl.password) + SecretRef.findAll(database.moblink.password) +
-            SecretRef.findAll(database.remoteControl.web.token)
+            SecretRef.findAll(database.remoteControl.web.token) + SecretRef.findAll(database.remoteControl.streamer.url)
         val referenced = (streamSecrets + passwords).toSet()
         for (ref in secrets.refs()) {
             if (ref !in referenced) {
