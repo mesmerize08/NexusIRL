@@ -255,4 +255,12 @@
     <string name="alerts_raids">Raids</string>
     <string name="alerts_cheers">Cheers</string>
     <string name="alerts_minimum_bits">Minimum bits</string>
+    <string name="twitch_channel_info">Stream title and category</string>
+    <string name="twitch_channel_info_help">What viewers see on your Twitch channel. Changes apply on Twitch as soon as you update them.</string>
+    <string name="twitch_title">Title</string>
+    <string name="twitch_category_current">Category: %1$s</string>
+    <string name="twitch_category_search">Search categories</string>
+    <string name="twitch_update_channel">Update on Twitch</string>
+    <string name="twitch_update_confirm">Change the title and category of %1$s on Twitch now? Viewers will see it straight away.\n\nTitle: %2$s\nCategory: %3$s</string>
+    <string name="twitch_channel_updated">Updated on Twitch</string>
 </resources>

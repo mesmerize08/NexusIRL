@@ -15,11 +15,12 @@ import java.io.IOException
 
 /**
  * The permissions asked for, only what the app uses (upstream asks for about 30 up front):
- * sending chat, and follow, subscription, cheer and channel point alerts. Raids and viewer counts
- * need none.
+ * sending chat, follow, subscription, cheer and channel point alerts, and changing the stream's
+ * title and category. Raids and viewer counts need none.
  */
 val TWITCH_SCOPES = listOf(
     "user:write:chat",
+    "channel:manage:broadcast",
     "moderator:read:followers",
     "channel:read:subscriptions",
     "bits:read",

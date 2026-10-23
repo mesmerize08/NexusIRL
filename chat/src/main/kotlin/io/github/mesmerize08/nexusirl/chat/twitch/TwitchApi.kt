@@ -17,6 +17,15 @@ import java.io.IOException
 /** The token was rejected (expired or revoked): sign in again or refresh. */
 class TwitchUnauthorizedException : IOException("Twitch rejected the sign-in")
 
+/** The sign-in lacks a permission ([scope]) the request needs: sign in again to grant it. */
+class TwitchMissingScopeException(val scope: String) : IOException("Sign in to Twitch again to allow this ($scope)")
+
+/** A channel's title and category (upstream `TwitchApiChannelInformationData`). */
+data class TwitchChannelInfo(val title: String, val categoryId: String, val categoryName: String)
+
+/** A stream category ("game") from search (upstream `TwitchApiGameData`). */
+data class TwitchCategory(val id: String, val name: String)
+
 /** A live stream (upstream `TwitchApiStreamData`). */
 data class TwitchStreamInfo(val viewerCount: Int, val title: String, val gameName: String)
 
@@ -33,6 +42,9 @@ class TwitchApi(
 
     private fun execute(request: Request): JsonObject? = client.newCall(request).execute().use { response ->
         if (response.code == 401) {
+            // {"error":"Unauthorized","status":401,"message":"Missing scope: channel:manage:broadcast"}
+            val message = response.body?.string().orEmpty()
+            Regex("Missing scope: ([a-z:_]+)").find(message)?.let { throw TwitchMissingScopeException(it.groupValues[1]) }
             throw TwitchUnauthorizedException()
         }
         if (!response.isSuccessful) {
@@ -72,6 +84,45 @@ class TwitchApi(
             gameName = stream["game_name"]?.jsonPrimitive?.content.orEmpty(),
         )
     }
+
+    /** Upstream `getChannelInformation`: the current title and category. Read-only. */
+    fun getChannelInformation(broadcasterId: String): TwitchChannelInfo? {
+        val url = "channels?broadcaster_id=${encode(broadcasterId)}"
+        val channel = (execute(request(url).get().build())?.get("data") as? JsonArray)?.firstOrNull() as? JsonObject ?: return null
+        return TwitchChannelInfo(
+            title = channel["title"]?.jsonPrimitive?.content.orEmpty(),
+            categoryId = channel["game_id"]?.jsonPrimitive?.content.orEmpty(),
+            categoryName = channel["game_name"]?.jsonPrimitive?.content.orEmpty(),
+        )
+    }
+
+    /** Upstream `searchCategories`: up to 10 categories matching [query]. Read-only. */
+    fun searchCategories(query: String): List<TwitchCategory> {
+        val data = execute(request("search/categories?query=${encode(query)}&first=10").get().build())?.get("data") as? JsonArray
+        return data.orEmpty().mapNotNull { element ->
+            val category = element as? JsonObject ?: return@mapNotNull null
+            val id = category["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            TwitchCategory(id, category["name"]?.jsonPrimitive?.content.orEmpty())
+        }
+    }
+
+    /**
+     * Upstream `modifyChannelInformation`: changes the title and/or category on the channel,
+     * publicly and at once. Needs `channel:manage:broadcast`.
+     */
+    fun modifyChannelInformation(broadcasterId: String, title: String?, categoryId: String?) {
+        val body = buildJsonObject {
+            title?.let { put("title", it) }
+            categoryId?.let { put("game_id", it) }
+        }
+        execute(
+            request("channels?broadcaster_id=${encode(broadcasterId)}")
+                .patch(body.toString().toRequestBody("application/json".toMediaType()))
+                .build(),
+        )
+    }
+
+    private fun encode(value: String) = java.net.URLEncoder.encode(value, Charsets.UTF_8).replace("+", "%20")
 
     /** Upstream `sendChatMessage`: posts publicly in the channel's chat. */
     fun sendChatMessage(broadcasterId: String, senderId: String, message: String) {

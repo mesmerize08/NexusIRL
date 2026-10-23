@@ -11,8 +11,14 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Per-stream Twitch alert settings, as in Moblin: which alerts pop up and which appear in chat,
   with a minimum for cheers. Settings imported from iOS keep their choices.
 
+- Twitch stream title and category: shown in the stream's settings, with category search, and
+  changed on Twitch after a confirmation. Needs signing in to Twitch again once (one more
+  permission, `channel:manage:broadcast`).
+
 ### Fixed
 - Twitch alerts always appeared in chat, ignoring the alert settings of imported iOS streams.
+- The privacy policy described an earlier preview; it now lists every service the app contacts
+  and what each receives.
 
 ## [0.1.1] - 2026-10-22
 

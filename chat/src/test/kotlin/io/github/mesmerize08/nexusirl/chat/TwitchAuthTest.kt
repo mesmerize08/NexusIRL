@@ -49,7 +49,7 @@ class TwitchAuthTest {
         assertEquals("/oauth2/device", start.path)
         val form = start.body.readUtf8()
         assertTrue("client_id=clientid123" in form)
-        assertTrue("scopes=user%3Awrite%3Achat%20moderator%3Aread%3Afollowers" in form, form)
+        assertTrue("scopes=user%3Awrite%3Achat%20channel%3Amanage%3Abroadcast%20moderator%3Aread%3Afollowers" in form, form)
         val poll = server.takeRequest().body.readUtf8()
         assertTrue("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code" in poll, poll)
         assertTrue("device_code=dev" in poll)

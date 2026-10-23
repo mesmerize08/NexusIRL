@@ -10,6 +10,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -176,6 +177,9 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         Text(stringResource(R.string.chat), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.chat_channels_help), style = MaterialTheme.typography.bodySmall)
         TwitchSignInSection(store, original?.id) { name, id -> stream = stream.copy(twitchChannelName = name, twitchChannelId = id) }
+        // The saved stream: it holds the current sign-in.
+        val savedStreams = store.database.collectAsState().value.streams
+        original?.let { saved -> savedStreams.firstOrNull { it.id == saved.id } }?.let { TwitchChannelSection(it) }
         ChatTextField(stringResource(R.string.twitch_channel_name), stream.twitchChannelName) {
             stream = stream.copy(twitchChannelName = it)
         }

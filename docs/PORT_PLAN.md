@@ -235,7 +235,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Twitch alert toasts (upstream `makeToast`) and the per-stream chat and toast alert settings
 > (`twitchChatAlerts`, `twitchToastAlerts`, iOS-compatible) are done; the alert widget with images
 > and sounds stays post-v1 with the other alert effects.
-> Still to do: Kick and YouTube sign-in, title and category.
+> Twitch title and category (read, category search, update after a confirmation) are done.
+> Still to do: Kick and YouTube sign-in.
 >
 > **Phase 6 progress:** remote control, streamer side: an iOS Moblin assistant (or the web
 > remote through a compatible assistant) sees status and a preview and controls scenes, going
