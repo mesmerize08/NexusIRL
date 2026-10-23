@@ -65,6 +65,9 @@ Monthly, and before each release:
    weeks old. Update, regenerate the verification metadata (below), review that the new
    checksums are for the expected groups, run the full gate and the UI tests, and test on a
    phone when the camera, codec or network stack changed.
+   Compose 1.12 (BOM 2026.x), core 1.19 and lifecycle 2.11 need AGP 9.1 and compile SDK 37,
+   so they wait for the AGP 9 migration; until then the AndroidX libraries stay on their
+   AGP 8 versions.
 3. Security advisories (GitHub's Dependabot alerts on the repository) are handled right away.
 
 ## Dependency verification
@@ -74,8 +77,11 @@ a tampered or swapped artifact fails the build. After adding or upgrading a depe
 it and review the diff:
 
 ```sh
-./gradlew --write-verification-metadata sha256 ktlintCheck test lint :app:licensee assembleDebug assembleRelease
+./gradlew --write-verification-metadata sha256 --refresh-dependencies ktlintCheck test lint :app:licensee assembleDebug assembleDebugAndroidTest assembleRelease
 ```
+
+`--refresh-dependencies` matters: with a warm cache Gradle skips BOM files, and CI on Linux then
+fails verification.
 
 `aapt2` is published per operating system and Gradle only records the jar for the machine it runs
 on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync by hand
