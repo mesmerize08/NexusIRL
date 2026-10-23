@@ -26,4 +26,19 @@ class SettingsStreamTest {
         val database = io.github.mesmerize08.nexusirl.core.codable.SwiftJson.decodeFromString(Database.Serializer, json)
         assertEquals(3_000_000L, database.bitratePresets.single().bitrate)
     }
+
+    @Test
+    fun twitchAlertSettingsFromIos() {
+        val alerts = """"twitchToastAlerts":{"follows":false,"minimumCheerBits":100},"twitchChatAlerts":{"raids":false}"""
+        val json = """{"streams":[{"name":"S",$alerts}]}"""
+        val database = io.github.mesmerize08.nexusirl.core.codable.SwiftJson.decodeFromString(Database.Serializer, json)
+        val stream = database.streams.single()
+        kotlin.test.assertFalse(stream.twitchToastAlerts.follows)
+        kotlin.test.assertTrue(stream.twitchToastAlerts.subscriptions)
+        kotlin.test.assertFalse(stream.twitchToastAlerts.isBitsEnabled(99))
+        kotlin.test.assertTrue(stream.twitchToastAlerts.isBitsEnabled(100))
+        kotlin.test.assertFalse(stream.twitchChatAlerts.raids)
+        // Missing in older exports: upstream's defaults.
+        kotlin.test.assertTrue(SettingsStream().twitchChatAlerts.follows)
+    }
 }

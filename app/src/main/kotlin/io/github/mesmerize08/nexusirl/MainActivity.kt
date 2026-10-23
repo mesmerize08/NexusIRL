@@ -70,6 +70,7 @@ import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.StreamConfig
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
+import io.github.mesmerize08.nexusirl.ui.AlertToastHost
 import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.ChatControls
 import io.github.mesmerize08.nexusirl.ui.ChatOverlay
@@ -129,7 +130,10 @@ class MainActivity : ComponentActivity() {
                 // Android 15+ draws edge to edge: keep content clear of the system bars, the camera
                 // cutout and the keyboard (landscape puts the navigation bar on the side).
                 Surface(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                    App(pendingLink)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        App(pendingLink)
+                        AlertToastHost(Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+                    }
                 }
             }
         }

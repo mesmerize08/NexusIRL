@@ -232,7 +232,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 > BTTV, FFZ and 7TV emotes can be turned on per stream.
 > A chat settings screen sets the overlay's appearance.
 > Twitch sign-in (Device Code flow) enables sending chat, EventSub alerts and viewer counts.
-> Still to do: Kick and YouTube sign-in, alert toasts and sounds, title and category.
+> Twitch alert toasts (upstream `makeToast`) and the per-stream chat and toast alert settings
+> (`twitchChatAlerts`, `twitchToastAlerts`, iOS-compatible) are done; the alert widget with images
+> and sounds stays post-v1 with the other alert effects.
+> Still to do: Kick and YouTube sign-in, title and category.
 >
 > **Phase 6 progress:** remote control, streamer side: an iOS Moblin assistant (or the web
 > remote through a compatible assistant) sees status and a preview and controls scenes, going

@@ -8,6 +8,8 @@ import io.github.mesmerize08.nexusirl.chat.ChatHighlightKind
 import io.github.mesmerize08.nexusirl.chat.ChatListener
 import io.github.mesmerize08.nexusirl.chat.ChatPlatform
 import io.github.mesmerize08.nexusirl.chat.ChatPost
+import io.github.mesmerize08.nexusirl.chat.TwitchAlert
+import io.github.mesmerize08.nexusirl.chat.TwitchAlertType
 import io.github.mesmerize08.nexusirl.chat.makeChatPostTextSegments
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import io.github.mesmerize08.nexusirl.settings.RgbColor
@@ -216,24 +218,31 @@ class TwitchEventSub(
         }
     }
 
-    private fun alert(user: String, text: String, title: String, color: RgbColor, kind: ChatHighlightKind = ChatHighlightKind.OTHER) {
-        listener.onPost(
-            ChatPost(
-                platform = ChatPlatform.TWITCH,
-                messageId = null,
-                displayName = user,
-                user = user,
-                userId = null,
-                userColor = null,
-                userBadges = emptyList(),
-                segments = makeChatPostTextSegments(text),
-                isAction = false,
-                isSubscriber = false,
-                isModerator = false,
-                bits = null,
-                highlight = ChatHighlight(kind, title, barColor = color),
-            ),
+    private fun alert(
+        type: TwitchAlertType,
+        user: String,
+        text: String,
+        title: String,
+        color: RgbColor,
+        kind: ChatHighlightKind = ChatHighlightKind.OTHER,
+        bits: Int? = null,
+    ) {
+        val post = ChatPost(
+            platform = ChatPlatform.TWITCH,
+            messageId = null,
+            displayName = user,
+            user = user,
+            userId = null,
+            userColor = null,
+            userBadges = emptyList(),
+            segments = makeChatPostTextSegments(text),
+            isAction = false,
+            isSubscriber = false,
+            isModerator = false,
+            bits = null,
+            highlight = ChatHighlight(kind, title, barColor = color),
         )
+        listener.onTwitchAlert(TwitchAlert(type, user, text, bits, post))
     }
 
     /** Upstream `joinTwitchAlertText`: the alert text, then the viewer's message if any. */
@@ -245,6 +254,7 @@ class TwitchEventSub(
     private fun handleNotification(type: String?, event: JsonElement?) {
         when (type) {
             "channel.follow" -> alert(
+                TwitchAlertType.FOLLOW,
                 event.text("user_name") ?: return,
                 "just followed!",
                 "New follower",
@@ -252,7 +262,13 @@ class TwitchEventSub(
                 ChatHighlightKind.NEW_FOLLOWER,
             )
             "channel.subscribe" -> if (!event.bool("is_gift")) {
-                alert(event.text("user_name") ?: return, "just subscribed tier ${tier(event.text("tier"))}!", "New subscriber", CYAN)
+                alert(
+                    TwitchAlertType.SUBSCRIPTION,
+                    event.text("user_name") ?: return,
+                    "just subscribed tier ${tier(event.text("tier"))}!",
+                    "New subscriber",
+                    CYAN,
+                )
             }
             "channel.subscription.message" -> {
                 val months = event.number("cumulative_months") ?: 1
@@ -262,18 +278,20 @@ class TwitchEventSub(
                 } else {
                     "just resubscribed tier ${tier(event.text("tier"))} for $months months!"
                 }
-                alert(event.text("user_name") ?: return, withMessage(text, event), "New resubscribe", CYAN)
+                alert(TwitchAlertType.RESUBSCRIPTION, event.text("user_name") ?: return, withMessage(text, event), "New resubscribe", CYAN)
             }
             "channel.subscription.gift" -> {
                 val user = if (event.bool("is_anonymous")) null else event.text("user_name")
                 val text = "just gifted ${event.number("total") ?: 1} tier ${tier(event.text("tier"))} subscriptions!"
-                alert(user ?: "Anonymous", text, "Gift subscriptions", CYAN)
+                alert(TwitchAlertType.GIFT_SUBSCRIPTION, user ?: "Anonymous", text, "Gift subscriptions", CYAN)
             }
             "channel.cheer" -> {
                 val user = if (event.bool("is_anonymous")) null else event.text("user_name")
-                alert(user ?: "Anonymous", withMessage("cheered ${event.number("bits") ?: 0} bits!", event), "Cheer", GREEN)
+                val bits = event.number("bits") ?: 0
+                alert(TwitchAlertType.CHEER, user ?: "Anonymous", withMessage("cheered $bits bits!", event), "Cheer", GREEN, bits = bits)
             }
             "channel.raid" -> alert(
+                TwitchAlertType.RAID,
                 event.text("from_broadcaster_user_name") ?: return,
                 "raided with a party of ${event.number("viewers") ?: 0}!",
                 "Raid",
@@ -283,6 +301,7 @@ class TwitchEventSub(
                 val reward = event.field("reward").text("title") ?: return
                 val input = event.text("user_input")
                 alert(
+                    TwitchAlertType.REWARD,
                     event.text("user_name") ?: return,
                     if (input.isNullOrBlank()) "redeemed $reward!" else "redeemed $reward! $input",
                     "Reward redemption",

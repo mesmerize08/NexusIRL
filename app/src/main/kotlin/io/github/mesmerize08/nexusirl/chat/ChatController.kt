@@ -15,12 +15,15 @@ import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
 import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
+import io.github.mesmerize08.nexusirl.settings.SettingsTwitchAlerts
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.twitch.TwitchAccount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -66,6 +69,11 @@ object ChatController {
     private val mutableTwitchViewers = MutableStateFlow<Int?>(null)
 
     private val mutableTwitchAlertsConnected = MutableStateFlow<Boolean?>(null)
+
+    private val mutableToasts = MutableSharedFlow<String>(extraBufferCapacity = 16)
+
+    /** Twitch alerts to show as toasts on the streamer's screen (upstream `makeToast`). */
+    val toasts: SharedFlow<String> = mutableToasts
 
     /** Whether Twitch alerts (EventSub) are subscribed; null when not signed in. */
     val twitchAlertsConnected: StateFlow<Boolean?> = mutableTwitchAlertsConnected
@@ -179,6 +187,18 @@ object ChatController {
             // Its own connection state, apart from the anonymous chat connection.
             val alertsListener = object : ChatListener {
                 override fun onPost(post: ChatPost) = listener.onPost(post)
+
+                // Upstream: each kind goes to chat and/or a toast, per the stream's settings
+                // (read when the alert arrives, so a change needs no reconnect).
+                override fun onTwitchAlert(alert: TwitchAlert) {
+                    val stream = store?.current?.selectedStream
+                    if ((stream?.twitchChatAlerts ?: SettingsTwitchAlerts()).allows(alert)) {
+                        listener.onPost(alert.post)
+                    }
+                    if ((stream?.twitchToastAlerts ?: SettingsTwitchAlerts()).allows(alert)) {
+                        mutableToasts.tryEmit("${alert.user} ${alert.text}")
+                    }
+                }
 
                 override fun onConnectionChanged(platform: ChatPlatform, connected: Boolean) = onMain(current) {
                     mutableTwitchAlertsConnected.value = connected

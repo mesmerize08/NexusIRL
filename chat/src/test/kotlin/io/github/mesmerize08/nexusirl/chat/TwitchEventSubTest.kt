@@ -39,6 +39,56 @@ class TwitchEventSubTest {
         return posts
     }
 
+    private fun collectAlerts(vararg messages: String): List<TwitchAlert> {
+        val alerts = mutableListOf<TwitchAlert>()
+        val eventSub = TwitchEventSub(
+            "1337",
+            object : ChatListener {
+                override fun onPost(post: ChatPost) = Unit
+
+                override fun onTwitchAlert(alert: TwitchAlert) {
+                    alerts += alert
+                }
+            },
+            api = { null },
+        )
+        messages.forEach(eventSub::handleMessage)
+        return alerts
+    }
+
+    /** Each alert says what kind it is (for the per-kind chat and toast settings) and the bits of a cheer. */
+    @Test
+    fun typedAlerts() {
+        val alerts = collectAlerts(
+            notification("channel.follow", """{"user_name":"Cool_User"}"""),
+            notification("channel.subscribe", """{"user_name":"Cool_User","tier":"1000","is_gift":false}"""),
+            notification("channel.subscription.message", """{"user_name":"Cool_User","tier":"1000","cumulative_months":3}"""),
+            notification("channel.subscription.gift", """{"user_name":"Cool_User","total":2,"tier":"1000","is_anonymous":false}"""),
+            notification("channel.cheer", """{"is_anonymous":false,"user_name":"Cool_User","message":"","bits":250}"""),
+            notification("channel.raid", """{"from_broadcaster_user_name":"Cool_User","viewers":12}"""),
+            notification(
+                "channel.channel_points_custom_reward_redemption.add",
+                """{"user_name":"Cool_User","user_input":"","reward":{"title":"Hydrate"}}""",
+            ),
+        )
+        assertEquals(
+            listOf(
+                TwitchAlertType.FOLLOW,
+                TwitchAlertType.SUBSCRIPTION,
+                TwitchAlertType.RESUBSCRIPTION,
+                TwitchAlertType.GIFT_SUBSCRIPTION,
+                TwitchAlertType.CHEER,
+                TwitchAlertType.RAID,
+                TwitchAlertType.REWARD,
+            ),
+            alerts.map { it.type },
+        )
+        val cheer = alerts.single { it.type == TwitchAlertType.CHEER }
+        assertEquals(250, cheer.bits)
+        assertEquals("Cool_User", cheer.user)
+        assertEquals("just followed!", alerts.first().text)
+    }
+
     private fun line(post: ChatPost) = "${post.highlight?.title}: ${post.displayName} ${post.text()}"
 
     @Test

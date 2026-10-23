@@ -5,6 +5,15 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- Twitch alert pop-ups on the streamer's screen (follows, subscriptions, resubscriptions, gift
+  subscriptions, channel point rewards, raids, cheers), one at a time.
+- Per-stream Twitch alert settings, as in Moblin: which alerts pop up and which appear in chat,
+  with a minimum for cheers. Settings imported from iOS keep their choices.
+
+### Fixed
+- Twitch alerts always appeared in chat, ignoring the alert settings of imported iOS streams.
+
 ## [0.1.1] - 2026-10-22
 
 ### Added

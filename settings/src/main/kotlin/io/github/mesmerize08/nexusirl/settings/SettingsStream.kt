@@ -258,6 +258,8 @@ data class SettingsStream(
     val youTubeVideoIds: String = "",
     val youTubeHandle: String = "",
     val chat: SettingsStreamChat = SettingsStreamChat(),
+    val twitchChatAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
+    val twitchToastAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsStream>(generatedSerializer())

@@ -62,8 +62,20 @@ data class ChatPost(
 }
 
 /** Receives chat events from a platform connection. Called from network threads. */
+/** Twitch alert kinds, as upstream's per-kind alert settings (`SettingsTwitchAlerts`). */
+enum class TwitchAlertType { FOLLOW, SUBSCRIPTION, RESUBSCRIPTION, GIFT_SUBSCRIPTION, CHEER, RAID, REWARD }
+
+/**
+ * A Twitch alert (EventSub): its kind, who, upstream's text ("just followed!"), the bits of a
+ * cheer, and the highlighted chat post for it.
+ */
+data class TwitchAlert(val type: TwitchAlertType, val user: String, val text: String, val bits: Int?, val post: ChatPost)
+
 interface ChatListener {
     fun onPost(post: ChatPost)
+
+    /** A Twitch alert; by default it goes to chat. Listeners with settings filter it. */
+    fun onTwitchAlert(alert: TwitchAlert) = onPost(alert.post)
 
     fun onDeleteMessage(messageId: String) {}
 

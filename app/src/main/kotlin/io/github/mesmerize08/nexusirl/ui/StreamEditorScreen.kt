@@ -23,6 +23,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.settings.STREAM_FPS_CHOICES
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
+import io.github.mesmerize08.nexusirl.settings.SettingsTwitchAlerts
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamResolution
@@ -192,8 +193,44 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         EmoteSwitch("BTTV", stream.chat.bttvEmotes) { stream = stream.copy(chat = stream.chat.copy(bttvEmotes = it)) }
         EmoteSwitch("FFZ", stream.chat.ffzEmotes) { stream = stream.copy(chat = stream.chat.copy(ffzEmotes = it)) }
         EmoteSwitch("7TV", stream.chat.seventvEmotes) { stream = stream.copy(chat = stream.chat.copy(seventvEmotes = it)) }
+        HorizontalDivider()
+        // Upstream's Twitch alert settings: follows, subs, cheers and so on, with sign-in.
+        Text(stringResource(R.string.twitch_alerts), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.twitch_alerts_help), style = MaterialTheme.typography.bodySmall)
+        TwitchAlertSwitches(stringResource(R.string.twitch_alerts_toasts), stream.twitchToastAlerts) {
+            stream = stream.copy(twitchToastAlerts = it)
+        }
+        TwitchAlertSwitches(stringResource(R.string.twitch_alerts_chat), stream.twitchChatAlerts) {
+            stream = stream.copy(twitchChatAlerts = it)
+        }
     }
 }
+
+/** One set of upstream's per-kind Twitch alert switches (for toasts, or for chat). */
+@Composable
+private fun TwitchAlertSwitches(title: String, alerts: SettingsTwitchAlerts, onChange: (SettingsTwitchAlerts) -> Unit) {
+    Text(title, style = MaterialTheme.typography.titleSmall)
+    SwitchRow(stringResource(R.string.alerts_follows), alerts.follows) { onChange(alerts.copy(follows = it)) }
+    SwitchRow(stringResource(R.string.alerts_subscriptions), alerts.subscriptions) { onChange(alerts.copy(subscriptions = it)) }
+    SwitchRow(stringResource(R.string.alerts_resubscriptions), alerts.resubscriptions) { onChange(alerts.copy(resubscriptions = it)) }
+    SwitchRow(stringResource(R.string.alerts_gift_subscriptions), alerts.giftSubscriptions) {
+        onChange(alerts.copy(giftSubscriptions = it))
+    }
+    SwitchRow(stringResource(R.string.alerts_rewards), alerts.rewards) { onChange(alerts.copy(rewards = it)) }
+    SwitchRow(stringResource(R.string.alerts_raids), alerts.raids) { onChange(alerts.copy(raids = it)) }
+    SwitchRow(stringResource(R.string.alerts_cheers), alerts.cheers) { onChange(alerts.copy(cheers = it)) }
+    if (alerts.cheers) {
+        ChoiceField(
+            stringResource(R.string.alerts_minimum_bits),
+            alerts.minimumCheerBits,
+            (MINIMUM_BITS_CHOICES + alerts.minimumCheerBits).distinct().sorted(),
+            { "$it" },
+            { onChange(alerts.copy(minimumCheerBits = it)) },
+        )
+    }
+}
+
+private val MINIMUM_BITS_CHOICES = listOf(0, 100, 500, 1000, 5000, 10000)
 
 @Composable
 private fun EmoteSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {

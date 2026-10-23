@@ -243,4 +243,16 @@
     <string name="share_diagnostics_text">Creates a text file for a bug report: app and phone details, what the app is doing, your settings without stream keys, and the app\'s recent log. Stream keys, passwords and tokens are removed. It may still show server addresses and network names, so check it before you send it.</string>
     <string name="share_diagnostics_create">Create and share</string>
     <string name="share_diagnostics_failed">Could not create the diagnostics file</string>
+    <string name="twitch_alerts">Twitch alerts</string>
+    <string name="twitch_alerts_help">Follows, subscriptions, cheers and more, while signed in to Twitch. Choose which ones pop up on your screen and which ones appear in chat.</string>
+    <string name="twitch_alerts_toasts">Pop up on screen</string>
+    <string name="twitch_alerts_chat">Show in chat</string>
+    <string name="alerts_follows">Follows</string>
+    <string name="alerts_subscriptions">Subscriptions</string>
+    <string name="alerts_resubscriptions">Resubscriptions</string>
+    <string name="alerts_gift_subscriptions">Gift subscriptions</string>
+    <string name="alerts_rewards">Channel point rewards</string>
+    <string name="alerts_raids">Raids</string>
+    <string name="alerts_cheers">Cheers</string>
+    <string name="alerts_minimum_bits">Minimum bits</string>
 </resources>
