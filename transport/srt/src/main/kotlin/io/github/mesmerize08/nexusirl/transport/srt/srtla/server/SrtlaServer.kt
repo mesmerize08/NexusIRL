@@ -57,6 +57,9 @@ private class GroupId(val bytes: ByteArray) {
  * connection, to the SRT listener on 127.0.0.1:[srtPort]. Confined to [executor]
  * (upstream `srtlaServerQueue`).
  */
+/** One bonded path as the server sees it: totals since it registered (for logs and field tests). */
+data class SrtlaServerPathStatistics(val endpoint: String, val packets: Long, val bytes: Long, val dataPackets: Long)
+
 class SrtlaServer(
     private val srtlaPort: Int,
     private val srtPort: Int,
@@ -75,6 +78,11 @@ class SrtlaServer(
 
     val numberOfClients: Int
         get() = clients.size
+
+    /** Every registered path with its counters. Runs [onResult] on the server's executor. */
+    fun pathStatistics(onResult: (List<SrtlaServerPathStatistics>) -> Unit) = executor.execute {
+        onResult(connectionsByEndpoint.values.filter { !it.removed }.map { it.statistics() })
+    }
 
     fun start() {
         val socket = DatagramSocket(null).apply {
@@ -364,18 +372,26 @@ internal class SrtlaServerClientConnection(
     private val client: SrtlaServerClient,
 ) {
     private var latestReceivedTime = clock.nanoTime()
+    private var packets = 0L
+    private var bytes = 0L
+    private var dataPackets = 0L
     private val ackPacket = createSrtlaPacket(SrtlaPacketType.ACK, ACK_PACKET_LENGTH)
     private var nextSnOffset = SRT_CONTROL_TYPE_SIZE + 2
     var removed = false
 
     fun isActive(now: Long): Boolean = now - latestReceivedTime < CONNECTION_REMOVE_TIMEOUT_NANOS
 
+    fun statistics() = SrtlaServerPathStatistics(endpoint.toString().removePrefix("/"), packets, bytes, dataPackets)
+
     fun handlePacketFromClient(packet: ByteArray) {
         if (packet.size < SRT_CONTROL_TYPE_SIZE) {
             return
         }
         latestReceivedTime = clock.nanoTime()
+        packets += 1
+        bytes += packet.size
         if (isSrtDataPacket(packet)) {
+            dataPackets += 1
             if (packet.size < 4) {
                 return
             }

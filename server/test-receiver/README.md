@@ -22,5 +22,8 @@ ssh root@SERVER cat /etc/nexusirl/srt-passphrase
 In the app, add a stream with the URL `srtla://SERVER:5000?passphrase=PASSPHRASE`. Recordings are
 in `/var/lib/nexusirl/recordings` on the server (MPEG-TS, 10-minute segments).
 
+The receiver logs every path (network) of a stream every 5 seconds: `journalctl -u nexusirl-srtla`.
+For testing bonding away from a desk, see [docs/testing/field-test.md](../../docs/testing/field-test.md).
+
 To test from a desktop instead: `tools/push/build/install/push/bin/push --input clip.mp4 --url
 "srtla://SERVER:5000?passphrase=PASSPHRASE"`.

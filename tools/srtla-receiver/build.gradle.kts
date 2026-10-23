@@ -14,4 +14,11 @@ application {
 
 dependencies {
     implementation(project(":transport:srt"))
+    testImplementation(kotlin("test"))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
