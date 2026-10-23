@@ -26,7 +26,6 @@
     <string name="camera">Câmera</string>
     <string name="record">Gravação</string>
     <string name="stop_recording">Parar de gravar</string>
-    <string name="snapshot">Capturar tela</string>
     <string name="not_supported_by_camera">Não compatível com esta câmera</string>
     <string name="stabilization">Estabilização de vídeo</string>
     <string name="scenes">Cenas</string>

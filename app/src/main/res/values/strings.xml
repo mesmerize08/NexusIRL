@@ -43,7 +43,10 @@
     <string name="import_settings">Import settings</string>
     <string name="import_not_while_live">End the stream before importing settings.</string>
     <string name="import_confirm_title">Replace all settings?</string>
-    <string name="import_confirm_text">The file has %1$d stream(s): %2$s. Your current settings will be replaced.</string>
+    <plurals name="import_confirm_text">
+        <item quantity="one">The file has %1$d stream: %2$s. Your current settings will be replaced.</item>
+        <item quantity="other">The file has %1$d streams: %2$s. Your current settings will be replaced.</item>
+    </plurals>
     <string name="import_contains_keys">This file contains stream keys. They will be stored encrypted on this phone.</string>
     <string name="replace_settings">Replace</string>
     <string name="imported">Settings imported.</string>
@@ -75,7 +78,6 @@
     <string name="stop_recording">Stop recording</string>
     <string name="recording_saved">Recording saved to Movies/NexusIRL.</string>
     <string name="recording_failed">Recording failed: nothing was recorded.</string>
-    <string name="snapshot">Snapshot</string>
     <string name="snapshot_saved">Snapshot saved to Pictures/NexusIRL.</string>
     <string name="snapshot_failed">Snapshot failed: no camera frame yet.</string>
     <string name="camera_settings">Camera settings</string>

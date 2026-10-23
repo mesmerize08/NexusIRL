@@ -22,7 +22,6 @@
     <string name="torch">Lampe torche</string>
     <string name="camera">Caméra</string>
     <string name="stop_recording">Arrêter l’enregistrement</string>
-    <string name="snapshot">Capture d’écran</string>
     <string name="not_supported_by_camera">Non supporté pour cette caméra</string>
     <string name="stabilization">Stabilisation vidéo</string>
     <string name="scenes">Scènes</string>

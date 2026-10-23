@@ -2,6 +2,7 @@
 // @97e26d2.
 package io.github.mesmerize08.nexusirl.moblink
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -11,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import androidx.core.content.edit
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import io.github.mesmerize08.nexusirl.net.AndroidBondingInterface
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
@@ -46,6 +48,7 @@ data class DiscoveredMoblinkStreamer(val name: String, val url: String)
  *
  * Call from the main thread.
  */
+@SuppressLint("StaticFieldLeak") // Holds only the application context.
 object MoblinkController {
     private val handler = Handler(Looper.getMainLooper())
     private var context: Context? = null
@@ -193,7 +196,7 @@ object MoblinkController {
     private fun relayId(context: Context): UUID {
         val preferences = context.getSharedPreferences("moblink", Context.MODE_PRIVATE)
         val stored = preferences.getString("relayId", null)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-        return stored ?: UUID.randomUUID().also { preferences.edit().putString("relayId", it.toString().uppercase()).apply() }
+        return stored ?: UUID.randomUUID().also { preferences.edit { putString("relayId", it.toString().uppercase()) } }
     }
 
     /** Upstream `moblinkRelayGetStatus`: battery and thermal state. Any thread. */

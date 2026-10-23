@@ -29,7 +29,6 @@
     <string name="camera">相機</string>
     <string name="record">錄製</string>
     <string name="stop_recording">停止錄製</string>
-    <string name="snapshot">截圖</string>
     <string name="not_supported_by_camera">此相機不支援</string>
     <string name="auto">自動</string>
     <string name="focus">專注</string>

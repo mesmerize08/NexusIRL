@@ -1,11 +1,14 @@
 // Port of the streamer parts of Moblin/Various/Model/ModelRemoteControl.swift @97e26d2 (v1 subset).
 package io.github.mesmerize08.nexusirl.remote
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import androidx.core.content.edit
+import androidx.core.graphics.scale
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAssistantStreamerState
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioInfo
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioLevel
@@ -53,6 +56,7 @@ enum class RemoteControlConnection { OFF, CONNECTING, CONNECTED, WRONG_PASSWORD 
  *
  * Call from the main thread.
  */
+@SuppressLint("StaticFieldLeak") // Holds only the application context.
 object RemoteControlController {
     private val handler = Handler(Looper.getMainLooper())
     private var context: Context? = null
@@ -219,7 +223,7 @@ object RemoteControlController {
     private fun streamerId(): String {
         val preferences = context!!.getSharedPreferences("remote_control", Context.MODE_PRIVATE)
         return preferences.getString("streamerId", null) ?: UUID.randomUUID().toString().uppercase().also {
-            preferences.edit().putString("streamerId", it).apply()
+            preferences.edit { putString("streamerId", it) }
         }
     }
 
@@ -355,8 +359,7 @@ object RemoteControlController {
     /** Upstream `VideoLowFpsImage`: 400 pixels on the long side, JPEG quality 0.3. */
     private fun jpeg(frame: Bitmap): ByteArray {
         val scale = 400f / maxOf(frame.width, frame.height)
-        val small = Bitmap.createScaledBitmap(
-            frame,
+        val small = frame.scale(
             (frame.width * scale).toInt().coerceAtLeast(1),
             (frame.height * scale).toInt().coerceAtLeast(1),
             true,

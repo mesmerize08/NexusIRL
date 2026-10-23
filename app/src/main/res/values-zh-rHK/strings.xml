@@ -28,7 +28,6 @@
     <string name="camera">鏡頭</string>
     <string name="record">錄影</string>
     <string name="stop_recording">停止錄影</string>
-    <string name="snapshot">截圖</string>
     <string name="not_supported_by_camera">未支援此鏡頭</string>
     <string name="auto">自動</string>
     <string name="stabilization">防震/穩定</string>

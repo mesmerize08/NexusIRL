@@ -29,7 +29,6 @@
     <string name="camera">Kamera</string>
     <string name="record">Aufzeichnen</string>
     <string name="stop_recording">Aufnahme stoppen</string>
-    <string name="snapshot">Schnappschuss</string>
     <string name="not_supported_by_camera">Wird von dieser Kamera nicht unterstützt</string>
     <string name="auto">Auto</string>
     <string name="focus">Fokus</string>

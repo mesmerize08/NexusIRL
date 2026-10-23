@@ -48,7 +48,11 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation"
-            android:screenOrientation="sensorLandscape">
+            android:screenOrientation="sensorLandscape"
+            tools:ignore="DiscouragedApi">
+            <!-- Only the start-up orientation: MainActivity applies the portrait/landscape
+                 setting from the stream, like upstream, since the camera pipeline and stream
+                 canvas follow it. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

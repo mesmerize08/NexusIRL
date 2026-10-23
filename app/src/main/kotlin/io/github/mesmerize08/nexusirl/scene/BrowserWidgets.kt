@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.app.Presentation
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.os.Handler
@@ -17,6 +16,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.core.graphics.drawable.toDrawable
 import io.github.mesmerize08.nexusirl.BuildConfig
 import io.github.mesmerize08.nexusirl.chat.BrowserChatProtocol
 import io.github.mesmerize08.nexusirl.chat.BrowserChatSubscription
@@ -102,7 +102,7 @@ class BrowserWidgets(context: Context) {
                 val webView = createWebView(presentation.context, settings, entry.bridge)
                 entry.webView = webView
                 presentation.apply {
-                    window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                    window?.setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
                     setContentView(webView)
                     show()
                 }

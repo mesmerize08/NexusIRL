@@ -29,7 +29,6 @@
     <string name="camera">Kamera</string>
     <string name="record">Spela in</string>
     <string name="stop_recording">Sluta spela in</string>
-    <string name="snapshot">Foto</string>
     <string name="not_supported_by_camera">Stöds inte av denna kamera</string>
     <string name="auto">Auto</string>
     <string name="focus">Fokus</string>

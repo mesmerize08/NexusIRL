@@ -28,7 +28,6 @@
     <string name="camera">Fotocamera</string>
     <string name="record">Registra</string>
     <string name="stop_recording">Ferma registrazione</string>
-    <string name="snapshot">Snapshot</string>
     <string name="not_supported_by_camera">Non supportato per questa fotocamera</string>
     <string name="auto">Auto</string>
     <string name="focus">Concentrazione</string>

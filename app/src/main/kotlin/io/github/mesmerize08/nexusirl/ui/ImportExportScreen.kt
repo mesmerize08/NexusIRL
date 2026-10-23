@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.settings.Database
@@ -110,7 +111,12 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
             text = {
                 val streams = pending.database.streams.joinToString(", ") { it.name }.ifEmpty { "-" }
                 Text(
-                    stringResource(R.string.import_confirm_text, pending.database.streams.size, streams) +
+                    pluralStringResource(
+                        R.plurals.import_confirm_text,
+                        pending.database.streams.size,
+                        pending.database.streams.size,
+                        streams,
+                    ) +
                         if (pending.containsSecrets) "\n\n" + stringResource(R.string.import_contains_keys) else "",
                 )
             },

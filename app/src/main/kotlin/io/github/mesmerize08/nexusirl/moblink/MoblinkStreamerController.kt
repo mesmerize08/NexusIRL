@@ -1,6 +1,7 @@
 // Port of the streamer parts of Moblin/Various/Model/ModelMoblink.swift @97e26d2.
 package io.github.mesmerize08.nexusirl.moblink
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -8,6 +9,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import androidx.core.content.edit
 import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.stream.StreamController
@@ -28,6 +30,7 @@ import java.util.UUID
  *
  * Call from the main thread, except [startTunnels] and [stopTunnels] (any thread).
  */
+@SuppressLint("StaticFieldLeak") // Holds only the application context.
 object MoblinkStreamerController {
     private val handler = Handler(Looper.getMainLooper())
     private var context: Context? = null
@@ -153,7 +156,7 @@ object MoblinkStreamerController {
     private fun serviceId(context: Context): String {
         val preferences = context.getSharedPreferences("moblink", Context.MODE_PRIVATE)
         return preferences.getString("serverId", null) ?: UUID.randomUUID().toString().uppercase().also {
-            preferences.edit().putString("serverId", it).apply()
+            preferences.edit { putString("serverId", it) }
         }
     }
 

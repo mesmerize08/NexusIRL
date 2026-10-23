@@ -28,7 +28,6 @@
     <string name="camera">카메라</string>
     <string name="record">녹화</string>
     <string name="stop_recording">녹화 중지</string>
-    <string name="snapshot">스냅샷</string>
     <string name="not_supported_by_camera">이 카메라에서는 지원되지 않습니다.</string>
     <string name="auto">자동</string>
     <string name="stabilization">비디오 안정화</string>

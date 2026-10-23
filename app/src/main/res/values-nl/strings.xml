@@ -8,6 +8,5 @@
     <string name="streams">Output streams</string>
     <string name="resolution">Resolutie</string>
     <string name="torch">Lamp</string>
-    <string name="snapshot">Snapshot</string>
     <string name="moblin_access">Moblin toegang</string>
 </resources>

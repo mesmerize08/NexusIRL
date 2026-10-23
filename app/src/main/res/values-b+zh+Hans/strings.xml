@@ -27,7 +27,6 @@
     <string name="camera">镜头</string>
     <string name="record">录像</string>
     <string name="stop_recording">停止录制</string>
-    <string name="snapshot">快照</string>
     <string name="not_supported_by_camera">不支持此相机</string>
     <string name="auto">自动</string>
     <string name="stabilization">视频稳定/防抖</string>

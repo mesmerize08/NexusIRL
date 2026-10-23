@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Renaming to mipmap-anydpi makes AGP merge the adaptive icons as anydpi-v4, and they are
+         then missing from the build, so the -v26 folder stays. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>

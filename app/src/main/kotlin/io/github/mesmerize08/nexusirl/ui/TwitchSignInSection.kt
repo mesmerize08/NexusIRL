@@ -1,7 +1,6 @@
 package io.github.mesmerize08.nexusirl.ui
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.twitch.TwitchAccount
@@ -79,7 +79,7 @@ fun TwitchSignInSection(store: SettingsStore, streamId: UUID?, onSignedIn: (name
             confirmButton = {
                 // On this phone: the link already contains the code.
                 Button(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(waiting.code.verificationUri)))
+                    context.startActivity(Intent(Intent.ACTION_VIEW, waiting.code.verificationUri.toUri()))
                 }) { Text(stringResource(R.string.twitch_open_activate)) }
             },
             dismissButton = { TextButton(onClick = { TwitchAccount.cancelSignIn() }) { Text(stringResource(R.string.cancel)) } },

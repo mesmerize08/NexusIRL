@@ -14,6 +14,8 @@ import android.text.TextPaint
 import android.text.style.ForegroundColorSpan
 import android.text.style.ReplacementSpan
 import android.text.style.StyleSpan
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withTranslation
 import io.github.mesmerize08.nexusirl.chat.ChatPost
 import io.github.mesmerize08.nexusirl.settings.SettingsWidgetChat
 import kotlin.math.ceil
@@ -101,7 +103,7 @@ object ChatWidgetBitmap {
         if (height <= 0) {
             return null
         }
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(width, height)
         val canvas = Canvas(bitmap)
         val background = Paint().apply {
             val color = settings.backgroundColor
@@ -118,11 +120,10 @@ object ChatWidgetBitmap {
                 bar.color = it.argb()
                 canvas.drawRect(0f, y.toFloat(), BAR_WIDTH.toFloat(), (y + line.fill.height).toFloat(), bar)
             }
-            canvas.save()
-            canvas.translate(textX.toFloat(), y.toFloat())
-            line.stroke?.draw(canvas)
-            line.fill.draw(canvas)
-            canvas.restore()
+            canvas.withTranslation(textX.toFloat(), y.toFloat()) {
+                line.stroke?.draw(this)
+                line.fill.draw(this)
+            }
             y += line.fill.height + 1
         }
         return bitmap

@@ -1,6 +1,7 @@
 // Port of the assistant parts of Moblin/Various/Model/ModelRemoteControl.swift @97e26d2 (v1 subset).
 package io.github.mesmerize08.nexusirl.remote
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -49,6 +50,7 @@ data class RemoteStreamerView(
  * (LAN, hotspot and Tailscale only, never mobile data) for one streamer, shows its status and
  * preview, and sends it commands. Call from the main thread.
  */
+@SuppressLint("StaticFieldLeak") // Holds only the application context.
 object RemoteControlAssistantController {
     private val handler = Handler(Looper.getMainLooper())
     private var context: Context? = null

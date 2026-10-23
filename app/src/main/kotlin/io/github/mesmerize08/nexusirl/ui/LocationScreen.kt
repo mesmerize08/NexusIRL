@@ -17,7 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,7 +42,7 @@ fun LocationScreen(store: SettingsStore, onBack: () -> Unit) {
     val database by store.database.collectAsState()
     val active by LocationController.active.collectAsState()
     val location = database.location
-    var regionSize by remember { mutableStateOf(500.0) }
+    var regionSize by remember { mutableDoubleStateOf(500.0) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         LocationController.start(context)
     }

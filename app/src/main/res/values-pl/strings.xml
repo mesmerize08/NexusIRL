@@ -27,7 +27,6 @@
     <string name="camera">Aparat</string>
     <string name="record">Nagraj</string>
     <string name="stop_recording">Zatrzymaj nagrywanie</string>
-    <string name="snapshot">Snapshot</string>
     <string name="not_supported_by_camera">Nieobsługiwane w tym aparacie</string>
     <string name="auto">Automatyczny(e)</string>
     <string name="stabilization">Stabilizacja wideo</string>

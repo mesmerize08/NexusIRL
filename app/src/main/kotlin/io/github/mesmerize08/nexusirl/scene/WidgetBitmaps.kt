@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import androidx.core.graphics.createBitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -48,7 +49,7 @@ object WidgetBitmaps {
         if (width <= 0 || height <= 0 || widths.all { it == 0f }) {
             return null
         }
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(width, height)
         val canvas = Canvas(bitmap)
         val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = background }
         val radius = settings.cornerRadius * (fontSize / settings.fontSize.coerceAtLeast(1))

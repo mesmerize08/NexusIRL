@@ -28,7 +28,6 @@
     <string name="camera">Камера</string>
     <string name="record">Записать</string>
     <string name="stop_recording">Остановить запись</string>
-    <string name="snapshot">Снимок</string>
     <string name="not_supported_by_camera">Не поддерживается для этой камеры</string>
     <string name="auto">Авто</string>
     <string name="focus">Концентрация</string>

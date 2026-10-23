@@ -28,7 +28,6 @@
     <string name="camera">Kamera</string>
     <string name="record">Tallenna</string>
     <string name="stop_recording">Lopeta tallennus</string>
-    <string name="snapshot">Kuvankaappaus</string>
     <string name="not_supported_by_camera">Tätä kameraa ei tueta</string>
     <string name="auto">Auto</string>
     <string name="focus">Keskity</string>

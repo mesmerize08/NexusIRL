@@ -84,6 +84,8 @@ android {
         // Translations come from upstream Moblin's catalog where its English text matches ours
         // (tools/import-translations.py); other strings fall back to English by design.
         disable += "MissingTranslation"
+        // Logging goes through android.util.Log with redaction (core/secrets); Timber is not used.
+        disable += "LogNotTimber"
     }
 
     buildFeatures {

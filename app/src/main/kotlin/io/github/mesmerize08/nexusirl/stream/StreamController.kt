@@ -1,5 +1,6 @@
 package io.github.mesmerize08.nexusirl.stream
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -93,6 +94,7 @@ object StreamController {
     val status: StateFlow<StreamStatus> = mutableStatus
 
     @Volatile
+    @SuppressLint("StaticFieldLeak") // Holds only the application context.
     internal var session: StreamSession? = null
     private var previewSurface: Surface? = null
 
@@ -112,12 +114,16 @@ object StreamController {
     // Scenes (upstream ModelScene.swift)
 
     private var sceneEngine: SceneEngine? = null
+
+    @SuppressLint("StaticFieldLeak") // Holds only the application context.
     private var browserWidgets: BrowserWidgets? = null
 
     private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: BrowserWidgets(context).also { widgets ->
         browserWidgets = widgets
         ChatController.addPostListener(widgets::sendChat)
     }
+
+    @SuppressLint("StaticFieldLeak") // Holds only the application context.
     private var mapWidgets: MapWidgets? = null
 
     private fun maps(context: Context): MapWidgets = mapWidgets ?: MapWidgets(context).also { maps ->
@@ -556,6 +562,7 @@ object StreamController {
     @Volatile
     private var displayRotationDegrees = 0
 
+    @SuppressLint("StaticFieldLeak") // Holds only the application context.
     private var pipeline: VideoPipeline? = null
     private var uiVisible = false
     private var cameraId: String? = null

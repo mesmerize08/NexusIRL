@@ -26,7 +26,6 @@
     <string name="camera">Kamera</string>
     <string name="record">Kayıt</string>
     <string name="stop_recording">Kaydetmeyi bırak</string>
-    <string name="snapshot">Anlık görüntü</string>
     <string name="not_supported_by_camera">Bu kamera için desteklenmiyor</string>
     <string name="stabilization">Video stabilizasyonu</string>
     <string name="scenes">Sahneler</string>

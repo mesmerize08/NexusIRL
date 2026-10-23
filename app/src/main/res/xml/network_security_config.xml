@@ -9,7 +9,7 @@
     unencrypted.
 -->
 <network-security-config xmlns:tools="http://schemas.android.com/tools">
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
         <trust-anchors>
             <certificates src="system" />
             <!-- Intentional: lets users trust their own CA for self-hosted relays and RTMPS/WHIP
