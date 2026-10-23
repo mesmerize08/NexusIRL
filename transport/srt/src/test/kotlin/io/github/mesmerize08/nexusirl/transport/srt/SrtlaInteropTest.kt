@@ -10,6 +10,7 @@ import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
 import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
+import io.github.mesmerize08.nexusirl.transport.srt.net.DefaultRoute
 import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.BondingConnection
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServer
@@ -37,6 +38,51 @@ private class LoopbackInterface(override val id: String, override val type: Inte
  */
 class SrtlaInteropTest {
     private fun freeUdpPort(): Int = DatagramSocket(0).use { it.localPort }
+
+    /**
+     * Desktop tools have no connectivity layer: with [DefaultRoute] as the only path SRTLA must
+     * still connect. Without any interface it sent nothing (found streaming to a test server).
+     */
+    @Test
+    fun singleDefaultRoutePathConnects() {
+        assumeTrue(Ffmpeg.available, "ffmpeg/ffprobe not installed")
+        val directory = Files.createTempDirectory("srtla-default-route").toFile()
+        val srtPort = freeUdpPort()
+        val receiver = Ffmpeg.start(
+            "ffmpeg", "-y", "-v", "error",
+            "-i", "srt://127.0.0.1:$srtPort?mode=listener&latency=1000000&timeout=3000000",
+            "-c", "copy", "-f", "mpegts", File(directory, "received.ts").path,
+        )
+        val serverExecutor = SerialExecutor.create("srtla-server")
+        val server = SrtlaServer(0, srtPort, serverExecutor, HostClock.system)
+        server.start()
+        Thread.sleep(1_000)
+        val executor = SerialExecutor.create("srtla-client")
+        val connected = CountDownLatch(1)
+        val stream = SrtStream(
+            SrtStreamConfig(url = "srtla://127.0.0.1:${server.localPort}?streamid=default", latency = 1000),
+            DatagramUdpLinkFactory(),
+            executor,
+            HostClock.system,
+            object : SrtStream.Listener {
+                override fun onConnected() = connected.countDown()
+
+                override fun onDisconnected(message: String) = Unit
+            },
+        )
+        stream.setInterfaces(listOf(DefaultRoute))
+        stream.start()
+        try {
+            assertTrue(connected.await(10, TimeUnit.SECONDS), "SRTLA over the default route did not connect")
+        } finally {
+            stream.stop()
+            server.stop()
+            receiver.destroy()
+            executor.shutdown()
+            serverExecutor.shutdown()
+            directory.deleteRecursively()
+        }
+    }
 
     @Test
     fun bondedStreamOverTwoPathsReachesLibsrt() {

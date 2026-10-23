@@ -32,6 +32,18 @@ interface BondingInterface {
     fun resolve(host: String): Array<InetAddress> = InetAddress.getAllByName(host)
 }
 
+/**
+ * One unbound path over the system's default route: for SRTLA where nothing lists the networks
+ * (desktop tools). Without any interface the SRTLA client has no path and sends nothing.
+ */
+object DefaultRoute : BondingInterface {
+    override val id: String = "default"
+    override val type: InterfaceType = InterfaceType.WIRED_ETHERNET
+    override val name: String = "default"
+
+    override fun bind(socket: DatagramSocket) = Unit
+}
+
 /** DNS lookup strategy (upstream `SettingsDnsLookupStrategy`). */
 enum class DnsLookupStrategy { SYSTEM, IPV4, IPV6, IPV4_AND_IPV6 }
 

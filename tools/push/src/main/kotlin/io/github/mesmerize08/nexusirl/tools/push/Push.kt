@@ -16,6 +16,7 @@ import io.github.mesmerize08.nexusirl.transport.srt.SrtAdaptiveBitrateDriver
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStreamConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
+import io.github.mesmerize08.nexusirl.transport.srt.net.DefaultRoute
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
@@ -237,6 +238,10 @@ fun main(args: Array<String>) {
                 else -> null
             }
             val driver = algorithm?.let { SrtAdaptiveBitrateDriver(stream, it, executor, options.bitrate) }
+            // A desktop has no connectivity layer listing networks: one path on the default route.
+            if (scheme == "srtla") {
+                stream.setInterfaces(listOf(DefaultRoute))
+            }
             stream.setAudioConfig(MpegTsAudioConfig.aacLc(48000, 2))
             stream.setVideoConfig(MpegTsVideoConfig.Avc(media.sps, media.pps))
             stream.start()
