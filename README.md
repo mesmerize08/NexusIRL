@@ -27,7 +27,7 @@ A free, open-source IRL live-streaming app for Android, ported from
 - **Wire-compatible with iOS Moblin:** import `.moblinSettings`, interoperate with Moblin remote
   control and Moblink relays.
 - **Independent:** works without any service run by the Moblin author or by this project. Any
-  remote-control relay is self-hosted (see the plan, §8).
+  remote-control relay is self-hosted ([server/relay](server/relay/README.md), [docs/remote-control.md](docs/remote-control.md)).
 - **FOSS-clean:** no Google Play Services, Firebase or analytics, so it is eligible for F-Droid and
   works on de-Googled phones.
 - **Secure by default:**

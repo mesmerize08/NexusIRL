@@ -1,0 +1,4 @@
+# Caddy gets and renews the TLS certificate for RELAY_DOMAIN and passes WebSockets through.
+{$RELAY_DOMAIN} {
+	reverse_proxy relay:8080
+}

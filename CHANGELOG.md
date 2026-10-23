@@ -10,15 +10,23 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   subscriptions, channel point rewards, raids, cheers), one at a time.
 - Per-stream Twitch alert settings, as in Moblin: which alerts pop up and which appear in chat,
   with a minimum for cheers. Settings imported from iOS keep their choices.
-
 - Twitch stream title and category: shown in the stream's settings, with category search, and
   changed on Twitch after a confirmation. Needs signing in to Twitch again once (one more
   permission, `channel:manage:broadcast`).
+- Self-hosted remote control relay (`server/relay`: Moblin's open-source relay with automatic
+  HTTPS) and a guide to every way of connecting a remote control (`docs/remote-control.md`).
+
+### Changed
+- The remote control assistant URL's path (a relay's bridge ID) is stored encrypted, left out of
+  exports without keys and removed from logs, like stream keys. Existing settings are converted
+  on start.
 
 ### Fixed
 - Twitch alerts always appeared in chat, ignoring the alert settings of imported iOS streams.
 - The privacy policy described an earlier preview; it now lists every service the app contacts
   and what each receives.
+- Closing the camera logged a warning with a stack trace each time.
+- An import confirmation said "1 stream(s)".
 
 ## [0.1.1] - 2026-10-22
 

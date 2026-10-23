@@ -252,6 +252,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 > token link. Checked in a real browser on the emulator.
 > Moblink streamer: other phones on the Wi-Fi add their mobile data as SRTLA paths while live.
 > Checked with our relay in tests (UDP through the tunnel) and on the emulator (mDNS, startTunnel).
+> Self-hosted relay (§8.2): `server/relay` (pinned upstream relay, Caddy for TLS) and
+> `docs/remote-control.md`. Checked locally: the emulator's streamer, through the relay container,
+> shown in the relay's browser assistant.
 > Phase 6 is feature complete on the emulator. Still to do: interop with real iOS devices.
 >
 > **Real-device testing** (Galaxy S26 Ultra, Snapdragon SM8850, Android 17), always to receivers on
