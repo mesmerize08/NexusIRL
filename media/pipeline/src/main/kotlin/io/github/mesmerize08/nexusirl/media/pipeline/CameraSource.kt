@@ -82,7 +82,10 @@ class CameraSource(private val context: Context) {
     private val manager = context.getSystemService(CameraManager::class.java)
     private val thread = HandlerThread("camera").apply { start() }
     private val handler = Handler(thread.looper)
-    private val executor = Executor { handler.post(it) }
+    private val executor = Executor { task -> post { task.run() } }
+
+    @Volatile
+    private var released = false
     private var device: CameraDevice? = null
     private var session: CameraCaptureSession? = null
     private var surface: Surface? = null
@@ -289,7 +292,7 @@ class CameraSource(private val context: Context) {
 
     /** Sets the zoom factor, clamped to the camera's range (upstream `setCameraZoomX`). */
     fun setZoom(factor: Float) {
-        handler.post {
+        post {
             val info = current ?: return@post
             zoom = factor.coerceIn(info.minZoom, info.maxZoom)
             val builder = request ?: return@post
@@ -313,7 +316,7 @@ class CameraSource(private val context: Context) {
 
     /** Torch on or off (upstream `toggleTorch`). No-op on cameras without a flash. */
     fun setTorch(on: Boolean) {
-        handler.post {
+        post {
             if (current?.hasTorch != true) {
                 return@post
             }
@@ -348,7 +351,7 @@ class CameraSource(private val context: Context) {
     }
 
     fun focusAt(sensorX: Float, sensorY: Float) {
-        handler.post {
+        post {
             val builder = request ?: return@post
             val session = session ?: return@post
             val active = characteristics?.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE) ?: return@post
@@ -384,7 +387,7 @@ class CameraSource(private val context: Context) {
 
     /** Back to continuous auto focus and whole-frame metering (upstream long press). */
     fun setAutoFocus() {
-        handler.post {
+        post {
             val builder = request ?: return@post
             builder.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_CANCEL)
             builder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
@@ -397,7 +400,7 @@ class CameraSource(private val context: Context) {
 
     /** Manual focus at a lens position, 0 closest to 1 farthest (upstream `setManualFocus`). */
     fun setManualFocus(position: Float) {
-        handler.post {
+        post {
             val info = current ?: return@post
             val builder = request ?: return@post
             if (!info.supportsManualFocus) {
@@ -415,7 +418,7 @@ class CameraSource(private val context: Context) {
      * using now. The frame duration stays at the frame rate.
      */
     fun setManualExposure(exposureNs: Long?, iso: Int?) {
-        handler.post {
+        post {
             val info = current ?: return@post
             val builder = request ?: return@post
             if (!info.supportsManualExposure) {
@@ -435,7 +438,7 @@ class CameraSource(private val context: Context) {
 
     /** Back to continuous auto exposure (upstream `setAutoExposureAndIso`). */
     fun setAutoExposure() {
-        handler.post {
+        post {
             val builder = request ?: return@post
             manualExposure = false
             builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON)
@@ -445,7 +448,7 @@ class CameraSource(private val context: Context) {
 
     /** Exposure bias in EV (upstream `setExposureBias`); ignored outside the camera's range. */
     fun setExposureBias(bias: Float) {
-        handler.post {
+        post {
             val info = current ?: return@post
             val builder = request ?: return@post
             val index = CameraFactors.compensationIndex(
@@ -464,7 +467,7 @@ class CameraSource(private val context: Context) {
      * sensor's own colour matrix from the latest frame and only replaces the channel gains.
      */
     fun setManualWhiteBalance(kelvin: Float) {
-        handler.post {
+        post {
             val info = current ?: return@post
             val builder = request ?: return@post
             val transform = currentColorTransform
@@ -482,7 +485,7 @@ class CameraSource(private val context: Context) {
 
     /** Back to continuous auto white balance (upstream `setAutoWhiteBalance`). */
     fun setAutoWhiteBalance() {
-        handler.post {
+        post {
             val builder = request ?: return@post
             builder.set(CaptureRequest.CONTROL_AWB_MODE, CameraMetadata.CONTROL_AWB_MODE_AUTO)
             builder.set(CaptureRequest.COLOR_CORRECTION_MODE, CameraMetadata.COLOR_CORRECTION_MODE_FAST)
@@ -498,7 +501,7 @@ class CameraSource(private val context: Context) {
     /** Video stabilization (upstream `videoStabilizationMode`): electronic and, where present, optical. */
     fun setStabilization(on: Boolean) {
         stabilization = on
-        handler.post {
+        post {
             val builder = request ?: return@post
             applyStabilization(builder, on)
             updateRepeating()
@@ -535,7 +538,7 @@ class CameraSource(private val context: Context) {
     }
 
     fun close() {
-        handler.post {
+        post {
             session?.close()
             session = null
             device?.close()
@@ -548,6 +551,17 @@ class CameraSource(private val context: Context) {
 
     fun release() {
         close()
+        released = true
         thread.quitSafely()
+    }
+
+    /**
+     * Runs [block] on the camera thread. Dropped after [release]: the framework still delivers
+     * close callbacks then, and posting them to the quit thread only logs warnings.
+     */
+    private fun post(block: () -> Unit) {
+        if (!released) {
+            handler.post(block)
+        }
     }
 }
