@@ -7,6 +7,12 @@ When the submodule is bumped, check every row for upstream changes:
 git -C upstream diff <old>..<new> -- <path>
 ```
 
+**Upstream reviews** (changes checked without bumping the pin):
+
+| Date | Range | Result |
+|---|---|---|
+| 2026-10-25 | `97e26d2..e4e8ebc` (30 commits) | Nothing to port for compatibility. Remote control: Moblin Cloud tips and wheel of luck only (not ported). Settings: new `zoomSlider`, per-mic `gainDb` and controller button functions, `songRequests` removed (kept or ignored by the forgiving decoder). SRTLA, Moblink and remote control streamer/assistant: refactoring only. Possible features: per-mic gain, zoom slider. |
+
 | Upstream (Swift) | Kotlin port | Notes |
 |---|---|---|
 | `Moblin/Media/WrappingTimestamp.swift` | `core/clock/.../WrappingTimestamp.kt` | `CMTime` → `MediaTime` |

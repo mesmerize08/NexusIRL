@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- Stream logs: the app keeps a per-second log of the last 10 streams (frame rate, bitrate,
+  connection quality per network, state changes), included in Share diagnostics, so streams far
+  from a computer can be analysed. No keys, picture or sound.
+
 ## [0.2.0] - 2026-10-25
 
 ### Added

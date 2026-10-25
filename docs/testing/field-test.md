@@ -1,40 +1,72 @@
-# Field test: bonding and failover
+# Field test: mobile data, bonding and failover
 
-Bonding (mobile data plus Wi-Fi at the same time) can only be tested where mobile coverage is good.
-This test needs no computer: the phone streams to a test receiver
-([server/test-receiver](../../server/test-receiver/README.md)), which logs every network path every
-5 seconds, so the result can be analysed afterwards.
+Streaming over mobile networks can only be tested where coverage is good. This test needs no
+computer and no Wi-Fi. The phone streams to a test receiver
+([server/test-receiver](../../server/test-receiver/README.md)) that logs every network path every
+5 seconds and records the stream, and the app keeps its own per-second log of each stream. Both
+are analysed afterwards and matched by time.
 
-## Before you go
+## What you need
 
-- The app has a stream pointing at the test receiver (`srtla://…:5000?passphrase=…`), selected.
-- Battery charged. Mobile data and Wi-Fi both on in Android's settings.
-- Data use: about **37 MB per minute** at 5 Mbps, split between the networks. The whole test uses
-  roughly 200–400 MB of mobile data.
+- **Streaming phone** with a data SIM, running NexusIRL with the **VPS bonding** stream
+  (`srtla://…:5000?passphrase=…`) selected.
+- **For bonding (tests C and D): a second phone with a data SIM**, ideally on a **different
+  carrier** (if one network fades, the other may not). It runs a Moblink relay and joins the
+  streaming phone's hotspot, so no Wi-Fi network is needed. Without a second SIM, do tests A and B.
+- Batteries charged, ideally a power bank.
+- **Mobile data:** about 37 MB per minute at 5 Mbps; the whole test uses roughly 0.5–1 GB in total,
+  shared between the SIMs in tests C and D.
+- **Safety:** the person holding the phone must not be the driver.
+
+## Before you leave home (once)
+
+On the **streaming phone**:
+
+1. Select the **VPS bonding** stream (Streams → tap its circle). Do not select a Twitch stream.
+2. Main screen (scroll the controls down) → **Moblink** → **Use other phones as relays**: turn on
+   and note the password.
+
+On the **relay phone** (bonding only):
+
+1. Install NexusIRL. Main screen → **Moblink** → **Moblink relay**: turn on, enter the same
+   password.
+2. Android Settings → Developer options → **Mobile data always active**: on. Without it, some
+   phones drop mobile data once they join a Wi-Fi network (the hotspot).
 
 ## At the location
 
-Pick a spot with good coverage (full bars, 4G or 5G). If you can, run a speed test first with Wi-Fi
-off and note the **upload** speed; streaming needs at least about 3 Mbps up at 5 Mbps.
+Pick a spot with good coverage (full bars, 4G or 5G). If you can, run a speed test on the
+streaming phone and note the **upload** speed; streaming needs at least about 3 Mbps up.
 
-Write down the **time** at each step; the receiver's log is matched by time.
+**Write down the time** at each step (a photo of a clock or a note on the phone is fine).
 
 | Test | Steps | What it shows |
 |---|---|---|
-| **A. Mobile only** (2 min) | Wi-Fi off. Go live, wait 2 minutes, End stream. | The stream works on mobile data alone. |
-| **B. Bonding and failover** (3 min) | On a Wi-Fi network (café, friend's place) with good mobile coverage too. Go live. After 1 minute turn **Wi-Fi off**; after another minute turn it **on**; after another minute End stream. | Both networks carry the stream; losing Wi-Fi does not stop it. |
-| **C. Walking away** (optional, 3 min) | Go live on Wi-Fi and walk out of its range, then back. | The stream moves between networks on its own. |
+| **A. Mobile only, standing still** (3 min) | Wi-Fi off on the streaming phone. Go live, wait 3 minutes, End stream. | The stream runs on one mobile network; how the bitrate settles. |
+| **B. Mobile only, moving** (5 min, optional) | As A, while walking or as a passenger in a car or bus. | Adaptive bitrate through changing coverage and cell handovers. |
+| **C. Bonding** (3 min) | Turn on the streaming phone's **hotspot**. Connect the relay phone to it. On the streaming phone, the **Moblink** screen should list the relay. Go live, wait 3 minutes, End stream. | Both SIMs carry the stream. |
+| **D. Failover** (4 min) | As C. After 1 minute turn on **aeroplane mode on the relay phone**; after another minute turn it off again. After 1 more minute, End stream. | Losing one network does not stop the stream, and the path comes back. |
 
-During each test, glance at the status bar at the top of the controls: it should stay **LIVE**
-(red). "Reconnecting" means the stream was interrupted; note when.
+During each test, watch the status line at the top of the controls: it should stay **LIVE** (red).
+Note the time of any "Reconnecting".
 
-## Afterwards
+## Afterwards (within 2 days)
 
-1. On the main screen, tap **Share diagnostics** and send the file to yourself (email or Drive).
-   It contains the app's log for the last few minutes, with keys and passwords removed.
-2. Send the times you wrote down, the speed test result, and the diagnostics file to whoever
-   analyses the test. The receiver's log shows, every 5 seconds, how much each network carried.
+1. On the streaming phone, tap **Share diagnostics** (bottom of the main screen) and email the
+   file to yourself. It contains the per-second log of the last 10 streams, with keys and
+   passwords removed. If you used a relay phone, do the same on it.
+2. Send the diagnostics file(s), the times you noted and the speed test result.
 
-To read the receiver's log yourself: `journalctl -u nexusirl-srtla --since "YYYY-MM-DD HH:MM"`
-on the server. Each report lists every path (the phone's public address on that network) with
-its packets per second and Mbit/s.
+The test receiver keeps recordings for 2 days, so send these within 2 days.
+
+## How it is analysed
+
+- **Phone stream log** (in the diagnostics file): every second the frames sent, encoder, target
+  bitrate, round-trip time, SRT retransmissions and each network path's share and round-trip
+  time, plus every state change (LIVE, Reconnecting and why) and the phone's temperature status.
+- **Receiver log** (`journalctl -u nexusirl-srtla` on the server): every 5 seconds each path the
+  receiver sees (the phone's public address on that network) with packets per second and Mbit/s.
+- **Recording** (`/var/lib/nexusirl/recordings`, 10-minute segments): gaps and frame rate as a
+  viewer would have seen them.
+
+Both logs use the phone's local time, so the three line up.

@@ -1,6 +1,6 @@
 # NexusIRL privacy policy
 
-_Last updated: 2026-10-23_
+_Last updated: 2026-10-25_
 
 NexusIRL is a free, open-source live-streaming app. It has no accounts of its own, no ads,
 analytics, crash reporting or tracking, and the developers run no servers that the app talks to.
@@ -42,9 +42,12 @@ Each service handles data under its own privacy policy.
 
 ## Things that never leave your phone unless you share them
 
+- **Stream logs.** For each of your last 10 streams the app keeps a technical log on the phone:
+  times, frame rate, bitrate, connection quality per network and state changes. It contains no
+  stream keys, picture or sound, and is deleted with the app.
 - **Diagnostics.** "Share diagnostics" creates a text file (app and phone details, settings
-  without keys, the app's recent log) and opens the share sheet. Nothing is sent unless you
-  choose where to send it.
+  without keys, the stream logs, the app's recent log) and opens the share sheet. Nothing is
+  sent unless you choose where to send it.
 - **Local network servers** (web remote control, remote-control assistant, Moblink). Off by
   default; when on, they accept connections only from your local network, hotspot or Tailscale,
   protected by an access link or password.

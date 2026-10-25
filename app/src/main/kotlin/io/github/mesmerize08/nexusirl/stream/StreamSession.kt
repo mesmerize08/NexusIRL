@@ -16,6 +16,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
 import io.github.mesmerize08.nexusirl.moblink.MoblinkTunnel
 import io.github.mesmerize08.nexusirl.net.MultiNetworkManager
+import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateListener
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtBelabox
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSrtFight
@@ -121,6 +122,9 @@ class StreamSession(
     @Volatile
     private var status = StreamStatus(state = StreamState.CONNECTING)
 
+    /** Kept after the stream for diagnostics (field tests away from a computer). */
+    private val log = StreamLog.open(context)
+
     private interface Destination : MediaSink {
         fun stop()
 
@@ -138,6 +142,7 @@ class StreamSession(
     }
 
     fun start() {
+        log.line("Start ${StreamUrlSecrets.display(url)} $settings")
         encoder = video.startEncoder(settings, fanOut)
         if (encoder == null) {
             // Keep going (audio still streams) but say why there is no picture.
@@ -182,6 +187,7 @@ class StreamSession(
         executor.shutdown()
         // Retry messages no longer apply once the user ended the stream.
         update(status.copy(state = StreamState.STOPPED, detail = ""))
+        log.close()
     }
 
     // Destination lifecycle (executor)
@@ -392,11 +398,11 @@ class StreamSession(
 
     private fun publishStatus() {
         val encoded = encoder?.encodedFrames ?: 0
-        android.util.Log.d(
-            "StreamSession",
-            "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} " +
-                "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats() ?: ""}",
-        )
+        val line = "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} " +
+            "bitrate=${(encoder?.currentBitrate ?: 0) / 1000}kbps rtt=${destination?.rttMs()?.toInt() ?: 0}ms " +
+            "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats() ?: ""}"
+        android.util.Log.d("StreamSession", line)
+        log.line(line)
         lastEncodedFrames = encoded
         update(
             status.copy(
@@ -412,6 +418,10 @@ class StreamSession(
     }
 
     private fun update(newStatus: StreamStatus) {
+        val old = status
+        if (newStatus.state != old.state || newStatus.detail != old.detail || newStatus.thermal != old.thermal) {
+            log.line("State ${newStatus.state} thermal=${newStatus.thermal} ${newStatus.detail}".trimEnd())
+        }
         status = newStatus
         onStatus(newStatus)
     }

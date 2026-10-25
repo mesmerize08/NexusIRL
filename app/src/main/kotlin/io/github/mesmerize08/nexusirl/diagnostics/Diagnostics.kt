@@ -14,6 +14,7 @@ import io.github.mesmerize08.nexusirl.moblink.MoblinkController
 import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
 import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.StreamController
+import io.github.mesmerize08.nexusirl.stream.StreamLog
 import io.github.mesmerize08.nexusirl.ui.summary
 import java.io.File
 import java.text.SimpleDateFormat
@@ -32,6 +33,9 @@ object Diagnostics {
     /** Recent log lines to include; about a few minutes of a live stream. */
     private const val LOG_LINES = 4000
 
+    /** Stream logs to include: all that are kept, so a field-test day arrives whole. */
+    private const val STREAM_LOGS = StreamLog.KEEP
+
     /** Joins the sections and the log, redacting everything. Pure, so it can be tested. */
     fun compose(sections: List<Pair<String, List<String>>>, log: List<String>, redactor: Redactor): String = buildString {
         appendLine("NexusIRL diagnostics. Stream keys, passwords and tokens are removed;")
@@ -46,7 +50,7 @@ object Diagnostics {
     /** Writes the report to the app's cache. Slow (reads the log); call off the main thread. */
     fun create(context: Context, sections: List<Pair<String, List<String>>>): File {
         val redactor = StreamController.settings(context).redactor()
-        val text = compose(sections, readOwnLog(), redactor)
+        val text = compose(sections + streamLogs(context), readOwnLog(), redactor)
         val directory = File(context.cacheDir, DIRECTORY).apply { mkdirs() }
         // Only the newest report is kept.
         directory.listFiles()?.forEach { it.delete() }
@@ -124,6 +128,16 @@ object Diagnostics {
             "$transports internet=$internet down=${capabilities.linkDownstreamBandwidthKbps} kbps"
         }
     }
+
+    /** The kept stream logs, newest first and whole: they reach back further than Android's log buffer. */
+    private fun streamLogs(context: Context): List<Pair<String, List<String>>> =
+        StreamLog.newest(StreamLog.directory(context), STREAM_LOGS).map { file ->
+            "Stream log ${file.name}" to try {
+                file.readLines()
+            } catch (e: Exception) {
+                listOf("Could not read: $e")
+            }
+        }
 
     private fun readOwnLog(): List<String> = try {
         val process = ProcessBuilder(
