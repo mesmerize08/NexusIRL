@@ -1,0 +1,1 @@
+Twitch alerts pop up on screen, and the stream title and category can be changed from the app (sign in to Twitch again once). Fixes a dropped frame every second while a remote control showed the preview. Guide for remote control over the internet with your own relay.

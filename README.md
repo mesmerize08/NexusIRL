@@ -8,9 +8,9 @@ A free, open-source IRL live-streaming app for Android, ported from
 > **Status: early test releases.** The app streams camera and microphone over SRT (with AES
 > encryption), SRTLA bonding and RTMP(S). It has adaptive bitrate, HEVC, scenes and widgets,
 > Twitch/Kick/YouTube chat, remote control (iOS Moblin compatible, plus a web remote control) and
-> Moblink relaying in both directions. It has been tested on the emulator and on a Galaxy S26
-> Ultra; other phones, bonding over real mobile networks and iOS interop are still untested, so
-> expect rough edges. See
+> Moblink relaying in both directions. It has been tested live on Twitch from a Galaxy S26 Ultra,
+> on a Huawei P30 Pro (Android 10) and with iOS Moblin (remote control, settings import). Bonding
+> over real mobile networks and Moblink between phones are still untested, so expect rough edges. See
 > [docs/PORT_PLAN.md](docs/PORT_PLAN.md) for the full plan and phase gates.
 >
 > Privacy policy: [docs/privacy-policy.md](docs/privacy-policy.md).

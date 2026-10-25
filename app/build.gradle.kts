@@ -27,8 +27,8 @@ android {
         applicationId = "io.github.mesmerize08.nexusirl"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // docs/PORT_PLAN.md §8.1: our own public Twitch client (Device Code flow), overridable per build.
         val twitchClientId = (findProperty("nexusirl.twitchClientId") as String?).orEmpty()

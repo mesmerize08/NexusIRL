@@ -74,6 +74,8 @@ fun TwitchSignInSection(store: SettingsStore, streamId: UUID?, onSignedIn: (name
                         style = MaterialTheme.typography.headlineMedium,
                     )
                     Text(stringResource(R.string.twitch_waiting), style = MaterialTheme.typography.bodySmall)
+                    // Found on a Galaxy S26: after approving, the Twitch app or browser shows a blank page.
+                    Text(stringResource(R.string.twitch_come_back), style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {

@@ -255,7 +255,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Self-hosted relay (§8.2): `server/relay` (pinned upstream relay, Caddy for TLS) and
 > `docs/remote-control.md`. Checked locally: the emulator's streamer, through the relay container,
 > shown in the relay's browser assistant.
-> Phase 6 is feature complete on the emulator. Still to do: interop with real iOS devices.
+> Phase 6 is feature complete on the emulator. iOS interop checked on 2026-10-25 with Moblin on
+> an iPhone SE (iOS 27): its assistant controlled NexusIRL (status, preview, zoom, mute, going
+> live and ending), and its settings export imported with streams, scenes and widgets. Still to
+> do: Moblink with an iOS streamer (needs mobile data on the relay phone).
 >
 > **Real-device testing** (Galaxy S26 Ultra, Snapdragon SM8850, Android 17), always to receivers on
 > a desktop, never to a streaming platform:
@@ -279,8 +282,14 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   stream rendered as if held in landscape, like upstream.
 > - Camera controls: exposure bias, manual focus and long-press autofocus reach the camera;
 >   tap-to-focus lands on the tapped point (mapped into the 16:9 crop of the 4:3 sensor).
-> - Still to do on a phone: bonding over a real mobile network, Moblink between two phones, and
->   iOS interop.
+> - 2026-10-25: live on Twitch for 5:29 (RTMPS, 1080p30 H.264 5 Mbps, `c2.qti.avc.encoder`),
+>   1-2 s delay, chat, a follow alert, title and category update and restore. Found and fixed:
+>   remote control previews dropped a stream frame every second.
+> - Huawei P30 Pro (Kirin 980, Android 10 = minSdk, EMUI 11): the published v0.1.1 APK, permission
+>   prompts, a `moblin://` link import and 73 s of 1080p30 H.265 on `OMX.hisi.video.encoder.hevc`
+>   with every frame (largest gap 34 ms).
+> - Still to do on a phone: bonding over a real mobile network and Moblink (between two phones
+>   and with iOS); both need mobile coverage.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

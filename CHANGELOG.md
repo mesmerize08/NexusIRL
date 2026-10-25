@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
 ### Added
 - Twitch alert pop-ups on the streamer's screen (follows, subscriptions, resubscriptions, gift
   subscriptions, channel point rewards, raids, cheers), one at a time.
@@ -27,6 +29,15 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   and what each receives.
 - Closing the camera logged a warning with a stack trace each time.
 - An import confirmation said "1 stream(s)".
+- While a remote control showed the preview, the stream lost one frame every second (the preview
+  was read back at full size on the render thread). Found with an iOS Moblin assistant.
+- The Twitch sign-in dialog now says to come back to the app: after approving on the phone,
+  Twitch's page can stay blank.
+
+### Tested
+- Live on Twitch from a Galaxy S26 Ultra (RTMPS, H.264), a Huawei P30 Pro on Android 10, and
+  interop with iOS Moblin (remote control assistant, settings import). See
+  [docs/release-notes/v0.2.0.md](docs/release-notes/v0.2.0.md).
 
 ## [0.1.1] - 2026-10-22
 
