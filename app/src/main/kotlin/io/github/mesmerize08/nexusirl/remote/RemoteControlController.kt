@@ -347,7 +347,7 @@ object RemoteControlController {
             }
             val toStreamer = streamerPreview
             val toWeb = webPreview
-            StreamController.currentFrame { frame ->
+            StreamController.currentFrame(PREVIEW_LONG_SIDE) { frame ->
                 frame?.let { jpeg(it) }?.let {
                     if (toStreamer) streamer?.sendPreview(it)
                     if (toWeb) web?.sendPreview(it)
@@ -357,9 +357,11 @@ object RemoteControlController {
         }
     }
 
+    private const val PREVIEW_LONG_SIDE = 400
+
     /** Upstream `VideoLowFpsImage`: 400 pixels on the long side, JPEG quality 0.3. */
     private fun jpeg(frame: Bitmap): ByteArray {
-        val scale = 400f / maxOf(frame.width, frame.height)
+        val scale = PREVIEW_LONG_SIDE.toFloat() / maxOf(frame.width, frame.height)
         val small = frame.scale(
             (frame.width * scale).toInt().coerceAtLeast(1),
             (frame.height * scale).toInt().coerceAtLeast(1),

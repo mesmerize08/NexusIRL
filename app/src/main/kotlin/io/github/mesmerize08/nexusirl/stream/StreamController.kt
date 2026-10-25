@@ -485,9 +485,9 @@ object StreamController {
     // Snapshots (upstream ModelSnapshot.swift)
 
     /** The current composed frame at canvas size, or null (remote control previews). Any thread callback. */
-    fun currentFrame(onDone: (Bitmap?) -> Unit) {
+    fun currentFrame(maxSide: Int = 0, onDone: (Bitmap?) -> Unit) {
         val video = pipeline ?: return onDone(null)
-        video.takeSnapshot(onDone)
+        video.takeSnapshot(maxSide, onDone)
     }
 
     /**

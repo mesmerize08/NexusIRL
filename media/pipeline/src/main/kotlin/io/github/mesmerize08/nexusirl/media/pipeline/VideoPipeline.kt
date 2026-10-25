@@ -54,6 +54,12 @@ class VideoPipeline(
 
     /** The buffer holding the finished frame, for outputs and snapshots (GL thread only). */
     private var composed: Framebuffer? = null
+
+    /** Small buffer that scaled-down snapshots are drawn into (GL thread only). */
+    private var snapshotTarget: Framebuffer? = null
+
+    /** Turns read-back pixels into bitmaps and runs snapshot callbacks, off the GL thread. */
+    private val snapshotExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "video-snapshot") }
     private var effectRenderer: EffectRenderer? = null
 
     /** Global effects to apply to the camera image, before widgets (upstream order). */
@@ -226,37 +232,61 @@ class VideoPipeline(
     }
 
     /**
-     * Renders the current frame at canvas size into a bitmap (upstream `takeSnapshot` with age 0).
-     * [onDone] runs on the GL thread with null when there is no frame yet.
+     * Renders the current frame into a bitmap (upstream `takeSnapshot` with age 0), at canvas size
+     * or, with [maxSide], scaled so its long side is at most that many pixels. [onDone] runs on a
+     * background thread, with null when there is no frame yet.
+     *
+     * The GL thread only scales (on the GPU) and reads back; building the bitmap happens elsewhere.
+     * A full-size read back plus bitmap work on the GL thread took longer than a frame, so remote
+     * control previews (one a second) dropped a stream frame each time.
      */
-    fun takeSnapshot(onDone: (Bitmap?) -> Unit) {
+    fun takeSnapshot(maxSide: Int = 0, onDone: (Bitmap?) -> Unit) {
         glHandler.post {
             val egl = egl
             val canvas = composed
-            if (egl == null || canvas == null || !hasFrame) {
-                onDone(null)
+            val textureRenderer = textureRenderer
+            if (egl == null || canvas == null || textureRenderer == null || !hasFrame) {
+                snapshotExecutor.execute { onDone(null) }
                 return@post
             }
-            val width = canvas.width
-            val height = canvas.height
-            try {
+            val scale = if (maxSide > 0) minOf(1f, maxSide.toFloat() / maxOf(canvas.width, canvas.height)) else 1f
+            val width = maxOf(1, (canvas.width * scale).toInt())
+            val height = maxOf(1, (canvas.height * scale).toInt())
+            val pixels = try {
                 egl.makeNothingCurrent()
-                canvas.bind()
-                val pixels = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder())
-                GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
-                val upsideDown = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                upsideDown.copyPixelsFromBuffer(pixels)
-                // GL rows start at the bottom.
-                val flip = android.graphics.Matrix().apply { preScale(1f, -1f) }
-                val bitmap = Bitmap.createBitmap(upsideDown, 0, 0, width, height, flip, false)
-                upsideDown.recycle()
-                onDone(bitmap)
+                val source = if (scale < 1f) {
+                    val target = snapshotTarget?.takeIf { it.width == width && it.height == height }
+                        ?: Framebuffer(width, height).also {
+                            snapshotTarget?.release()
+                            snapshotTarget = it
+                        }
+                    target.bind()
+                    textureRenderer.drawFill(canvas.textureId, width, height, canvas.width.toFloat() / canvas.height)
+                    target
+                } else {
+                    canvas
+                }
+                source.bind()
+                ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder()).also {
+                    GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, it)
+                }
             } catch (e: Exception) {
-                onDone(null)
+                null
             } finally {
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
             }
+            snapshotExecutor.execute { onDone(pixels?.let { toBitmap(it, width, height) }) }
         }
+    }
+
+    private fun toBitmap(pixels: ByteBuffer, width: Int, height: Int): Bitmap? = try {
+        val upsideDown = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        upsideDown.copyPixelsFromBuffer(pixels)
+        // GL rows start at the bottom.
+        val flip = android.graphics.Matrix().apply { preScale(1f, -1f) }
+        Bitmap.createBitmap(upsideDown, 0, 0, width, height, flip, false).also { upsideDown.recycle() }
+    } catch (e: Exception) {
+        null
     }
 
     /**
@@ -772,6 +802,8 @@ class VideoPipeline(
                 luts = emptyList()
                 canvas?.release()
                 scratch?.release()
+                snapshotTarget?.release()
+                snapshotTarget = null
                 overlays.values.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
                 overlays.clear()
                 surfaceTexture?.release()
@@ -784,5 +816,6 @@ class VideoPipeline(
         }
         done.await(3, java.util.concurrent.TimeUnit.SECONDS)
         glThread.quitSafely()
+        snapshotExecutor.shutdown()
     }
 }
