@@ -334,7 +334,13 @@ object StreamController {
         )
     }
 
-    private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(context).also {
+    /** Audio channels being captured, for the remote control status. */
+    val audioChannels: Int
+        get() = sharedAudio?.channels ?: 1
+
+    private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(context) {
+        settings(context).current.audio.preferStereoMic
+    }.also {
         sharedAudio = it
         it.muted = isQuickButtonOn(context, QuickButtonType.MUTE)
     }
@@ -419,6 +425,8 @@ object StreamController {
             bitrate = recording?.videoBitrate?.takeIf { it > 0 } ?: autoRecordingBitrate(canvas, hevc),
             hevc = hevc,
             keyFrameIntervalSeconds = recording?.maxKeyFrameInterval?.takeIf { it > 0 } ?: 2,
+            // Like upstream's AVAssetWriter recordings: better quality for the same file size.
+            bFrames = true,
         )
         val name = "NexusIRL_${SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())}.mp4"
         val resolver = context.contentResolver
@@ -438,7 +446,7 @@ object StreamController {
             resolver.delete(uri, null, null)
             return "Failed to start recording"
         }
-        val recorder = Mp4Recorder(descriptor.fileDescriptor, canvas.width, canvas.height)
+        val recorder = Mp4Recorder(descriptor.fileDescriptor, canvas.width, canvas.height, reorderedVideo = encoderSettings.bFrames)
         val encoder = video.startEncoder(encoderSettings, recorder)
         if (encoder == null) {
             recorder.stop()

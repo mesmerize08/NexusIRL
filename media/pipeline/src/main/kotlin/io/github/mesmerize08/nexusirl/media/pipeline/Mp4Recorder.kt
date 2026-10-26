@@ -18,7 +18,13 @@ import java.nio.ByteBuffer
  * Encoder output is Annex-B, which MediaMuxer's MP4 writer accepts for H.264 and H.265.
  * Called from the audio and video encoder threads.
  */
-class Mp4Recorder(fileDescriptor: FileDescriptor, private val width: Int, private val height: Int) : MediaSink {
+class Mp4Recorder(
+    fileDescriptor: FileDescriptor,
+    private val width: Int,
+    private val height: Int,
+    /** Video from an encoder with B-frames: in decode order, so presentation times go back and forth. */
+    private val reorderedVideo: Boolean = false,
+) : MediaSink {
     private val muxer = MediaMuxer(fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     private val lock = Any()
     private var audioFormat: MediaFormat? = null
@@ -28,6 +34,7 @@ class Mp4Recorder(fileDescriptor: FileDescriptor, private val width: Int, privat
     private var started = false
     private var stopped = false
     private var gotKeyFrame = false
+    private var firstVideoUs = Long.MAX_VALUE
     private var lastVideoUs = Long.MIN_VALUE
     private var lastAudioUs = Long.MIN_VALUE
 
@@ -94,8 +101,10 @@ class Mp4Recorder(fileDescriptor: FileDescriptor, private val width: Int, privat
     override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) {
         val us = presentationTimeStamp.toMicroseconds()
         synchronized(lock) {
-            // Audio starts with the first video key frame so both tracks begin together.
-            if (!started || stopped || !gotKeyFrame || us <= lastAudioUs) {
+            // Audio starts with the first video key frame so both tracks begin together. Audio
+            // captured just before it can arrive after it: drop that too, or the file starts with
+            // audio and the video a few milliseconds in.
+            if (!started || stopped || !gotKeyFrame || us < firstVideoUs || us <= lastAudioUs) {
                 return
             }
             lastAudioUs = us
@@ -106,7 +115,7 @@ class Mp4Recorder(fileDescriptor: FileDescriptor, private val width: Int, privat
     override fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) {
         val us = presentationTimeStamp.toMicroseconds()
         synchronized(lock) {
-            if (!started || stopped || us <= lastVideoUs) {
+            if (!started || stopped || (!reorderedVideo && us <= lastVideoUs) || (gotKeyFrame && us < firstVideoUs)) {
                 return
             }
             if (!gotKeyFrame) {
@@ -114,6 +123,7 @@ class Mp4Recorder(fileDescriptor: FileDescriptor, private val width: Int, privat
                     return
                 }
                 gotKeyFrame = true
+                firstVideoUs = us
             }
             lastVideoUs = us
             write(videoTrack, accessUnit, us, if (isSync) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)

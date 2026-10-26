@@ -13,7 +13,11 @@ import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
  *
  * Capture runs only while at least one consumer is attached. Call from the main thread.
  */
-class SharedAudio(context: Context) {
+class SharedAudio(
+    context: Context,
+    /** Whether to capture in stereo; read when capture starts (upstream `preferStereoMic`). */
+    private val stereo: () -> Boolean = { false },
+) {
     init {
         Microphones.start(context)
     }
@@ -33,6 +37,10 @@ class SharedAudio(context: Context) {
             field = value
             pipeline?.muted = value
         }
+
+    /** Channels being captured: 1 or 2, and 1 while stopped. */
+    val channels: Int
+        get() = pipeline?.channels ?: 1
 
     val levelDbfs: Float
         get() = pipeline?.levelDbfs ?: -160f
@@ -54,7 +62,7 @@ class SharedAudio(context: Context) {
     }
 
     private fun start() {
-        val audio = AudioPipeline(fanOut)
+        val audio = AudioPipeline(fanOut, channels = if (stereo()) 2 else 1)
         audio.muted = muted
         pipeline = audio
         // Route to the selected mic before capture starts, then follow later changes.

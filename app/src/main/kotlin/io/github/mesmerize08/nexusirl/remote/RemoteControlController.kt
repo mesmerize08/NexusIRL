@@ -301,7 +301,7 @@ object RemoteControlController {
             else -> RemoteControlAudioLevel.Value(status.audioLevelDbfs)
         }
         val topRight = RemoteControlStatusTopRight(
-            audioInfo = RemoteControlAudioInfo(audioLevel, 1),
+            audioInfo = RemoteControlAudioInfo(audioLevel, StreamController.audioChannels),
             // Upstream's formats ("5.0 Mbps (12.3 MB)", "1m 23s"): assistants and Moblin's test
             // harness read them.
             bitrate = if (status.active) {

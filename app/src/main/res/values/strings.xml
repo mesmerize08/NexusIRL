@@ -239,6 +239,8 @@
     <string name="status_reconnecting">Reconnecting (%1$d)</string>
     <string name="status_thermal">Thermal: %1$s</string>
     <string name="microphone">Microphone</string>
+    <string name="prefer_stereo_mic">Prefer stereo</string>
+    <string name="prefer_stereo_mic_help">Records and streams the built-in microphones in stereo. Takes effect the next time the microphone starts (going live or recording).</string>
     <string name="no_streams_here">No streams yet. Tap Add stream, or import your Moblin settings under Import and export.</string>
     <string name="no_widgets_here">No widgets yet. Tap Add widget.</string>
     <string name="moblink">Moblink</string>

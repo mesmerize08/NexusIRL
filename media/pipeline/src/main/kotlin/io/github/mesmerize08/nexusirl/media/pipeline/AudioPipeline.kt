@@ -23,7 +23,8 @@ import kotlin.math.max
 class AudioPipeline(
     private val sink: MediaSink,
     private val sampleRate: Int = 48_000,
-    private val channels: Int = 2,
+    /** 1 (mono) or 2 (stereo). */
+    val channels: Int = 1,
     private val bitrate: Int = 128_000,
 ) {
     private val channelMask = if (channels == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
@@ -126,6 +127,10 @@ class AudioPipeline(
         val pcm = ShortArray(chunkFrames * channels)
         val timestamp = AudioTimestamp()
         var framesRead = 0L
+        // Times come from the sample count, like upstream, so frames are exactly 1024 samples apart;
+        // Android's per-read timestamps jitter by several milliseconds.
+        var anchorNanos: Long? = null
+        var anchorFrames = 0L
         var droppedChunks = 0
         var windowStart = System.nanoTime()
         var windowFrames = 0L
@@ -140,7 +145,16 @@ class AudioPipeline(
                 continue
             }
             val frames = read / channels
-            val pts = presentationTimeNanos(record, timestamp, framesRead)
+            val measured = presentationTimeNanos(record, timestamp, framesRead)
+            val counted = anchorNanos?.let { it + (framesRead - anchorFrames) * 1_000_000_000L / sampleRate }
+            val pts = if (counted == null || kotlin.math.abs(measured - counted) > RESYNC_NANOS) {
+                // First read, or the count drifted from the clock (e.g. after a device change).
+                anchorNanos = measured
+                anchorFrames = framesRead
+                measured
+            } else {
+                counted
+            }
             framesRead += frames
             windowFrames += frames
             val now = System.nanoTime()
@@ -172,6 +186,11 @@ class AudioPipeline(
             codec.queueInputBuffer(inputIndex, 0, read * 2, pts / 1000, 0)
             check(read * 2 == frames * bytesPerFrame)
         }
+    }
+
+    private companion object {
+        /** Re-anchor sample-counted times when they are this far from the measured clock. */
+        const val RESYNC_NANOS = 20_000_000L
     }
 
     /** Silent AAC frames in real time on the host clock, for when there is no microphone. */

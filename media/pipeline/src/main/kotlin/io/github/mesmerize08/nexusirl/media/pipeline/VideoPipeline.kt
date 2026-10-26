@@ -146,7 +146,11 @@ class VideoPipeline(
     var displayRotationDegrees = 0
     private var hasFrame = false
     private var lastPresentationNanos = 0L
-    private var lastFrameWallNanos = 0L
+    private var lastCaptureNanos = 0L
+
+    /** How long camera frames take to arrive after capture, smoothed (GL thread only). */
+    private var cameraLatencyNanos = 0L
+    private var nextTickNanos = 0L
     private var running = false
 
     /** Frames rendered per second (output side), for the status line. */
@@ -157,6 +161,9 @@ class VideoPipeline(
     private var fpsWindowStart = 0L
 
     private val frameIntervalNanos = 1_000_000_000L / settings.fps
+
+    /** Output times on an exact frame grid in the camera's capture-time domain (upstream frame timer). */
+    private val frameClock = FrameClock(frameIntervalNanos)
 
     private companion object {
         const val TAG = "VideoPipeline"
@@ -190,7 +197,8 @@ class VideoPipeline(
             texture.setOnFrameAvailableListener({ handleFrameAvailable() }, glHandler)
             running = true
             startCamera(texture, cameraId)
-            glHandler.postDelayed(::handleFrameTimer, frameIntervalNanos / 1_000_000)
+            nextTickNanos = System.nanoTime()
+            scheduleFrameTimer()
         }
     }
 
@@ -531,7 +539,16 @@ class VideoPipeline(
                 egl.makeNothingCurrent()
                 egl.releaseSurface(it)
             }
-            previewSurface = surface?.let { egl.createWindowSurface(it) }
+            // The view may have destroyed the surface before this ran (screen off, app in the
+            // background): skip it, the next surfaceCreated brings a new one. Seen on a Galaxy S26.
+            previewSurface = surface?.let {
+                try {
+                    egl.createWindowSurface(it)
+                } catch (e: IllegalArgumentException) {
+                    android.util.Log.w(TAG, "Preview surface gone: ${e.message}")
+                    null
+                }
+            }
         }
     }
 
@@ -547,24 +564,30 @@ class VideoPipeline(
         if (!running) {
             return
         }
+        // The latest camera image is now in the texture; the frame timer outputs it.
         texture.updateTexImage()
         texture.getTransformMatrix(textureMatrix)
-        val presentationNanos = toHostClock(texture.timestamp)
-        // Upstream drops frames whose PTS is not after the previous one.
-        if (presentationNanos <= lastPresentationNanos) {
+        val captureNanos = toHostClock(texture.timestamp)
+        if (captureNanos <= lastCaptureNanos) {
             return
         }
-        if (!hasFrame) {
-            android.util.Log.i(TAG, "First frame, transform ${textureMatrix.joinToString(",") { "%.2f".format(it) }}")
-        }
+        lastCaptureNanos = captureNanos
+        val latency = (System.nanoTime() - captureNanos).coerceAtLeast(0)
+        cameraLatencyNanos = if (hasFrame) (cameraLatencyNanos * 7 + latency) / 8 else latency
         // The new camera delivered a frame: the transition ends.
         transitionStartNanos = null
-        hasFrame = true
-        lastFrameWallNanos = System.nanoTime()
-        render(presentationNanos)
+        if (!hasFrame) {
+            android.util.Log.i(TAG, "First frame, transform ${textureMatrix.joinToString(",") { "%.2f".format(it) }}")
+            hasFrame = true
+            render(frameClock.next(captureNanos))
+        }
     }
 
-    /** Gap filler and black frames, checked once per frame interval. */
+    /**
+     * Upstream's frame timer: one output frame per frame interval, on an exact time grid, showing
+     * the latest camera image (repeated if the camera skipped one). Its clock is "now" moved back
+     * by the camera's delivery latency, so video stays in the capture-time domain audio uses.
+     */
     private fun handleFrameTimer() {
         if (!running) {
             return
@@ -575,12 +598,21 @@ class VideoPipeline(
             // keep their capture time; stamping black frames "now" would make every camera frame
             // look older than the last output, and the monotonic-PTS rule would drop them all.
             renderBlack(now - BLACK_FRAME_LAG_NANOS)
-        } else if (now - lastFrameWallNanos > 50_000_000) {
-            // Re-emit the last frame with its PTS advanced by the time since it arrived.
-            render(lastPresentationNanos + (now - lastFrameWallNanos).coerceAtLeast(frameIntervalNanos))
-            lastFrameWallNanos = now
+        } else {
+            render(frameClock.next(now - cameraLatencyNanos))
         }
-        glHandler.postDelayed(::handleFrameTimer, frameIntervalNanos / 1_000_000)
+        scheduleFrameTimer()
+    }
+
+    /** Ticks on an absolute schedule, so millisecond-rounded delays do not add up to drift. */
+    private fun scheduleFrameTimer() {
+        val now = System.nanoTime()
+        nextTickNanos += frameIntervalNanos
+        if (nextTickNanos < now - frameIntervalNanos) {
+            // Far behind (the thread was busy): skip the missed ticks instead of bursting.
+            nextTickNanos = now + frameIntervalNanos
+        }
+        glHandler.postDelayed(::handleFrameTimer, ((nextTickNanos - now) / 1_000_000).coerceAtLeast(0))
     }
 
     private fun render(presentationNanos: Long) {

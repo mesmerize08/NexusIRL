@@ -239,6 +239,20 @@ class CameraSource(private val context: Context) {
                 object : CameraDevice.StateCallback() {
                     override fun onOpened(camera: CameraDevice) {
                         device = camera
+                        try {
+                            configureSession(camera)
+                        } catch (e: Exception) {
+                            // The output surface was released while the camera opened (the
+                            // pipeline restarted, e.g. on a quick scene switch): close quietly.
+                            android.util.Log.w("CameraSource", "Camera session not started: ${e.message}")
+                            camera.close()
+                            if (device === camera) {
+                                device = null
+                            }
+                        }
+                    }
+
+                    private fun configureSession(camera: CameraDevice) {
                         val builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
                             addTarget(surface)
                             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange)

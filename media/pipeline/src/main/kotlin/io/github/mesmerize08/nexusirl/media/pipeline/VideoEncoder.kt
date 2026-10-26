@@ -18,6 +18,11 @@ data class VideoEncoderSettings(
     val hevc: Boolean = false,
     /** Upstream default `maxKeyFrameInterval` is 2 seconds. */
     val keyFrameIntervalSeconds: Int = 2,
+    /**
+     * Frame reordering (B-frames): better quality per bit, but output comes in decode order and a
+     * little later. Upstream streams without them by default; its recordings (AVAssetWriter) use them.
+     */
+    val bFrames: Boolean = false,
 )
 
 /**
@@ -54,10 +59,8 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
             // 0 = real-time priority (the old spec had this inverted).
             setInteger(MediaFormat.KEY_PRIORITY, 0)
             setInteger(MediaFormat.KEY_OPERATING_RATE, settings.fps)
-            // No frame reordering (upstream default: B-frames off).
-            setInteger("max-bframes", 0)
-            // Re-send the last frame if the input surface stalls, so the stream keeps its cadence.
-            setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 1_000_000L / settings.fps * 2)
+            // MediaFormat.KEY_MAX_B_FRAMES; encoders without B-frame support ignore it.
+            setInteger("max-bframes", if (settings.bFrames) 1 else 0)
         }
         try {
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -143,6 +146,14 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     }
 
     fun release() {
+        // Flush first: with B-frames the encoder holds the last frames back for reordering, and a
+        // recording would lose them. The output thread writes them and ends at end-of-stream.
+        try {
+            codec.signalEndOfInputStream()
+            outputThread.join(1_000)
+        } catch (e: IllegalStateException) {
+            // Not running.
+        }
         running = false
         outputThread.join(1_000)
         try {

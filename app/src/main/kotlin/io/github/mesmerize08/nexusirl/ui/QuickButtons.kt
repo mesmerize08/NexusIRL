@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -168,6 +169,9 @@ fun QuickButtonsScreen(store: SettingsStore, onBack: () -> Unit) {
 /** Upstream mic picker: the connected microphones; picking one stops automatic switching. */
 @Composable
 private fun MicPicker(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val store = StreamController.settings(context)
+    val database by store.database.collectAsState()
     val mics by Microphones.mics.collectAsState()
     val selected by Microphones.selected.collectAsState()
     PickerDialog(
@@ -176,6 +180,12 @@ private fun MicPicker(onDismiss: () -> Unit) {
         selected = selected?.id,
         onPick = { Microphones.select(it) },
         onDismiss = onDismiss,
+        footer = {
+            SwitchRow(stringResource(R.string.prefer_stereo_mic), database.audio.preferStereoMic) { on ->
+                store.update { it.copy(audio = it.audio.copy(preferStereoMic = on)) }
+            }
+            Text(stringResource(R.string.prefer_stereo_mic_help), style = MaterialTheme.typography.bodySmall)
+        },
     )
 }
 
@@ -201,6 +211,7 @@ private fun PickerDialog(
     selected: String?,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -222,6 +233,7 @@ private fun PickerDialog(
                         Text(name)
                     }
                 }
+                footer?.invoke()
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },

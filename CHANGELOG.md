@@ -5,6 +5,20 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Changed
+- Video frames go out on an exact time grid, like Moblin's frame timer, and audio times follow
+  the sample count: every frame is exactly one frame time after the previous one, so players and
+  servers see perfectly even timing.
+- Recordings use B-frames (better quality for the same size), like Moblin's.
+- Built-in microphones record and stream in mono unless **Prefer stereo** is on (microphone
+  picker), as in Moblin; remote control assistants now see the real channel count.
+
+### Fixed
+- Two crashes: when the screen turned off while the preview was being set up, and when a quick
+  scene switch restarted the camera while it was still opening.
+- Recordings could start with a few milliseconds of audio before the picture and lose the last
+  frames on stop.
+
 ## [0.2.1] - 2026-10-26
 
 ### Added
