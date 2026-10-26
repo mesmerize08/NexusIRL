@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Debug builds only: hosts single composables in UI tests. It handles rotation itself, so
+             a rotation left over from MainActivity (locked to landscape) cannot recreate it under
+             a running test. -->
+        <activity
+            android:name=".TestHostActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation" />
+    </application>
+</manifest>

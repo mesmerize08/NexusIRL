@@ -1,7 +1,7 @@
 package io.github.mesmerize08.nexusirl
 
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.mesmerize08.nexusirl.ui.AlertToastHost
@@ -13,8 +13,9 @@ import org.junit.runner.RunWith
 /** Twitch alert toasts show one at a time and then go away. */
 @RunWith(AndroidJUnit4::class)
 class AlertToastTest {
+    // Not createComposeRule(): its activity can be recreated by a rotation left from MainActivity.
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<TestHostActivity>()
 
     @Test
     fun alertsShowOneAfterAnother() {
