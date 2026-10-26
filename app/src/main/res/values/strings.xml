@@ -55,9 +55,21 @@
     <string name="export_without_keys">Export without stream keys</string>
     <string name="export_with_keys">Export with stream keys</string>
     <string name="export_with_keys_warning">The file will contain your stream keys in plain text. Anyone who gets the file can stream to your channels. Only keep it somewhere private.</string>
-    <string name="export_anyway">Export with keys</string>
     <string name="exported_without_keys">Settings exported without stream keys.</string>
     <string name="exported_with_keys">Settings exported, including stream keys. Keep the file private.</string>
+    <string name="export_with_keys_choice">Stream keys are only safe in an encrypted file. NexusIRL can import encrypted files; iOS Moblin needs an unencrypted one.</string>
+    <string name="export_encrypted">Encrypt with a passphrase</string>
+    <string name="export_unencrypted">Unencrypted (for iOS Moblin)</string>
+    <string name="passphrase">Passphrase</string>
+    <string name="passphrase_repeat">Repeat the passphrase</string>
+    <plurals name="passphrase_help">
+        <item quantity="one">At least %1$d character. It cannot be recovered: without it the file cannot be imported.</item>
+        <item quantity="other">At least %1$d characters. It cannot be recovered: without it the file cannot be imported.</item>
+    </plurals>
+    <string name="passphrase_mismatch">The passphrases do not match.</string>
+    <string name="import_passphrase_text">This settings file is encrypted. Enter the passphrase it was exported with.</string>
+    <string name="exported_encrypted">Settings exported, encrypted with your passphrase.</string>
+    <string name="working">Working…</string>
     <string name="export_failed">Export failed: %1$s</string>
     <string name="link_title">Import settings from link?</string>
     <string name="link_no_streams">This link contains no streams.</string>

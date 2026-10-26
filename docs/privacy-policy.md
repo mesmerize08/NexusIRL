@@ -19,7 +19,7 @@ analytics, crash reporting or tracking, and the developers run no servers that t
 - **Network state.** Read to bond mobile data, Wi-Fi and Ethernet together (SRTLA). Not stored or
   sent anywhere.
 - **Settings.** Saved on your phone. Exports are created only when you ask, without keys unless
-  you choose otherwise.
+  you choose otherwise; with keys they can be encrypted with a passphrase of your choice.
 
 ## When the app contacts other services
 

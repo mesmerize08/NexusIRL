@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- Encrypted settings exports: exporting with stream keys can encrypt the file with a passphrase
+  (AES-256-GCM, PBKDF2 key). NexusIRL imports it after asking for the passphrase; the plain
+  export for iOS Moblin is still there, behind a warning.
+
 ### Changed
 - Video frames go out on an exact time grid, like Moblin's frame timer, and audio times follow
   the sample count: every frame is exactly one frame time after the previous one, so players and
