@@ -3,8 +3,14 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
 kotlin {
-    jvmToolchain(17)
+    // Java 17 bytecode with whichever JDK 17 or newer builds it (F-Droid's build server has 21).
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 }
 
 dependencies {

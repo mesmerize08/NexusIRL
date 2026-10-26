@@ -1,6 +1,7 @@
 # Build recipe for F-Droid (fdroiddata format), checked with fdroidserver's scanner and build.
 # To submit, copy it to metadata/io.github.mesmerize08.nexusirl.yml in a fork of
-# https://gitlab.com/fdroid/fdroiddata and update the build entry to the latest release.
+# https://gitlab.com/fdroid/fdroiddata and update the build entry to the latest release. The
+# upstream/ submodule is not needed to build the app (only for tests and reference).
 Categories:
   - Multimedia
   - Connectivity
@@ -20,7 +21,6 @@ Builds:
     versionCode: 4
     commit: v0.2.1
     subdir: app
-    submodules: true
     gradle:
       - yes
     gradleprops:
