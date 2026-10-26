@@ -90,6 +90,43 @@ class SettingsTest {
     }
 
     @Test
+    fun remoteControlAndYouTubeUseUpstreamKeys() {
+        // Upstream SettingsRemoteControl: "server" is the streamer side, "client" the assistant.
+        val ios = """
+            {"remoteControl": {"server": {"enabled": true, "url": "ws://192.168.1.5:2345", "reliableChatAndEvents": true},
+                               "client": {"enabled": true, "port": 2346}, "hasMigratedAssistant": true},
+             "streams": [{"name": "YouTube", "youTubeVideoId": "abc,def"}]}
+        """
+        val database = Database.fromJson(ios)
+        assertTrue(database.remoteControl.streamer.enabled)
+        assertEquals("ws://192.168.1.5:2345", database.remoteControl.streamer.url)
+        assertEquals(2346, database.remoteControl.assistant.port)
+        assertEquals(listOf("abc", "def"), database.streams.single().youTubeVideoIdList)
+        val exported = SwiftJson.parseToJsonElement(database.toJson()).jsonObject
+        val remoteControl = exported["remoteControl"]!!.jsonObject
+        assertEquals(setOf("client", "server", "web", "password", "hasMigratedAssistant"), remoteControl.keys)
+        assertEquals("true", remoteControl["server"]!!.jsonObject["reliableChatAndEvents"].toString())
+        val stream = exported["streams"]!!.jsonArray.single().jsonObject
+        assertEquals("\"abc,def\"", stream["youTubeVideoId"].toString())
+        assertFalse("youTubeVideoIds" in stream)
+    }
+
+    @Test
+    fun settingsWrittenByEarlierAndroidVersionsStillLoad() {
+        // Up to 0.2.0 the app wrote "streamer", "assistant" and "youTubeVideoIds".
+        val old = """
+            {"remoteControl": {"streamer": {"enabled": true, "url": "ws://10.0.0.2:2345"}, "assistant": {"port": 2399}},
+             "streams": [{"name": "Old", "youTubeVideoIds": "xyz"}]}
+        """
+        val database = Database.fromJson(old)
+        assertEquals("ws://10.0.0.2:2345", database.remoteControl.streamer.url)
+        assertEquals(2399, database.remoteControl.assistant.port)
+        assertEquals(listOf("xyz"), database.streams.single().youTubeVideoIdList)
+        val exported = database.toJson()
+        assertFalse("\"streamer\"" in exported || "\"assistant\"" in exported || "youTubeVideoIds" in exported, exported)
+    }
+
+    @Test
     fun iosOnlySettingsSurviveARoundTrip() {
         val original = SwiftJson.parseToJsonElement(iosJson)
         val roundTripped = SwiftJson.parseToJsonElement(Database.fromJson(iosJson).toJson())

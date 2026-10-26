@@ -27,8 +27,13 @@ interface SwiftPreserving {
 /**
  * Wraps a generated serializer (see `@KeepGeneratedSerializer`) so unknown keys go to
  * [SwiftPreserving.extra] on decode and are written back on encode. Modelled keys win on encode.
+ * [renamedKeys] maps keys this app wrote in earlier versions to the key now used (upstream's),
+ * so settings saved before a rename still load.
  */
-open class SwiftPreservingSerializer<T : SwiftPreserving>(private val inner: KSerializer<T>) : KSerializer<T> {
+open class SwiftPreservingSerializer<T : SwiftPreserving>(
+    private val inner: KSerializer<T>,
+    private val renamedKeys: Map<String, String> = emptyMap(),
+) : KSerializer<T> {
     override val descriptor: SerialDescriptor = inner.descriptor
 
     private val knownKeys: Set<String> by lazy {
@@ -38,7 +43,7 @@ open class SwiftPreservingSerializer<T : SwiftPreserving>(private val inner: KSe
     override fun deserialize(decoder: Decoder): T {
         val jsonDecoder = decoder as? JsonDecoder
             ?: throw SerializationException("${descriptor.serialName} supports JSON only")
-        val element = jsonDecoder.decodeJsonElement().jsonObject
+        val element = renameKeys(jsonDecoder.decodeJsonElement().jsonObject, renamedKeys)
         val value = jsonDecoder.json.decodeFromJsonElement(inner, element)
         value.extra = JsonObject(element.filterKeys { it !in knownKeys })
         return value
@@ -50,4 +55,17 @@ open class SwiftPreservingSerializer<T : SwiftPreserving>(private val inner: KSe
         val modelled = jsonEncoder.json.encodeToJsonElement(inner, value).jsonObject
         jsonEncoder.encodeJsonElement(JsonObject(value.extra + modelled))
     }
+}
+
+/** Moves each old key's value to its new key; when both are present, the new key wins. */
+fun renameKeys(element: JsonObject, renamedKeys: Map<String, String>): JsonObject {
+    if (renamedKeys.keys.none { it in element }) {
+        return element
+    }
+    val result = LinkedHashMap(element)
+    for ((old, new) in renamedKeys) {
+        val value = result.remove(old) ?: continue
+        result.putIfAbsent(new, value)
+    }
+    return JsonObject(result)
 }

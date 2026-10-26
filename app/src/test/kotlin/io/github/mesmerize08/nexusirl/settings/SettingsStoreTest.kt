@@ -54,7 +54,7 @@ class SettingsStoreTest {
         val store = SettingsStore(file, secrets)
         // An iOS import with a plaintext password.
         store.import(
-            """{"remoteControl":{"password":"$key","streamer":{"enabled":true,"url":"ws://10.0.0.2:2345"},
+            """{"remoteControl":{"password":"$key","server":{"enabled":true,"url":"ws://10.0.0.2:2345"},
                 "selectedStreamer":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11"}}""",
         )
         val onDisk = file.readText()

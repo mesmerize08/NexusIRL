@@ -254,7 +254,8 @@ data class SettingsStream(
     val kickChannelName: String = "",
     val kickChannelId: String? = null,
     val kickChatroomChannelId: String? = null,
-    /** Comma separated, as upstream. */
+    /** Comma separated, as upstream, whose key is singular although the property is plural. */
+    @SerialName("youTubeVideoId")
     val youTubeVideoIds: String = "",
     val youTubeHandle: String = "",
     val chat: SettingsStreamChat = SettingsStreamChat(),
@@ -262,7 +263,11 @@ data class SettingsStream(
     val twitchToastAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
-    object Serializer : SwiftPreservingSerializer<SettingsStream>(generatedSerializer())
+    // Up to 0.2.0 the Android app wrote "youTubeVideoIds", which iOS does not read.
+    object Serializer : SwiftPreservingSerializer<SettingsStream>(
+        generatedSerializer(),
+        renamedKeys = mapOf("youTubeVideoIds" to "youTubeVideoId"),
+    )
 
     /** Canvas width, swapped with the height for portrait streams (upstream `dimensions()`). */
     val canvasWidth: Int

@@ -74,13 +74,21 @@ data class SettingsRemoteControlWeb(
 @KeepGeneratedSerializer
 @Serializable(with = SettingsRemoteControl.Serializer::class)
 data class SettingsRemoteControl(
+    /** Upstream's key is `client`: this device as assistant, connected to by streamers. */
+    @SerialName("client")
     val assistant: SettingsRemoteControlAssistant = SettingsRemoteControlAssistant(),
+    /** Upstream's key is `server`: this device as streamer, connecting to an assistant. */
+    @SerialName("server")
     val streamer: SettingsRemoteControlStreamer = SettingsRemoteControlStreamer(),
     val web: SettingsRemoteControlWeb = SettingsRemoteControlWeb(),
     val password: String = generatePassword(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
-    object Serializer : SwiftPreservingSerializer<SettingsRemoteControl>(generatedSerializer())
+    // Up to 0.2.0 the Android app wrote its own names, which iOS does not read.
+    object Serializer : SwiftPreservingSerializer<SettingsRemoteControl>(
+        generatedSerializer(),
+        renamedKeys = mapOf("assistant" to "client", "streamer" to "server"),
+    )
 
     companion object {
         private const val ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"

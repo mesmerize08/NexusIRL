@@ -10,6 +10,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   connection quality per network, state changes), included in Share diagnostics, so streams far
   from a computer can be analysed. No keys, picture or sound.
 
+### Fixed
+- Remote control and YouTube settings used different names from iOS Moblin, so an iOS
+  remote control setup or YouTube video IDs were not imported, and NexusIRL's were not read by
+  iOS. Settings saved by earlier versions are converted when loaded.
+
 ## [0.2.0] - 2026-10-25
 
 ### Added
