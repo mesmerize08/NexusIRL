@@ -544,7 +544,8 @@ None of the plan depends on the answers. The defaults above assume "no".
 - **Phase 6:** base the Moblink relay on `eerimoq/Moblink`. Add `server/relay/` (Docker + Caddy + guide) and `docs/remote-control.md` (the LAN, Tailscale and self-host tiers).
 - **v1 release gate:** add these checks:
   - A fresh install with networking limited to the streaming endpoint, the platform APIs and LAN (author domains blocked in a test VPN/firewall) passes the full gate.
-  - An F-Droid build-recipe dry run (`fdroid build`) succeeds.
+  - An F-Droid build-recipe dry run (`fdroid build`) succeeds. **Done 2026-10-26** (`fdroid/`,
+    docs/RELEASING.md): scanner clean on source and APK, build succeeds on F-Droid's JDK 21 image.
 
 ## 9. Security guardrails for stream keys and credentials
 

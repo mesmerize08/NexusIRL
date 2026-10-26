@@ -86,3 +86,22 @@ fails verification.
 `aapt2` is published per operating system and Gradle only records the jar for the machine it runs
 on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync by hand
 (download each from Google Maven and run `sha256sum`).
+
+## F-Droid
+
+`fdroid/io.github.mesmerize08.nexusirl.yml` is the build recipe in fdroiddata format. Checked on
+2026-10-26 with F-Droid's own tools (`registry.gitlab.com/fdroid/docker-executable-fdroidserver`):
+`fdroid scanner` finds no problems in the source or the APK, and `fdroid build` builds it on their
+JDK 21 build environment. Re-run both before submitting or after build changes:
+
+```sh
+# In a work directory holding metadata/io.github.mesmerize08.nexusirl.yml (commit set to a pushed tag or commit):
+docker run --rm --entrypoint sh -v "$PWD/metadata:/meta:ro" registry.gitlab.com/fdroid/docker-executable-fdroidserver:master -c \
+  '. /etc/profile.d/bsenv.sh; mkdir -p /work && cp -r /meta /work/metadata && cd /work && ${fdroidserver}/fdroid scanner -v io.github.mesmerize08.nexusirl && ${fdroidserver}/fdroid build -v --no-tarball --test io.github.mesmerize08.nexusirl'
+```
+
+Requirements this relies on: no dependency metadata block in the APK (`dependenciesInfo`), one
+release APK with `-PnoAbiSplits`, any JDK 17 or newer, and no `upstream/` submodule needed for the
+build. To submit: point the build entry at the next release tag (v0.2.1 predates these fixes), copy
+the file to `metadata/` in a fork of https://gitlab.com/fdroid/fdroiddata, check the categories
+against fdroiddata's `config/categories.yml`, and open a merge request.
