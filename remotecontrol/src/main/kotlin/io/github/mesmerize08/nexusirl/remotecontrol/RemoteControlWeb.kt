@@ -4,6 +4,9 @@
 package io.github.mesmerize08.nexusirl.remotecontrol
 
 import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.java_websocket.WebSocket
 import org.java_websocket.framing.CloseFrame
 import org.java_websocket.handshake.ClientHandshake
@@ -39,6 +42,8 @@ class RemoteControlWeb(
     private val snapshot: () -> ByteArray? = { null },
     /** Called with true when the first page asks for previews and false when the last one stops. */
     private val onPreviewWanted: (Boolean) -> Unit = {},
+    /** The Recordings page's files, or null when there are none to offer. */
+    private val recordings: WebRecordings? = null,
 ) {
     private val pages: MutableSet<WebSocket> = Collections.synchronizedSet(LinkedHashSet())
     private val previewConnections: MutableSet<WebSocket> = Collections.synchronizedSet(HashSet())
@@ -106,7 +111,8 @@ class RemoteControlWeb(
 
     fun sendPreview(jpeg: ByteArray) = broadcast(RemoteControlMessageToAssistant.Preview(jpeg), previewConnections)
 
-    // HTTP (upstream HttpServer): GET only, a fixed set of paths, one request per connection.
+    // HTTP (upstream HttpServer): GET (and DELETE for recordings), a fixed set of paths, one
+    // request per connection.
 
     private fun acceptLoop(server: ServerSocket) {
         while (running) {
@@ -115,7 +121,15 @@ class RemoteControlWeb(
             } catch (e: Exception) {
                 return
             }
-            pool.execute { socket.use { handleHttp(it) } }
+            pool.execute {
+                // A browser that goes away mid-response (or any bad request) must never take the
+                // app down: an uncaught exception here ended the whole process.
+                try {
+                    socket.use { handleHttp(it) }
+                } catch (e: Exception) {
+                    // The connection is closed; nothing to answer.
+                }
+            }
         }
     }
 
@@ -151,10 +165,11 @@ class RemoteControlWeb(
             return respond(output, 400, "text/plain", "Bad request".toByteArray())
         }
         val (method, target) = parts
-        if (method != "GET") {
+        val path = target.substringBefore('?')
+        // DELETE only removes recordings; the SameSite=Strict cookie keeps other sites from sending it.
+        if (method != "GET" && !(method == "DELETE" && path.startsWith(RECORDINGS_PREFIX))) {
             return respond(output, 405, "text/plain", "Method not allowed".toByteArray())
         }
-        val path = target.substringBefore('?')
         val query = target.substringAfter('?', "").split('&').associate {
             URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('=', ""), "UTF-8")
         }
@@ -174,15 +189,60 @@ class RemoteControlWeb(
         when (path) {
             "/js/config.mjs" -> respond(output, 200, "text/javascript", "export const websocketPort = $websocketPort;\n".toByteArray())
             "/snapshot" -> snapshot()?.let { respond(output, 200, "image/jpeg", it) } ?: respond(output, 503, "text/plain", ByteArray(0))
-            else -> {
-                val file = if (path == "/") "/index.html" else path
-                val body = if (file in STATIC_FILES) asset(file.removePrefix("/")) else null
-                if (body == null) {
-                    respond(output, 404, "text/plain", "Not found".toByteArray())
-                } else {
-                    respond(output, 200, contentType(file), body)
+            "/recordings.json" -> {
+                val list = buildJsonArray {
+                    recordings?.list()?.forEach { recording ->
+                        add(
+                            buildJsonObject {
+                                put("name", recording.name)
+                                put("size", recording.size)
+                            },
+                        )
+                    }
                 }
+                respond(output, 200, "application/json", list.toString().toByteArray())
             }
+            else -> when {
+                path.startsWith(RECORDINGS_PREFIX) -> recording(output, method, decodePath(path.removePrefix(RECORDINGS_PREFIX)))
+                path.startsWith(THUMBNAILS_PREFIX) ->
+                    recordings?.thumbnail(decodePath(path.removePrefix(THUMBNAILS_PREFIX)))
+                        ?.let { respond(output, 200, "image/jpeg", it) }
+                        ?: respond(output, 404, "text/plain", "Not found".toByteArray())
+                else -> staticFile(output, path)
+            }
+        }
+    }
+
+    /** A path segment: percent-decoded, with '+' kept (it is not a space in paths). */
+    private fun decodePath(value: String): String = URLDecoder.decode(value.replace("+", "%2B"), "UTF-8")
+
+    /** Upstream `handleRecordingsFile`: download (GET) or delete (DELETE) one recording. */
+    private fun recording(output: OutputStream, method: String, name: String) {
+        val recordings = recordings ?: return respond(output, 404, "text/plain", "Not found".toByteArray())
+        if (method == "DELETE") {
+            return if (recordings.delete(name)) {
+                respond(output, 200, "text/plain", ByteArray(0))
+            } else {
+                respond(output, 404, "text/plain", "Not found".toByteArray())
+            }
+        }
+        val (length, input) = recordings.open(name) ?: return respond(output, 404, "text/plain", "Not found".toByteArray())
+        input.use {
+            // The name is one of ours, but keep quotes and control characters out of the header anyway.
+            val safeName = name.filter { c -> c != '"' && c >= ' ' }
+            writeHead(output, 200, "video/mp4", length, listOf("Content-Disposition" to "attachment; filename=\"$safeName\""))
+            it.copyTo(output)
+            output.flush()
+        }
+    }
+
+    private fun staticFile(output: OutputStream, path: String) {
+        val file = if (path == "/") "/index.html" else path
+        val body = if (file in STATIC_FILES) asset(file.removePrefix("/")) else null
+        if (body == null) {
+            respond(output, 404, "text/plain", "Not found".toByteArray())
+        } else {
+            respond(output, 200, contentType(file), body)
         }
     }
 
@@ -208,6 +268,18 @@ class RemoteControlWeb(
         body: ByteArray,
         headers: List<Pair<String, String>> = emptyList(),
     ) {
+        writeHead(output, status, contentType, body.size.toLong(), headers)
+        output.write(body)
+        output.flush()
+    }
+
+    private fun writeHead(
+        output: OutputStream,
+        status: Int,
+        contentType: String,
+        contentLength: Long,
+        headers: List<Pair<String, String>> = emptyList(),
+    ) {
         val reason = mapOf(
             200 to "OK",
             302 to "Found",
@@ -220,7 +292,7 @@ class RemoteControlWeb(
         val head = StringBuilder("HTTP/1.1 $status $reason\r\n")
         val all = listOf(
             "Content-Type" to contentType,
-            "Content-Length" to body.size.toString(),
+            "Content-Length" to contentLength.toString(),
             "Connection" to "close",
             "Cache-Control" to "no-store",
             "X-Content-Type-Options" to "nosniff",
@@ -230,8 +302,6 @@ class RemoteControlWeb(
         all.forEach { (name, value) -> head.append("$name: $value\r\n") }
         head.append("\r\n")
         output.write(head.toString().toByteArray())
-        output.write(body)
-        output.flush()
     }
 
     private fun contentType(path: String) = when (path.substringAfterLast('.')) {
@@ -303,6 +373,8 @@ class RemoteControlWeb(
 
     private companion object {
         const val COOKIE = "nexusirl_token"
+        private const val RECORDINGS_PREFIX = "/recordings/"
+        private const val THUMBNAILS_PREFIX = "/thumbnails/"
 
         /** Upstream's `staticFiles`. */
         val STATIC_FILES = setOf(

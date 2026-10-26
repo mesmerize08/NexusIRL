@@ -175,6 +175,7 @@ object RemoteControlController {
             asset = { path -> runCatching { context.assets.open("web/$path").use { it.readBytes() } }.getOrNull() },
             acceptLocalAddress = RemoteControlAssistantController::isAllowedLocalAddress,
             snapshot = ::snapshotJpeg,
+            recordings = MediaStoreRecordings(context),
             onPreviewWanted = { wanted ->
                 handler.post {
                     if (owner == webGeneration) {

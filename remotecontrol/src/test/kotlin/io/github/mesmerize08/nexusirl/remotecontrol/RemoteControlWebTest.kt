@@ -59,6 +59,76 @@ class RemoteControlWebTest {
     )
 
     @Test
+    fun recordings() {
+        val files = linkedMapOf("NexusIRL 2026-10-26 13-00-00.mp4" to "video-bytes".toByteArray())
+        val recordings = object : WebRecordings {
+            override fun list() = files.map { (name, data) -> WebRecording(name, "${data.size} bytes") }
+
+            override fun open(name: String) = files[name]?.let { it.size.toLong() to it.inputStream() }
+
+            override fun thumbnail(name: String) = if (name in files) byteArrayOf(1, 2, 3) else null
+
+            override fun delete(name: String) = files.remove(name) != null
+        }
+        val port = freePorts()
+        val server = RemoteControlWeb(port, token, delegate, asset = { null }, acceptLocalAddress = { true }, recordings = recordings)
+            .also { it.start() }
+        val cookie = "nexusirl_token=$token"
+        val encoded = "NexusIRL%202026-10-26%2013-00-00.mp4"
+        try {
+            assertTrue(get(port, "/recordings.json").startsWith("HTTP/1.1 401"), "needs the token")
+            assertTrue(
+                get(port, "/recordings.json", cookie).endsWith("""[{"name":"NexusIRL 2026-10-26 13-00-00.mp4","size":"11 bytes"}]"""),
+            )
+            val download = get(port, "/recordings/$encoded", cookie)
+            assertTrue(download.startsWith("HTTP/1.1 200"), download)
+            assertTrue("Content-Disposition: attachment; filename=\"NexusIRL 2026-10-26 13-00-00.mp4\"" in download)
+            assertTrue(download.endsWith("video-bytes"))
+            assertTrue(get(port, "/thumbnails/$encoded", cookie).contains("Content-Type: image/jpeg"))
+            assertTrue(get(port, "/recordings/..%2F..%2Fsettings.json", cookie).startsWith("HTTP/1.1 404"))
+            assertTrue(get(port, "/index.html", cookie, method = "DELETE").startsWith("HTTP/1.1 405"), "DELETE only for recordings")
+            assertTrue(get(port, "/recordings/$encoded", cookie, method = "DELETE").startsWith("HTTP/1.1 200"))
+            assertTrue(files.isEmpty())
+            assertTrue(get(port, "/recordings/$encoded", cookie).startsWith("HTTP/1.1 404"))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun aClientHangingUpMidDownloadDoesNotCrash() {
+        val big = ByteArray(32 * 1024 * 1024)
+        val recordings = object : WebRecordings {
+            override fun list() = listOf(WebRecording("big.mp4", "32 MB"))
+
+            override fun open(name: String) = big.size.toLong() to big.inputStream()
+
+            override fun thumbnail(name: String): ByteArray? = null
+
+            override fun delete(name: String) = false
+        }
+        val uncaught = LinkedBlockingQueue<Throwable>()
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
+        val port = freePorts()
+        val server = RemoteControlWeb(port, token, delegate, asset = { null }, acceptLocalAddress = { true }, recordings = recordings)
+            .also { it.start() }
+        try {
+            Socket("127.0.0.1", port).use { socket ->
+                socket.setSoLinger(true, 0)
+                socket.getOutputStream().write("GET /recordings/big.mp4 HTTP/1.1\r\nCookie: nexusirl_token=$token\r\n\r\n".toByteArray())
+                socket.getInputStream().read(ByteArray(1024))
+            }
+            Thread.sleep(500)
+            assertTrue(get(port, "/recordings.json", "nexusirl_token=$token").startsWith("HTTP/1.1 200"), "still serving")
+            assertEquals(null, uncaught.poll(200, TimeUnit.MILLISECONDS))
+        } finally {
+            server.stop()
+            Thread.setDefaultUncaughtExceptionHandler(previous)
+        }
+    }
+
+    @Test
     fun httpNeedsTheToken() {
         val port = freePorts()
         val server = web(port).also { it.start() }

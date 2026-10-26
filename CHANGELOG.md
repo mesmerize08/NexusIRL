@@ -6,11 +6,15 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 ## [Unreleased]
 
 ### Added
+- Web remote control: the Recordings page works (list, download, delete and thumbnails of the
+  app's recordings), as in Moblin.
 - Stream logs: the app keeps a per-second log of the last 10 streams (frame rate, bitrate,
   connection quality per network, state changes), included in Share diagnostics, so streams far
   from a computer can be analysed. No keys, picture or sound.
 
 ### Fixed
+- The app crashed when a browser closed its connection to the web remote control in the middle
+  of a response; anyone on the same network could trigger it, even without the access link.
 - Remote control and YouTube settings used different names from iOS Moblin, so an iOS
   remote control setup or YouTube video IDs were not imported, and NexusIRL's were not read by
   iOS. Settings saved by earlier versions are converted when loaded.
