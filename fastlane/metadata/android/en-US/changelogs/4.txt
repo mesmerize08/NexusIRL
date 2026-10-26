@@ -1,0 +1,1 @@
+Fixes a crash in the web remote control, and remote control and YouTube settings now move between NexusIRL and iOS Moblin. Assistants show the actual bitrate and uptime. New: the web remote control's Recordings page, and per-second stream logs in Share diagnostics for testing away from a computer.

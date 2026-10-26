@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-26
+
 ### Added
 - Web remote control: the Recordings page works (list, download, delete and thumbnails of the
   app's recordings), as in Moblin.
