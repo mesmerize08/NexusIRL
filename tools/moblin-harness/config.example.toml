@@ -1,0 +1,17 @@
+# Copy to <work dir>/config/moblin/tests/config.toml and set XDG_CONFIG_HOME=<work dir>/config.
+
+# A phone on the same Wi-Fi as this computer (its Wi-Fi address).
+[device.phone]
+moblin-ip-address = "192.168.1.20"
+capabilities = ["record"]
+
+# The Android emulator (the web remote control is not reachable from the computer).
+[device.emulator]
+moblin-ip-address = "127.0.0.1"
+capabilities = []
+
+[general]
+# The phone reaches this computer through `adb reverse` (TCP only).
+tester-ip-address = "127.0.0.1"
+remote-control-port = 2345
+generic-stream-urls = []

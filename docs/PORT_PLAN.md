@@ -288,6 +288,15 @@ It must reproduce Swift `JSONEncoder` defaults:
 > - Huawei P30 Pro (Kirin 980, Android 10 = minSdk, EMUI 11): the published v0.1.1 APK, permission
 >   prompts, a `moblin://` link import and 73 s of 1080p30 H.265 on `OMX.hisi.video.encoder.hevc`
 >   with every frame (largest gap 34 ms).
+> - 2026-10-26, 60-minute soak (Phase 2 gate, over Wi-Fi to the test receiver, 1080p30 H.265
+>   5 Mbps, SRTLA): 3,617 s at 30.03 fps average, no reconnects, no gaps over 100 ms in the
+>   recording, audio/video offset 21.6 ms after 10 minutes and 33.2 ms after 60 (no drift).
+>   While charging the battery reached 44.9 C and Android's thermal status "severe" from minute
+>   27 without dropped frames.
+> - 2026-10-26: Moblin's system-test harness runs against NexusIRL (`tools/moblin-harness`):
+>   settings import, scene switching and RTMP streaming pass; it found and fixed settings key
+>   mismatches, status formats, request ordering and a web remote control crash. Open: B-frames and
+>   timestamp regularity in recordings (60 fps), the SRT and SRTLA suites.
 > - Still to do on a phone: bonding over a real mobile network and Moblink (between two phones
 >   and with iOS); both need mobile coverage.
 
