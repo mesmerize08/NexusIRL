@@ -54,15 +54,16 @@ XDG_CONFIG_HOME=$PWD/config PATH=/path/to/mediamtx:$PATH \
 
 | Test | Result |
 |---|---|
-| SettingsImportWithoutSettingsFile, SceneSwitchMultipleTimes | Pass |
+| SettingsImportWithoutSettingsFile, SceneSwitchMultipleTimes | Pass (scene switching also on the S26) |
 | StreamRtmpToMediaMtx (5 Mbps, at least 10 MB, checked at MediaMTX) | Pass |
 | StreamMultiRtmpToMediaMtx | Fails: streaming to several destinations is not ported |
-| Record (H.264 and H.265, 1080p to 4K) | Fail on strict checks: no B-frames in recordings; the first video frame 11–13 ms after zero; at 60 fps two frames 0.1 ms apart once every few seconds |
+| Record (H.264 and H.265, 1080p30 to 4K, and 1080p60) | Pass, including the strict timing, B-frame and audio checks |
 | Scene widget tests | VTuber and PNGTuber widgets are not ported; LUT tests need images the macOS setup makes |
 | MicDelay | Assumes iOS microphone IDs and a mic delay setting |
 | SRT and SRTLA tests | Not run yet (need the firewall setup above) |
 
 Fixed in NexusIRL because of these runs: settings keys for remote control and YouTube (iOS
 interoperability), the remote control status texts and request ordering, an app crash when a
-browser closed its web remote control connection mid-response, and the web remote control's
-Recordings page.
+browser closed its web remote control connection mid-response, the web remote control's
+Recordings page, frame and audio timing (upstream's frame timer), B-frames and mono audio in
+recordings, and two crashes in the camera and preview set-up.
