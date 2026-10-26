@@ -1,4 +1,4 @@
-> **SUPERSEDED (2026-10-19):** this spec is replaced by [docs/PORT_PLAN.md](docs/PORT_PLAN.md), which is based on the reverse-engineered Moblin architecture. See PORT_PLAN.md §2 for what changed and why. Kept for history only.
+> **SUPERSEDED (2026-10-19):** this spec is replaced by [docs/PORT_PLAN.md](../PORT_PLAN.md), which is based on the reverse-engineered Moblin architecture. See PORT_PLAN.md §2 for what changed and why. Kept for history only.
 
 # Technical Specification & Execution Plan: Moblin Android Port (Project "Moblin-A")
 

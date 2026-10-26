@@ -7,7 +7,7 @@
   - MIT grants no trademark rights. Use a distinct app name and package ID, credited as "based on Moblin".
 - **Your decisions:**
   - v1 is **core IRL streaming**.
-  - This plan **supersedes `moblin_a_spec.md`**.
+  - This plan **supersedes the original spec**, kept in [archive/moblin-a-spec.md](archive/moblin-a-spec.md).
   - **Port Moblin's own transport code** to Kotlin.
   - Stay **wire-compatible** with iOS Moblin: settings import, remote control and Moblink.
   - Publish it as a **free, open-source GitHub project that anyone can install**, **independent of any author-run services** (§8).
@@ -47,7 +47,7 @@
    - Once the Android app is wire-compatible, that whole harness becomes Android's acceptance suite.
    - In addition, about 70 Swift Testing suites in `MoblinTests/` can be ported as golden tests, e.g. `MpegTsSuite`, `AmfSuite`, `RtmpSuite`, `SrtSenderSuite`, `SrtSuite`, `AdaptiveBitrateSuite`, `RemoteControlSuite`, `MoblinkSuite`, `SettingsSuite` and `TwitchChatSuite`.
 
-## 2. Corrections to `moblin_a_spec.md`
+## 2. Corrections to the original spec ([archive/moblin-a-spec.md](archive/moblin-a-spec.md))
 
 | Old spec | Replace with | Why |
 |---|---|---|
@@ -306,7 +306,7 @@ Each phase ends with an exit gate. Each Kotlin file carries a header comment nam
 ### Phase 0 — Bootstrap
 1. Create the repo in `E:\github\moblin-a` with `git init`.
 2. Add upstream as a submodule at `upstream/`, pinned to `97e26d2`.
-3. Move this plan to `docs/PORT_PLAN.md` and mark `moblin_a_spec.md` as superseded.
+3. Move this plan to `docs/PORT_PLAN.md` and mark the original spec as superseded (now `docs/archive/moblin-a-spec.md`).
 4. Set up the Gradle version catalog, the module skeleton from §3, ktlint/detekt, and CI with GitHub Actions running `./gradlew test lint assembleDebug`.
 5. Add `NOTICE` with the Moblin MIT text.
 6. Build `:core:codable` plus its golden tests, and `:core:clock`.

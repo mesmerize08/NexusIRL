@@ -26,4 +26,10 @@ The design is described in [docs/threat-model.md](docs/threat-model.md) and in
 
 ## Supported versions
 
-Only the latest release receives security fixes.
+Only the latest release receives security fixes. Update when a new release is published.
+
+## Fixed security issues
+
+| Fixed in | Issue |
+|---|---|
+| 0.2.1 | With the web remote control turned on, a device on the same network could make the app close by dropping a connection mid-response (no access link needed). |
