@@ -1,0 +1,32 @@
+# Build recipe for F-Droid (fdroiddata format), checked with fdroidserver's scanner and build.
+# To submit, copy it to metadata/io.github.mesmerize08.nexusirl.yml in a fork of
+# https://gitlab.com/fdroid/fdroiddata and update the build entry to the latest release.
+Categories:
+  - Multimedia
+  - Connectivity
+License: MIT
+AuthorName: NexusIRL contributors
+SourceCode: https://github.com/mesmerize08/NexusIRL
+IssueTracker: https://github.com/mesmerize08/NexusIRL/issues
+Changelog: https://github.com/mesmerize08/NexusIRL/blob/HEAD/CHANGELOG.md
+
+AutoName: NexusIRL
+
+RepoType: git
+Repo: https://github.com/mesmerize08/NexusIRL.git
+
+Builds:
+  - versionName: 0.2.1
+    versionCode: 4
+    commit: v0.2.1
+    subdir: app
+    submodules: true
+    gradle:
+      - yes
+    gradleprops:
+      - noAbiSplits
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.2.1
+CurrentVersionCode: 4

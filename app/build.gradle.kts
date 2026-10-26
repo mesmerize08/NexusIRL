@@ -62,9 +62,10 @@ android {
 
     // Release APKs: arm64-v8a (every current phone, smaller download) plus a universal APK for the
     // rest. Debug builds stay a single APK so emulators (x86_64) and local scripts are unaffected.
+    // `-PnoAbiSplits` builds a single release APK (F-Droid's recipe uses it).
     splits {
         abi {
-            isEnable = gradle.startParameter.taskNames.any { it.contains("Release") }
+            isEnable = gradle.startParameter.taskNames.any { it.contains("Release") } && !project.hasProperty("noAbiSplits")
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true
@@ -78,6 +79,13 @@ android {
 
     testOptions {
         unitTests.all { it.useJUnitPlatform() }
+    }
+
+    // F-Droid rejects the dependency metadata block AGP otherwise adds to the APK signing block
+    // (encrypted with a Google key, so nobody else can inspect it).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     lint {
