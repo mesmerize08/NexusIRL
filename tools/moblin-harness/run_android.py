@@ -20,7 +20,8 @@ from tests.utils.runner import _remove_previous_run_artifacts
 from tests.utils.moblin import Moblin
 
 SUITES = {"stream": stream, "settings": settings, "scenes": scenes, "mic": mic, "record": record}
-TEST_TOKEN = "00112233445566778899aabbccddeeff"
+# Obviously fake, low-entropy value (secret scanners would flag a random-looking one).
+TEST_TOKEN = "a" * 32
 
 original_base_settings = generate_device_settings.base_settings
 
