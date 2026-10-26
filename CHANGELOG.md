@@ -14,6 +14,10 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Remote control and YouTube settings used different names from iOS Moblin, so an iOS
   remote control setup or YouTube video IDs were not imported, and NexusIRL's were not read by
   iOS. Settings saved by earlier versions are converted when loaded.
+- The remote control status now shows the measured bitrate with the total sent and the uptime in
+  Moblin's format ("5.0 Mbps (12.3 MB)", "1m 23s"); assistants showed the encoder's target before.
+- Remote control requests take effect before they are answered, as in Moblin, so a status read
+  right after "go live" shows the stream starting.
 
 ## [0.2.0] - 2026-10-25
 

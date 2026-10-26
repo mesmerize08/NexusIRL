@@ -68,6 +68,10 @@ data class StreamStatus(
     /** Video encoder in use, e.g. "c2.qti.avc.encoder (HW)". */
     val encoder: String = "",
     val detail: String = "",
+    /** Media bytes handed to the destination since going live (upstream `streamTotal`). */
+    val sentBytes: Long = 0,
+    /** Measured over the last second, in bits per second (upstream stream speed). */
+    val sentBitsPerSecond: Long = 0,
 ) {
     val live: Boolean
         get() = state == StreamState.LIVE
@@ -113,6 +117,8 @@ class StreamSession(
     private var liveSince: Long? = null
     private var reconnects = 0
     private var lastEncodedFrames = 0L
+    private val sentBytes = java.util.concurrent.atomic.AtomicLong()
+    private var lastSentBytes = 0L
     private var encoder: VideoEncoder? = null
     private val powerManager = context.getSystemService(PowerManager::class.java)
     private val thermalListener = PowerManager.OnThermalStatusChangedListener { thermalStatus ->
@@ -235,7 +241,7 @@ class StreamSession(
         // ignore a request made just after its own first key frame (seen on Qualcomm), which
         // left viewers without a picture until the next periodic one, seconds later.
         destination?.let { current ->
-            val gate = KeyFrameGate(current)
+            val gate = KeyFrameGate(ByteCountingSink(current, sentBytes))
             attached = gate
             fanOut.add(gate)
             encoder?.requestKeyFrame()
@@ -404,6 +410,9 @@ class StreamSession(
         android.util.Log.d("StreamSession", line)
         log.line(line)
         lastEncodedFrames = encoded
+        val sent = sentBytes.get()
+        val sentBitsPerSecond = (sent - lastSentBytes) * 8
+        lastSentBytes = sent
         update(
             status.copy(
                 fps = video.outputFps,
@@ -413,6 +422,8 @@ class StreamSession(
                 microphone = audio.microphoneName,
                 uptimeSeconds = liveSince?.let { (clock.nanoTime() - it) / 1_000_000_000 } ?: 0,
                 encoder = encoder?.info?.let { it.name + if (it.hardware) " (HW)" else " (SW)" } ?: "",
+                sentBytes = sent,
+                sentBitsPerSecond = sentBitsPerSecond,
             ),
         )
     }
@@ -433,6 +444,23 @@ class StreamSession(
 
         /** Upstream: "Attempting again in 5 seconds." */
         const val RECONNECT_DELAY_NANOS = 5_000_000_000L
+    }
+}
+
+/** Passes everything to [sink], adding the media bytes to [total]. */
+internal class ByteCountingSink(private val sink: MediaSink, private val total: java.util.concurrent.atomic.AtomicLong) : MediaSink {
+    override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = sink.setAudioConfig(config, sampleRate)
+
+    override fun setVideoConfig(config: MpegTsVideoConfig) = sink.setVideoConfig(config)
+
+    override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) {
+        total.addAndGet(frame.size.toLong())
+        sink.writeAudio(frame, presentationTimeStamp)
+    }
+
+    override fun writeVideo(accessUnit: ByteArray, presentationTimeStamp: MediaTime, decodeTimeStamp: MediaTime?, isSync: Boolean) {
+        total.addAndGet(accessUnit.size.toLong())
+        sink.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
     }
 }
 

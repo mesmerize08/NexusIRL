@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.content.edit
 import androidx.core.graphics.scale
+import io.github.mesmerize08.nexusirl.BuildConfig
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAssistantStreamerState
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioInfo
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioLevel
@@ -29,6 +30,7 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamer
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamerDelegate
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlWeb
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
+import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.stream.Microphones
@@ -44,7 +46,10 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** How the streamer's connection to the assistant is doing, for the settings screen. */
 enum class RemoteControlConnection { OFF, CONNECTING, CONNECTED, WRONG_PASSWORD }
@@ -296,21 +301,21 @@ object RemoteControlController {
         }
         val topRight = RemoteControlStatusTopRight(
             audioInfo = RemoteControlAudioInfo(audioLevel, 1),
+            // Upstream's formats ("5.0 Mbps (12.3 MB)", "1m 23s"): assistants and Moblin's test
+            // harness read them.
             bitrate = if (status.active) {
                 RemoteControlStatusItem(
-                    "%.1f Mbps".format(status.videoBitrateKbps / 1000.0),
+                    "${StatusFormat.bitsPerSecond(status.sentBitsPerSecond)} (${StatusFormat.bytes(status.sentBytes)})",
                     status.live,
                 )
             } else {
                 null
             },
-            uptime = if (status.active) RemoteControlStatusItem(formatUptime(status.uptimeSeconds), status.live) else null,
+            uptime = if (status.active) RemoteControlStatusItem(StatusFormat.uptime(status.uptimeSeconds), status.live) else null,
             recording = StreamController.recording.value?.let { RemoteControlStatusItem("Recording") },
         )
         return RemoteControlResponse.GetStatus(general, topLeft, topRight)
     }
-
-    private fun formatUptime(seconds: Long) = "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60)
 
     private fun settings(): RemoteControlSettings {
         val database = store?.current
@@ -359,6 +364,11 @@ object RemoteControlController {
 
     private const val PREVIEW_LONG_SIDE = 400
 
+    private const val REQUEST_TIMEOUT_SECONDS = 3L
+
+    /** See [Delegate.importSettings]. */
+    const val TEST_IMPORT_MARKER = "accept-remote-settings-import-for-tests"
+
     /** Upstream `VideoLowFpsImage`: 400 pixels on the long side, JPEG quality 0.3. */
     private fun jpeg(frame: Bitmap): ByteArray {
         val scale = PREVIEW_LONG_SIDE.toFloat() / maxOf(frame.width, frame.height)
@@ -378,12 +388,24 @@ object RemoteControlController {
 
     /** Requests from the assistant connection or (with [web]) from web pages. */
     private class Delegate(private val web: Boolean = false, private val isCurrent: () -> Boolean) : RemoteControlStreamerDelegate {
-        /** Runs [block] on the main thread with the app context, if this connection is still current. */
+        /**
+         * Runs [block] on the main thread with the app context, if this connection is still
+         * current, and waits for it (briefly): like upstream, a request has taken effect when it is
+         * answered, so a status read right after "go live" sees the stream starting.
+         */
         private fun main(block: (Context) -> Unit) {
+            val done = CountDownLatch(1)
             handler.post {
-                if (isCurrent()) {
-                    context?.let(block)
+                try {
+                    if (isCurrent()) {
+                        context?.let(block)
+                    }
+                } finally {
+                    done.countDown()
                 }
+            }
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                done.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             }
         }
 
@@ -394,6 +416,38 @@ object RemoteControlController {
             }
             mutableConnection.value = RemoteControlConnection.CONNECTED
             streamer?.stateChanged(state())
+        }
+
+        /**
+         * Refused, as the class says, except for automated tests: a debug build with the marker
+         * file [TEST_IMPORT_MARKER] (created over `adb run-as`, which only works on debug builds)
+         * accepts imports so Moblin's system-test harness can configure the phone. Never live.
+         */
+        override fun importSettings(data: ByteArray): Boolean {
+            val context = context ?: return false
+            if (web || !BuildConfig.DEBUG || !File(context.filesDir, TEST_IMPORT_MARKER).exists()) {
+                return false
+            }
+            val json = try {
+                SettingsArchive.readSettingsJson(data)
+            } catch (e: Exception) {
+                return false
+            }
+            val done = CountDownLatch(1)
+            var imported = false
+            handler.post {
+                if (isCurrent() && !StreamController.status.value.active) {
+                    imported = try {
+                        StreamController.settings(context).import(json)
+                        true
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+                done.countDown()
+            }
+            done.await(10, TimeUnit.SECONDS)
+            return imported
         }
 
         override fun disconnected() = main {
