@@ -39,6 +39,8 @@ class VideoPipeline(
     /** Canvas size and frame rate. An attached encoder must use the same size and rate. */
     val settings: VideoEncoderSettings,
     private val onError: (String) -> Unit = {},
+    /** A camera delivered its first image after starting: earlier camera errors are over (GL thread). */
+    private val onCameraRunning: () -> Unit = {},
 ) {
     private val glThread = HandlerThread("video-gl").apply { start() }
     private val glHandler = Handler(glThread.looper)
@@ -378,15 +380,41 @@ class VideoPipeline(
     fun switchCamera(cameraId: String, force: Boolean = false) {
         glHandler.post {
             val texture = surfaceTexture ?: return@post
-            if (cameraSource?.current?.id == cameraId && !force) {
+            val currentId = if (cameraClosing) nextCameraId else cameraSource?.current?.id
+            if (currentId == cameraId && !force) {
                 return@post
             }
-            cameraSource?.release()
-            cameraSource = null
             if (hasFrame) {
                 transitionStartNanos = System.nanoTime()
             }
-            startCamera(texture, cameraId)
+            replaceCamera(texture, cameraId)
+        }
+    }
+
+    /** True while the previous camera closes; [nextCameraId] opens after it (GL thread only). */
+    private var cameraClosing = false
+    private var nextCameraId: String? = null
+
+    /**
+     * Closes the current camera and opens [cameraId] once it has fully closed (two cameras cannot
+     * feed one surface). Requests while a camera closes replace each other, so rapid Back/Front
+     * taps end on the last one. GL thread only.
+     */
+    private fun replaceCamera(texture: SurfaceTexture, cameraId: String?) {
+        nextCameraId = cameraId
+        if (cameraClosing) {
+            return
+        }
+        val old = cameraSource ?: return startCamera(texture, cameraId)
+        cameraSource = null
+        cameraClosing = true
+        old.release {
+            glHandler.post {
+                cameraClosing = false
+                if (running && surfaceTexture === texture) {
+                    startCamera(texture, nextCameraId)
+                }
+            }
         }
     }
 
@@ -496,14 +524,15 @@ class VideoPipeline(
     fun restartCamera() {
         glHandler.post {
             val texture = surfaceTexture ?: return@post
-            val id = cameraSource?.current?.id
-            cameraSource?.release()
-            cameraSource = null
-            startCamera(texture, id)
+            replaceCamera(texture, if (cameraClosing) nextCameraId else cameraSource?.current?.id)
         }
     }
 
+    /** Set when a camera starts, cleared on its first image (GL thread only). */
+    private var cameraStarting = false
+
     private fun startCamera(texture: SurfaceTexture, requestedId: String?) {
+        cameraStarting = true
         val camera = CameraSource(context)
         this.cameraSource = camera
         camera.setStabilization(stabilization)
@@ -576,6 +605,10 @@ class VideoPipeline(
         cameraLatencyNanos = if (hasFrame) (cameraLatencyNanos * 7 + latency) / 8 else latency
         // The new camera delivered a frame: the transition ends.
         transitionStartNanos = null
+        if (cameraStarting) {
+            cameraStarting = false
+            onCameraRunning()
+        }
         if (!hasFrame) {
             android.util.Log.i(TAG, "First frame, transform ${textureMatrix.joinToString(",") { "%.2f".format(it) }}")
             hasFrame = true
@@ -814,8 +847,11 @@ class VideoPipeline(
         val done = java.util.concurrent.CountDownLatch(1)
         glHandler.post {
             running = false
-            cameraSource?.release()
+            // Wait (briefly) for the camera to close, so a new pipeline can open it straight away.
+            val closed = java.util.concurrent.CountDownLatch(1)
+            cameraSource?.release { closed.countDown() } ?: closed.countDown()
             cameraSource = null
+            closed.await(2, java.util.concurrent.TimeUnit.SECONDS)
             val egl = egl
             if (egl != null) {
                 egl.makeNothingCurrent()

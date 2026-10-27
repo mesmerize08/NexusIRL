@@ -193,9 +193,6 @@ class MainActivity : ComponentActivity() {
         updateDisplayRotation()
     }
 
-    /** Portrait UI with a landscape stream (upstream `isLandscapeStreamAndPortraitUi`). */
-    private var landscapeStreamInPortraitUi = false
-
     /**
      * Upstream `updateOrientationLock`: the UI is portrait for portrait streams and with the
      * Portrait quick button, otherwise landscape either way round.
@@ -204,13 +201,9 @@ class MainActivity : ComponentActivity() {
         val store = StreamController.settings(this)
         lifecycleScope.launch {
             store.database
-                .map { database ->
-                    val portraitStream = database.selectedStream?.portrait == true
-                    (portraitStream || database.portrait) to (database.portrait && !portraitStream)
-                }
+                .map { database -> database.selectedStream?.portrait == true || database.portrait }
                 .distinctUntilChanged()
-                .collect { (portraitUi, landscapeInPortrait) ->
-                    landscapeStreamInPortraitUi = landscapeInPortrait
+                .collect { portraitUi ->
                     requestedOrientation = if (portraitUi) {
                         ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     } else {
@@ -234,7 +227,7 @@ class MainActivity : ComponentActivity() {
             android.view.Surface.ROTATION_270 -> 270
             else -> 0
         }
-        StreamController.setDisplayRotation(degrees, landscapeStreamInPortraitUi)
+        StreamController.setDisplayRotation(degrees)
     }
 
     private fun requestPermissionsIfNeeded() {

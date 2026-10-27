@@ -86,6 +86,15 @@ class CameraSource(private val context: Context) {
 
     @Volatile
     private var released = false
+
+    /** Between [open] and the open's outcome (camera thread only). */
+    private var opening = false
+
+    /** Set by [release] until the camera has fully closed (camera thread only). */
+    private var pendingRelease: (() -> Unit)? = null
+
+    /** The release timed out while the camera was still opening: close it when it opens. */
+    private var abandoned = false
     private var device: CameraDevice? = null
     private var session: CameraCaptureSession? = null
     private var surface: Surface? = null
@@ -232,12 +241,19 @@ class CameraSource(private val context: Context) {
         this.surface = surface
         // No permission yet (first start, before the user answers), another app holds the camera, or
         // a device policy disables it: report it instead of crashing; the caller may retry later.
+        opening = true
         try {
             manager.openCamera(
                 cameraId,
                 executor,
                 object : CameraDevice.StateCallback() {
                     override fun onOpened(camera: CameraDevice) {
+                        opening = false
+                        if (pendingRelease != null || abandoned) {
+                            // Released while opening: close it; onClosed finishes the release.
+                            camera.close()
+                            return
+                        }
                         device = camera
                         try {
                             configureSession(camera)
@@ -268,6 +284,11 @@ class CameraSource(private val context: Context) {
                             executor,
                             object : CameraCaptureSession.StateCallback() {
                                 override fun onConfigured(captureSession: CameraCaptureSession) {
+                                    if (pendingRelease != null || device !== camera) {
+                                        // Released while the session was being set up: not an error.
+                                        captureSession.close()
+                                        return
+                                    }
                                     session = captureSession
                                     try {
                                         captureSession.setRepeatingRequest(builder.build(), captureCallback, handler)
@@ -277,7 +298,9 @@ class CameraSource(private val context: Context) {
                                 }
 
                                 override fun onConfigureFailed(captureSession: CameraCaptureSession) {
-                                    listener.onError("Camera session configuration failed")
+                                    if (pendingRelease == null && device === camera) {
+                                        listener.onError("Camera session configuration failed")
+                                    }
                                 }
                             },
                         )
@@ -285,21 +308,38 @@ class CameraSource(private val context: Context) {
                     }
 
                     override fun onDisconnected(camera: CameraDevice) {
+                        opening = false
                         camera.close()
                         device = null
-                        listener.onError("Camera disconnected")
+                        if (pendingRelease == null) {
+                            listener.onError("Camera disconnected")
+                        }
                     }
 
                     override fun onError(camera: CameraDevice, error: Int) {
+                        opening = false
                         camera.close()
                         device = null
-                        listener.onError("Camera error $error")
+                        if (pendingRelease == null) {
+                            listener.onError("Camera error $error")
+                        }
+                    }
+
+                    override fun onClosed(camera: CameraDevice) {
+                        finishRelease()
+                        if (abandoned) {
+                            abandoned = false
+                            released = true
+                            thread.quitSafely()
+                        }
                     }
                 },
             )
         } catch (e: SecurityException) {
+            opening = false
             listener.onError("No camera permission")
         } catch (e: CameraAccessException) {
+            opening = false
             listener.onError("Camera unavailable (${e.reason})")
         }
     }
@@ -551,22 +591,52 @@ class CameraSource(private val context: Context) {
         }
     }
 
-    fun close() {
+    /**
+     * Closes the camera and calls [onReleased] (on the camera thread) once it has fully closed.
+     * Only then may another camera use the same output surface: Android lets one camera at a time
+     * feed it, and a camera opened earlier fails with "Camera session configuration failed" or
+     * "Camera error 2" (too many cameras open). Seen on a Galaxy S26 Ultra switching Back/Front.
+     */
+    fun release(onReleased: () -> Unit = {}) {
         post {
+            if (pendingRelease != null) {
+                val earlier = pendingRelease
+                pendingRelease = {
+                    earlier?.invoke()
+                    onReleased()
+                }
+                return@post
+            }
+            pendingRelease = onReleased
             session?.close()
             session = null
-            device?.close()
-            device = null
-            surface?.release()
-            surface = null
             request = null
+            val open = device
+            device = null
+            if (open == null && !opening) {
+                finishRelease()
+                return@post
+            }
+            // onClosed finishes the release (when still opening, onOpened closes it first).
+            open?.close()
+            // Never hang a camera switch on a callback that does not come.
+            handler.postDelayed(::finishRelease, CLOSE_TIMEOUT_MILLIS)
         }
     }
 
-    fun release() {
-        close()
-        released = true
-        thread.quitSafely()
+    private fun finishRelease() {
+        val done = pendingRelease ?: return
+        pendingRelease = null
+        surface?.release()
+        surface = null
+        if (opening) {
+            // Timed out while opening: keep the thread for onOpened, which closes the camera.
+            abandoned = true
+        } else {
+            released = true
+            thread.quitSafely()
+        }
+        done()
     }
 
     /**
@@ -577,5 +647,10 @@ class CameraSource(private val context: Context) {
         if (!released) {
             handler.post(block)
         }
+    }
+
+    private companion object {
+        /** A camera closes in well under a second; this only guards against a lost callback. */
+        const val CLOSE_TIMEOUT_MILLIS = 2_000L
     }
 }

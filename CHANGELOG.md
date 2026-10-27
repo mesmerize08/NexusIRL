@@ -19,6 +19,12 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   picker), as in Moblin; remote control assistants now see the real channel count.
 
 ### Fixed
+- Switching between the back and front cameras failed with "Camera session configuration failed"
+  or "Camera error 2": the next camera opened before the previous one had closed. Cameras now take
+  turns, and quick taps end on the last camera chosen.
+- A camera error stayed on screen after the camera worked again.
+- With the Portrait button and a landscape stream, the picture was sideways when holding the phone
+  upright; it now stays upright, like Moblin, and the stream shows a landscape crop of it.
 - Two crashes: when the screen turned off while the preview was being set up, and when a quick
   scene switch restarted the camera while it was still opening.
 - Recordings could start with a few milliseconds of audio before the picture and lose the last

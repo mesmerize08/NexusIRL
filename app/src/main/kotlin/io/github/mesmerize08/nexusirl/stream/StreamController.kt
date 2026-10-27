@@ -48,6 +48,7 @@ import io.github.mesmerize08.nexusirl.settings.WidgetType
 import io.github.mesmerize08.nexusirl.settings.addMissingQuickButtons
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -90,6 +91,7 @@ data class RecordingState(val fileName: String, val startedAtElapsedMillis: Long
  */
 object StreamController {
     private const val TAG = "StreamController"
+    private const val CAMERA_ERROR_PREFIX = "Camera: "
     private val mutableStatus = MutableStateFlow(StreamStatus())
     val status: StateFlow<StreamStatus> = mutableStatus
 
@@ -579,13 +581,13 @@ object StreamController {
 
     /**
      * Display rotation (0/90/180/270) so camera content stays upright as the phone is held. With a
-     * landscape stream and a portrait UI (upstream `isLandscapeStreamAndPortraitUi`, the Portrait
-     * quick button) the camera is rendered as if the phone were in landscape.
+     * landscape stream and a portrait UI (the Portrait quick button) the picture stays upright too
+     * and the landscape stream shows a crop of it, like upstream (`isLandscapeStreamAndPortraitUi`
+     * sets the capture orientation to portrait).
      */
-    fun setDisplayRotation(degrees: Int, landscapeStreamInPortraitUi: Boolean = false) {
-        val effective = if (landscapeStreamInPortraitUi && (degrees == 0 || degrees == 180)) 90 else degrees
-        displayRotationDegrees = effective
-        pipeline?.displayRotationDegrees = effective
+    fun setDisplayRotation(degrees: Int) {
+        displayRotationDegrees = degrees
+        pipeline?.displayRotationDegrees = degrees
     }
 
     fun setPreviewSurface(surface: Surface?) {
@@ -631,9 +633,15 @@ object StreamController {
             releasePipeline()
         }
         android.util.Log.d(TAG, "Starting camera pipeline ${canvas.width}x${canvas.height}@${canvas.fps}")
-        val created = VideoPipeline(context.applicationContext, canvas) { message ->
-            mutableStatus.value = mutableStatus.value.copy(detail = "Camera: $message")
-        }
+        val created = VideoPipeline(
+            context.applicationContext,
+            canvas,
+            onError = { message -> mutableStatus.value = mutableStatus.value.copy(detail = "$CAMERA_ERROR_PREFIX$message") },
+            onCameraRunning = {
+                // A camera works again: an old camera error no longer applies.
+                mutableStatus.update { if (it.detail.startsWith(CAMERA_ERROR_PREFIX)) it.copy(detail = "") else it }
+            },
+        )
         created.displayRotationDegrees = displayRotationDegrees
         created.stabilization = settings(context).current.videoStabilizationMode != VideoStabilizationMode.OFF
         created.start(cameraId)
