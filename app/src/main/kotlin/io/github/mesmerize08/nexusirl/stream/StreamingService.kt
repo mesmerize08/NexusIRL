@@ -29,6 +29,7 @@ class StreamingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        StreamController.pendingServiceStarts = (StreamController.pendingServiceStarts - 1).coerceAtLeast(0)
         if (!StreamController.isCapturing && !MoblinkController.isRunning) {
             // Capture ended before the service got here. startForeground must still be called;
             // without a type it would claim the manifest's camera type, which can throw in the

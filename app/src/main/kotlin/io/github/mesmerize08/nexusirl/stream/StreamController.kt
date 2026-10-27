@@ -390,8 +390,10 @@ object StreamController {
     }
 
     fun stop(context: Context) {
-        session?.stop()
+        // Not live before the session's last status arrives: listeners of [status] read [isLive].
+        val stopping = session
         session = null
+        stopping?.stop()
         MoblinkStreamerController.stopTunnels()
         afterCaptureEnded(context)
     }
@@ -555,6 +557,21 @@ object StreamController {
         get() = session != null || activeRecording != null
 
     /**
+     * Upstream `isLive`: from going live until stopping, including while connecting or
+     * reconnecting, and already before the session reports its first state. Any thread.
+     */
+    val isLive: Boolean
+        get() = session != null
+
+    /**
+     * Service starts that have not reached [StreamingService.onStartCommand] yet. Android ends the
+     * app if a service started with startForegroundService is stopped before it calls
+     * startForeground, so it is not stopped then; it stops itself when nothing is capturing.
+     * Main thread.
+     */
+    internal var pendingServiceStarts = 0
+
+    /**
      * Runs the foreground service while capturing or relaying (Moblink), restarting it so its
      * declared types match what is in use.
      */
@@ -562,7 +579,8 @@ object StreamController {
         val intent = Intent(context, StreamingService::class.java)
         if (isCapturing || MoblinkController.isRunning) {
             context.startForegroundService(intent)
-        } else {
+            pendingServiceStarts += 1
+        } else if (pendingServiceStarts == 0) {
             context.stopService(intent)
         }
     }

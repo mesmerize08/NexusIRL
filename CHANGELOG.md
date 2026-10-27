@@ -10,6 +10,13 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   `twitchEventSubNotification` requests) show in chat, the chat widget and alert toasts, as in
   Moblin. Messages from SOOP and Open Streaming Platform are shown too.
 
+### Fixed
+- A crash when a stream was stopped within a moment of starting (for example two quick taps, or
+  a remote control going live and ending straight away).
+- A crash when chat showed an emote without a name.
+- Remote control: the status reports live, with the bitrate, from the moment a stream starts, as
+  in Moblin, and the web remote control's Live switch turns off when the stream ends.
+
 ## [0.3.0] - 2026-10-27
 
 ### Added

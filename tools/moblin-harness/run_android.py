@@ -2,8 +2,8 @@
 
 Same test cases and Moblin driver as `python -m tests.test`, without the macOS-only startup (no
 check for qrtool/ltc/lsof/tcpdump). NexusIRL's web remote control needs an access token: the
-imported settings set a known test token and every request to the phone's web remote control
-sends it as the login cookie. Usage:
+imported settings set a known test token, every request to the phone's web remote control
+sends it as the login cookie, and browser pages open it with the `?t=` login link. Usage:
 
     python run_android.py --device s26 [--suites stream,settings] [test-pattern]
 """
@@ -12,6 +12,7 @@ import logging
 
 import requests
 import systest
+from playwright.sync_api import Page
 
 from tests.suites import browser_widget, chat, macros, mic, record, scenes, settings, stream, web_remote_control
 from tests.utils import generate_device_settings, moblin as moblin_module
@@ -55,6 +56,32 @@ def request(self, method, url, *args, **kwargs):
 
 
 requests.Session.request = request
+
+original_goto = Page.goto
+
+
+def goto(self, url, *args, **kwargs):
+    # The login link sets the cookie, which the browser also sends to the WebSocket port.
+    if ":1180" in url and "t=" not in url:
+        url = f"{url.split('?')[0].rstrip('/')}/?t={TEST_TOKEN}"
+    return original_goto(self, url, *args, **kwargs)
+
+
+Page.goto = goto
+
+original_get_status_top_right = Moblin.get_status_top_right
+
+
+def get_status_top_right(self):
+    # A browser's request reaches the phone through `adb forward` and can arrive after the
+    # harness's next status read (its own connection uses `adb reverse`). Upstream's bitrate check
+    # then fails on the missing entry instead of polling again; an empty entry keeps it polling.
+    top_right = original_get_status_top_right(self)
+    top_right.setdefault("bitrate", {"message": ""})
+    return top_right
+
+
+Moblin.get_status_top_right = get_status_top_right
 
 parser = argparse.ArgumentParser(description="Moblin system tests against NexusIRL.")
 parser.add_argument("--device", required=True)

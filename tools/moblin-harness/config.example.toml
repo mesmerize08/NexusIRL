@@ -5,6 +5,12 @@
 moblin-ip-address = "192.168.1.20"
 capabilities = ["record"]
 
+# The same phone over USB, more reliable than Wi-Fi: its web remote control through
+# `adb forward tcp:1180 tcp:1180` and `adb forward tcp:1181 tcp:1181`.
+[device.phoneusb]
+moblin-ip-address = "127.0.0.1"
+capabilities = ["record"]
+
 # The Android emulator (the web remote control is not reachable from the computer).
 [device.emulator]
 moblin-ip-address = "127.0.0.1"

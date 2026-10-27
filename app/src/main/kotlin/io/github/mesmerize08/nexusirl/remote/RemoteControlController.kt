@@ -259,7 +259,7 @@ object RemoteControlController {
                 database.bitratePresets.firstOrNull { it.bitrate == database.selectedStream?.bitrate }?.id
             },
             zoom = camera.zoom,
-            streaming = StreamController.status.value.active,
+            streaming = StreamController.isLive,
             recording = StreamController.recording.value != null,
             muted = isOn(QuickButtonType.MUTE),
             stealthMode = isOn(QuickButtonType.BLACK_SCREEN),
@@ -286,7 +286,7 @@ object RemoteControlController {
                 ThermalState.SERIOUS -> RemoteControlStatusGeneralFlame.YELLOW
                 ThermalState.CRITICAL -> RemoteControlStatusGeneralFlame.RED
             },
-            isLive = status.active,
+            isLive = StreamController.isLive,
             isRecording = StreamController.recording.value != null,
             isMuted = muted,
         )
@@ -306,7 +306,7 @@ object RemoteControlController {
             audioInfo = RemoteControlAudioInfo(audioLevel, StreamController.audioChannels),
             // Upstream's formats ("5.0 Mbps (12.3 MB)", "1m 23s"): assistants and Moblin's test
             // harness read them.
-            bitrate = if (status.active) {
+            bitrate = if (StreamController.isLive) {
                 RemoteControlStatusItem(
                     "${StatusFormat.bitsPerSecond(status.sentBitsPerSecond)} (${StatusFormat.bytes(status.sentBytes)})",
                     status.live,
@@ -314,7 +314,7 @@ object RemoteControlController {
             } else {
                 null
             },
-            uptime = if (status.active) RemoteControlStatusItem(StatusFormat.uptime(status.uptimeSeconds), status.live) else null,
+            uptime = if (StreamController.isLive) RemoteControlStatusItem(StatusFormat.uptime(status.uptimeSeconds), status.live) else null,
             recording = StreamController.recording.value?.let { RemoteControlStatusItem("Recording") },
         )
         return RemoteControlResponse.GetStatus(general, topLeft, topRight)
