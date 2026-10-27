@@ -23,6 +23,10 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   or "Camera error 2": the next camera opened before the previous one had closed. Cameras now take
   turns, and quick taps end on the last camera chosen.
 - A camera error stayed on screen after the camera worked again.
+- Back from the LUTs or Widgets screen opened with a quick button went to Scenes instead of the
+  main screen.
+- The preview could still be drawn into its surface after the screen had released it (logged as
+  "Surface failed to disconnect").
 - With the Portrait button and a landscape stream, the picture was sideways when holding the phone
   upright; it now stays upright, like Moblin, and the stream shows a landscape crop of it.
 - Two crashes: when the screen turned off while the preview was being set up, and when a quick

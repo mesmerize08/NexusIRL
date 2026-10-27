@@ -335,6 +335,9 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         )
     }
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
+    // Widgets and LUTs open from the Scenes page or from the main screen's quick buttons; Back
+    // returns to where they were opened from.
+    var listsParent by remember { mutableStateOf<Screen>(Screen.Scenes) }
     // Upstream makeFlameRedToast(): warn once the device reaches the critical thermal state.
     LaunchedEffect(status.thermal) {
         if (status.thermal == ThermalState.CRITICAL) {
@@ -355,7 +358,8 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
     BackHandler(enabled = screen != Screen.Main) {
         screen = when (screen) {
             is Screen.EditStream -> Screen.Streams
-            is Screen.EditScene, Screen.Widgets, Screen.Luts -> Screen.Scenes
+            is Screen.EditScene -> Screen.Scenes
+            Screen.Widgets, Screen.Luts -> listsParent
             is Screen.EditWidget -> Screen.Widgets
             else -> Screen.Main
         }
@@ -382,8 +386,14 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onScenes = { screen = Screen.Scenes },
             onImportExport = { screen = Screen.ImportExport },
             onChat = { screen = Screen.Chat },
-            onWidgets = { screen = Screen.Widgets },
-            onLuts = { screen = Screen.Luts },
+            onWidgets = {
+                listsParent = Screen.Main
+                screen = Screen.Widgets
+            },
+            onLuts = {
+                listsParent = Screen.Main
+                screen = Screen.Luts
+            },
             onQuickButtons = { screen = Screen.QuickButtons },
             onLocation = { screen = Screen.Location },
             onRemoteControl = { screen = Screen.RemoteControl },
@@ -407,16 +417,22 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         Screen.Scenes -> ScenesScreen(
             store,
             onEdit = { screen = Screen.EditScene(it) },
-            onWidgets = { screen = Screen.Widgets },
-            onLuts = { screen = Screen.Luts },
+            onWidgets = {
+                listsParent = Screen.Scenes
+                screen = Screen.Widgets
+            },
+            onLuts = {
+                listsParent = Screen.Scenes
+                screen = Screen.Luts
+            },
             onBack = { screen = Screen.Main },
         )
         is Screen.EditScene -> SceneEditorScreen(store, current.id, onEditWidget = { screen = Screen.EditWidget(it) }, onBack = {
             screen = Screen.Scenes
         })
-        Screen.Widgets -> WidgetsScreen(store, onEdit = { screen = Screen.EditWidget(it) }, onBack = { screen = Screen.Scenes })
+        Screen.Widgets -> WidgetsScreen(store, onEdit = { screen = Screen.EditWidget(it) }, onBack = { screen = listsParent })
         is Screen.EditWidget -> WidgetEditorScreen(store, current.id, onBack = { screen = Screen.Widgets })
-        Screen.Luts -> LutsScreen(store, onBack = { screen = Screen.Scenes })
+        Screen.Luts -> LutsScreen(store, onBack = { screen = listsParent })
     }
 }
 

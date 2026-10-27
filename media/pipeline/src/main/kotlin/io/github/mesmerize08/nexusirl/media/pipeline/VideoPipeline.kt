@@ -15,6 +15,7 @@ import android.opengl.GLES20
 import android.opengl.GLUtils
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.os.SystemClock
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.EffectRenderer
@@ -562,21 +563,35 @@ class VideoPipeline(
 
     /** Sets (or clears, with null) the on-screen preview surface. */
     fun setPreviewSurface(surface: Surface?) {
-        glHandler.post {
-            val egl = egl ?: return@post
-            previewSurface?.let {
-                egl.makeNothingCurrent()
-                egl.releaseSurface(it)
+        val done = java.util.concurrent.CountDownLatch(1)
+        val posted = glHandler.post {
+            try {
+                setPreviewSurfaceOnGlThread(surface)
+            } finally {
+                done.countDown()
             }
-            // The view may have destroyed the surface before this ran (screen off, app in the
-            // background): skip it, the next surfaceCreated brings a new one. Seen on a Galaxy S26.
-            previewSurface = surface?.let {
-                try {
-                    egl.createWindowSurface(it)
-                } catch (e: IllegalArgumentException) {
-                    android.util.Log.w(TAG, "Preview surface gone: ${e.message}")
-                    null
-                }
+        }
+        // surfaceDestroyed: the surface must not be touched once it returns, so wait until the GL
+        // thread has let go of it (Android logged "Surface failed to disconnect" otherwise).
+        if (surface == null && posted && Looper.myLooper() != glThread.looper) {
+            done.await(1, java.util.concurrent.TimeUnit.SECONDS)
+        }
+    }
+
+    private fun setPreviewSurfaceOnGlThread(surface: Surface?) {
+        val egl = egl ?: return
+        previewSurface?.let {
+            egl.makeNothingCurrent()
+            egl.releaseSurface(it)
+        }
+        // The view may have destroyed the surface before this ran (screen off, app in the
+        // background): skip it, the next surfaceCreated brings a new one. Seen on a Galaxy S26.
+        previewSurface = surface?.let {
+            try {
+                egl.createWindowSurface(it)
+            } catch (e: IllegalArgumentException) {
+                android.util.Log.w(TAG, "Preview surface gone: ${e.message}")
+                null
             }
         }
     }
