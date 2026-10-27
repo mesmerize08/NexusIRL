@@ -48,7 +48,9 @@ streaming phone and note the **upload** speed; streaming needs at least about 3 
 | **D. Failover** (4 min) | As C. After 1 minute turn on **aeroplane mode on the relay phone**; after another minute turn it off again. After 1 more minute, End stream. | Losing one network does not stop the stream, and the path comes back. |
 
 During each test, watch the status line at the top of the controls: it should stay **LIVE** (red).
-Note the time of any "Reconnecting".
+Note the time of any "Reconnecting". Under the bitrate, a line shows each network's share of the
+data, for example "100% Cellular" in test A, or "55% Cellular, 45% Pixel" (the relay phone's name)
+in tests C and D. In test D the relay's share should drop to 0% and come back.
 
 ## Afterwards (within 2 days)
 
