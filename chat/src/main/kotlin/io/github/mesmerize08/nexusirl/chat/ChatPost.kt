@@ -68,6 +68,8 @@ data class ChatPost(
     val bits: String?,
     val highlight: ChatHighlight?,
     val timestampMillis: Long = System.currentTimeMillis(),
+    /** The channel's owner (YouTube marks them; Twitch and Kick compare names instead). */
+    val isOwner: Boolean = false,
 ) {
     /** Upstream `ChatPost.text(emoteNames:)`: the message as plain text. */
     fun text(emoteNames: Boolean = true): String = segments.mapNotNull { segment ->

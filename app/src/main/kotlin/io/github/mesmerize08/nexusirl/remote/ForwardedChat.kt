@@ -39,6 +39,7 @@ fun RemoteControlChatMessage.toChatPost(): ChatPost = ChatPost(
             barColor = highlight.barColor.toRgbColor(),
         )
     },
+    isOwner = isOwner,
 )
 
 private fun RemoteControlPlatform.toChatPlatform() = when (this) {

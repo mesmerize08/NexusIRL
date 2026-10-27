@@ -50,11 +50,12 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
 
     /**
      * Replaces all settings with an imported document (upstream `importFromFile`). Secrets in it
-     * move into the secret store immediately, so they never reach `settings.json`.
+     * move into the secret store immediately, so they never reach `settings.json`. As upstream's
+     * `Database.fromString`, every quick button exists afterwards and all are off.
      */
     fun import(json: String) {
         val imported = Database.fromJson(json)
-        update { imported }
+        update { imported.copy(quickButtons = addMissingQuickButtons(imported.quickButtons)) }
     }
 
     /**

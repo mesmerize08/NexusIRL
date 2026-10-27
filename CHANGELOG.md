@@ -6,6 +6,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 ## [Unreleased]
 
 ### Added
+- Chat bot (Settings → Chat → Bot), as in Moblin: you and your moderators run `!moblin` commands
+  from chat to switch scenes, mute and unmute, zoom, turn the torch and effects on and off, take
+  snapshots, and start or stop the stream or change its Twitch title and category. Each command
+  has Moblin's permissions (moderators, subscribers, everyone, cooldown, chat answers), and
+  aliases such as `!screen` work. Moblin's chat bot settings import from iOS.
 - Chat and Twitch alerts forwarded by a remote control assistant (Moblin's `chatMessages` and
   `twitchEventSubNotification` requests) show in chat, the chat widget and alert toasts, as in
   Moblin. Messages from SOOP and Open Streaming Platform are shown too.
@@ -18,6 +23,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Zooming sends remote controls at most two updates a second, as Moblin now does.
 
 ### Fixed
+- After importing settings without quick buttons, mute, torch and effects did nothing until the
+  app was restarted. An import now adds the missing buttons (all off, as Moblin) and applies them.
+- Remote control: the camera status says "None" for a scene without a camera, as in Moblin.
 - A crash when a stream was stopped within a moment of starting (for example two quick taps, or
   a remote control going live and ending straight away).
 - A crash when chat showed an emote without a name.

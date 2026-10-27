@@ -31,4 +31,23 @@
     <string name="browser_url">URL</string>
     <string name="width">Largeur</string>
     <string name="height">Hauteur</string>
+    <string name="chat">Chat</string>
+    <string name="border">Bordure</string>
+    <string name="bold_message">Message en gras</string>
+    <string name="location">Localisation</string>
+    <string name="reset_when_going_live">Réinitialiser en passant en direct</string>
+    <string name="map_delay">Délai</string>
+    <string name="remote_control">Contrôle à distance</string>
+    <string name="remote_control_off">Off</string>
+    <string name="password">Mot de passe</string>
+    <string name="filter_gray_scale">Niveaux de gris</string>
+    <string name="filter_sepia">Sépia</string>
+    <string name="mute">Couper le son</string>
+    <string name="zoom">Zoom</string>
+    <string name="alerts_follows">Follows</string>
+    <string name="alerts_cheers">Cheers</string>
+    <string name="add">Ajouter</string>
+    <string name="permissions">Permissions</string>
+    <string name="minimum_subscriber_tier">Niveau d\'abonnement minimum</string>
+    <string name="send_chat_responses_footer">Envoie généralement un message de chat si l\'utilisateur n\'est pas autorisé à exécuter la commande. Certaines commandes répondent également en cas de succès.</string>
 </resources>

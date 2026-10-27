@@ -1,5 +1,5 @@
-// Port of Moblin/View/Settings/Chat/ChatSettingsView.swift @97e26d2 (v1 subset: appearance and
-// maximum age; filters, text to speech and the bot come later).
+// Port of Moblin/View/Settings/Chat/ChatSettingsView.swift @97e26d2 (v1 subset: appearance,
+// maximum age and the bot; filters and text to speech come later).
 package io.github.mesmerize08.nexusirl.ui
 
 import androidx.compose.runtime.Composable
@@ -50,5 +50,6 @@ fun ChatSettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 update { it.copy(maximumAge = (age / 5).roundToInt() * 5) }
             }
         }
+        ChatBotSettings(chat, ::update)
     }
 }

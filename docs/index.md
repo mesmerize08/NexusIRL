@@ -15,6 +15,7 @@ newer) · [Source code](https://github.com/mesmerize08/NexusIRL) ·
 
 - [Remote control](remote-control.md): from a browser, another phone, over Tailscale or through
   your own relay.
+- [Chat bot](chat-bot.md): control the stream with `!moblin` commands in chat.
 - [Field test](testing/field-test.md): testing mobile data and bonding away from home.
 
 ## Policies

@@ -33,7 +33,9 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopRightB
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamer
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamerDelegate
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlWeb
+import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
+import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
@@ -300,6 +302,9 @@ object RemoteControlController {
 
     private fun battery(): BatteryManager? = context?.getSystemService(BatteryManager::class.java)
 
+    private fun selectedScene(database: Database?) =
+        database?.scenes?.firstOrNull { it.enabled && it.id == StreamController.selectedSceneId.value }
+
     /** Upstream `remoteControlStreamerGetStatus`. */
     private fun status(): RemoteControlResponse.GetStatus {
         val status = StreamController.status.value
@@ -322,7 +327,12 @@ object RemoteControlController {
         val topLeft = RemoteControlStatusTopLeft(
             // The stream name only: never the URL or key (docs/PORT_PLAN.md §9.4).
             stream = stream?.let { RemoteControlStatusItem(it.name) },
-            camera = camera.current?.let { RemoteControlStatusItem(it.label) },
+            // Upstream `statusCameraText`: the selected scene's camera, "None" for a scene without one.
+            camera = if (selectedScene(database)?.camera == SceneCamera.NONE) {
+                RemoteControlStatusItem("None")
+            } else {
+                camera.current?.let { RemoteControlStatusItem(it.label) }
+            },
             mic = status.microphone.takeIf { it.isNotEmpty() }?.let { RemoteControlStatusItem(it) },
             zoom = RemoteControlStatusItem("%.1f".format(camera.zoom)),
         )
@@ -487,6 +497,7 @@ object RemoteControlController {
                 if (isCurrent() && !StreamController.status.value.active) {
                     imported = try {
                         StreamController.settings(context).import(json)
+                        StreamController.settingsImported(context)
                         true
                     } catch (e: Exception) {
                         false
@@ -577,11 +588,9 @@ object RemoteControlController {
 
         override fun twitchEventSubNotification(message: String) = main { ChatController.handleForwardedTwitchEventSub(message) }
 
-        // Upstream's `history` only keeps a catch-up batch from firing live-only actions (chat
-        // bot, text to speech), which NexusIRL does not have yet.
         override fun chatMessages(history: Boolean, messages: List<RemoteControlChatMessage>) {
             val posts = messages.map { it.id to it.toChatPost() }
-            main { ChatController.appendForwarded(posts) }
+            main { ChatController.appendForwarded(history, posts) }
         }
     }
 

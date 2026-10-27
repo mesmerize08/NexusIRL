@@ -35,6 +35,7 @@ import io.github.mesmerize08.nexusirl.settings.EncryptedSettings
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
+import io.github.mesmerize08.nexusirl.stream.StreamController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -178,6 +179,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                 TextButton(onClick = {
                     message = try {
                         store.import(pending.json)
+                        StreamController.settingsImported(context)
                         context.getString(R.string.imported)
                     } catch (e: Exception) {
                         failure(context.getString(R.string.import_failed), e)

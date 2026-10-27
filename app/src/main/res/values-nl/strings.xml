@@ -9,4 +9,17 @@
     <string name="resolution">Resolutie</string>
     <string name="torch">Lamp</string>
     <string name="moblin_access">Moblin toegang</string>
+    <string name="chat">Chat</string>
+    <string name="bold_message">Vetgedrukt -bericht</string>
+    <string name="quick_buttons">Sneltoetsen</string>
+    <string name="location">Locatie</string>
+    <string name="reset">Reset</string>
+    <string name="filter_pixellate">Pixellate</string>
+    <string name="moblink">Moblink</string>
+    <string name="alerts_follows">Volgers</string>
+    <string name="alerts_gift_subscriptions">Cadeau-abonnementen</string>
+    <string name="alerts_raids">Raids</string>
+    <string name="alerts_cheers">Cheers</string>
+    <string name="send_chat_responses">Stuur chat reacties</string>
+    <string name="alias_start">De alias moet beginnen met !.</string>
 </resources>

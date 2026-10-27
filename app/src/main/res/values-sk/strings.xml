@@ -13,4 +13,23 @@
     <string name="browser_url">URL</string>
     <string name="moblin_access">Moblin prístup</string>
     <string name="lut_bundled">Zviazaný</string>
+    <string name="reset_when_going_live">Reset, keď idete live</string>
+    <string name="reset">Reset</string>
+    <string name="remote_control_off">Off</string>
+    <string name="send">Poslať</string>
+    <string name="filter_sepia">Sepia</string>
+    <string name="filter_four_three">4:3</string>
+    <string name="mute">Stlmiť</string>
+    <string name="stealth_mode">Stealth mode</string>
+    <string name="alerts_gift_subscriptions">Gift subscriptions</string>
+    <string name="alerts_raids">Nájazdy</string>
+    <string name="alerts_cheers">Cheers</string>
+    <string name="bot">Bot</string>
+    <string name="subscribers">Subscribers</string>
+    <string name="others">Iné</string>
+    <string name="cooldown">Odpočet</string>
+    <string name="send_chat_responses">Pošlite odpovede do chatu</string>
+    <string name="send_chat_responses_footer">Zvyčajne odošle chatovú správu, ak používateľ nie je povolený vykonávať príkaz. Niektoré príkazy reagujú aj na úspech.</string>
+    <string name="alias_moblin">Alias ​​nesmie začať s !moblin.</string>
+    <string name="replacement_start">Výmena musí začať! !moblin.</string>
 </resources>

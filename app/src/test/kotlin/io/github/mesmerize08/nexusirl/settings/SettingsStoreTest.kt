@@ -48,6 +48,17 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun importAddsMissingQuickButtonsAllOff() {
+        val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())
+        // An export without quick buttons (like the system-test harness sends), and one with mute on.
+        store.import("""{"chat":{"botEnabled":true}}""")
+        assertTrue(store.current.quickButtons.any { it.type == QuickButtonType.MUTE })
+        store.import("""{"quickButtons":[{"name":"Mute","type":"Mute","isOn":true}]}""")
+        assertFalse(store.current.quickButtons.single { it.type == QuickButtonType.MUTE }.isOn)
+        assertTrue(store.current.quickButtons.any { it.type == QuickButtonType.TORCH })
+    }
+
+    @Test
     fun remoteControlPasswordIsSecret() {
         val secrets = InMemorySecretStore()
         val file = File(directory, "settings.json")

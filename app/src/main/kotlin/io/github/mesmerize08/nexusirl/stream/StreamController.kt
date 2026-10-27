@@ -201,6 +201,20 @@ object StreamController {
         }
     }
 
+    /**
+     * After settings were replaced by an import: the defaults a fresh install has, and the camera,
+     * microphone and effects following the (now all off) quick buttons and the new scenes.
+     */
+    fun settingsImported(context: Context) {
+        ensureDefaultScenes(context)
+        ensureBitratePresets(context)
+        ensureBundledLuts(context)
+        applyQuickButtons(context)
+        setTorch(false)
+        refreshScene(context)
+        refreshLuts(context)
+    }
+
     /** Applies effect and mute buttons (also after imports and when capture starts). */
     fun applyQuickButtons(context: Context) {
         applyEffects(context)

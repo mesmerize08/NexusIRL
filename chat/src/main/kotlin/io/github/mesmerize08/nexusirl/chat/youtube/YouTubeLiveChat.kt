@@ -257,6 +257,7 @@ class YouTubeLiveChat(
                 isModerator = isModerator || isOwner,
                 bits = null,
                 highlight = highlight,
+                isOwner = isOwner,
             ),
         )
     }

@@ -125,6 +125,7 @@ object ChatController {
         val settings = StreamController.settings(context)
         store = settings
         appContext = context.applicationContext
+        ChatBot.start(context)
         val newScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = newScope
         newScope.launch {
@@ -136,6 +137,11 @@ object ChatController {
                 removeOldMessages(settings.current)
             }
         }
+    }
+
+    /** Shows [text] like an alert toast on the streamer's screen. */
+    fun showToast(text: String) {
+        mutableToasts.tryEmit(text)
     }
 
     /** Called for every new post on the main thread (chat widgets, browser widgets). */
@@ -344,14 +350,17 @@ object ChatController {
     /**
      * Upstream `remoteControlStreamerChatMessages`: chat a remote control assistant forwards
      * (for example when it reads chat for the streamer). Ids only increase, so messages already
-     * shown are skipped, including a history batch sent again after reconnecting. Called on the
+     * shown are skipped, including a history batch sent again after reconnecting. A first
+     * [history] batch does not run chat bot commands, which were meant for earlier. Called on the
      * main thread.
      */
-    fun appendForwarded(posts: List<Pair<Long, ChatPost>>) {
+    fun appendForwarded(history: Boolean, posts: List<Pair<Long, ChatPost>>) {
+        val live = !history || latestForwardedId != -1L
         for ((id, post) in posts) {
             if (id > latestForwardedId) {
                 mutablePosts.value = (listOf(post) + mutablePosts.value).take(MAXIMUM_NUMBER_OF_MESSAGES)
                 postListeners.forEach { it(post) }
+                ChatBot.onPost(post, live)
                 latestForwardedId = id
             }
         }
@@ -366,6 +375,7 @@ object ChatController {
         override fun onPost(post: ChatPost) = onMain(current) {
             mutablePosts.value = (listOf(post) + mutablePosts.value).take(MAXIMUM_NUMBER_OF_MESSAGES)
             postListeners.forEach { it(post) }
+            ChatBot.onPost(post, live = true)
         }
 
         override fun onDeleteMessage(messageId: String) = onMain(current) {

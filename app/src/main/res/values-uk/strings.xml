@@ -30,4 +30,21 @@
     <string name="browser_url">URL</string>
     <string name="width">Ширина</string>
     <string name="height">Висота</string>
+    <string name="chat">Чат</string>
+    <string name="border">Кордон</string>
+    <string name="bold_message">Жирне повідомлення</string>
+    <string name="enabled">Увімкнено</string>
+    <string name="quick_buttons">Швидкі кнопки</string>
+    <string name="location">Місцезнаходження</string>
+    <string name="reset">Скинути</string>
+    <string name="privacy_regions">Регіони конфіденційності</string>
+    <string name="remote_control">Пульт</string>
+    <string name="remote_control_off">Вимкнено</string>
+    <string name="password">Пароль</string>
+    <string name="filter_gray_scale">Шкала сірого</string>
+    <string name="filter_sepia">сепія</string>
+    <string name="filter_pixellate">Pixellate</string>
+    <string name="mute">Вимкнути звук</string>
+    <string name="zoom">Збільшити</string>
+    <string name="add">додати</string>
 </resources>

@@ -37,6 +37,9 @@ data class SettingsChat(
     val enabled: Boolean = true,
     val mirrored: Boolean = false,
     val badges: Boolean = true,
+    val botEnabled: Boolean = false,
+    val botCommandPermissions: SettingsChatBotPermissions = SettingsChatBotPermissions(),
+    val aliases: List<SettingsChatBotAlias> = emptyList(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsChat>(generatedSerializer())

@@ -71,6 +71,34 @@ class SettingsTest {
     }
 
     @Test
+    fun chatBotSettings() {
+        // As the upstream harness's chat suite sets them up, with an iOS-only "migrated" key.
+        val database = Database.fromJson(
+            """{"chat": {"botEnabled": true,
+                         "botCommandPermissions": {"scene": {"moderatorsEnabled": true}, "migrated": true},
+                         "aliases": [{"alias": "!screen", "replacement": "!moblin scene Screen"}]}}""",
+        )
+        val chat = database.chat
+        assertTrue(chat.botEnabled)
+        assertTrue(chat.botCommandPermissions.scene.moderatorsEnabled)
+        assertTrue(chat.botCommandPermissions.audio.moderatorsEnabled)
+        assertFalse(chat.botCommandPermissions.audio.othersEnabled)
+        assertEquals(null, chat.botCommandPermissions.audio.cooldown)
+        assertEquals(listOf(SettingsChatBotAlias("!screen", "!moblin scene Screen")), chat.aliases)
+        val json = SwiftJson.parseToJsonElement(database.toJson()).jsonObject["chat"]!!.jsonObject
+        assertEquals("true", json["botCommandPermissions"]!!.jsonObject["migrated"].toString())
+        assertFalse("cooldown" in json["botCommandPermissions"]!!.jsonObject["audio"]!!.jsonObject)
+        // A new install: scene, stream and macro commands are off for moderators, as upstream.
+        val defaults = Database.fromJson("{}").chat.botCommandPermissions
+        assertEquals(
+            listOf(false, false, false, true),
+            listOf(defaults.scene, defaults.stream, defaults.macro, defaults.zoom).map {
+                it.moderatorsEnabled
+            },
+        )
+    }
+
+    @Test
     fun decodesAnIosExport() {
         val database = Database.fromJson(iosJson)
         assertEquals(2, database.streams.size)

@@ -21,4 +21,17 @@
     <string name="stop_recording">停止錄製</string>
     <string name="stabilization">防手震</string>
     <string name="widgets">小工具</string>
+    <string name="chat">聊天室</string>
+    <string name="border">邊框</string>
+    <string name="bold_message">粗體訊息</string>
+    <string name="quick_buttons">快捷按鈕</string>
+    <string name="remote_control">遠端控制</string>
+    <string name="remote_control_off">關閉</string>
+    <string name="filter_gray_scale">灰階</string>
+    <string name="filter_sepia">棕褐色</string>
+    <string name="mute">靜音</string>
+    <string name="zoom">變焦</string>
+    <string name="portrait">直拍</string>
+    <string name="alerts_raids">揪團</string>
+    <string name="add">增加</string>
 </resources>
