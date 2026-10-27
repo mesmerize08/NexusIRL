@@ -109,4 +109,10 @@
     <string name="replacement_empty">Замена не должна быть пустой.</string>
     <string name="replacement_start">Замена должна начинаться с !moblin</string>
     <string name="replacement_words">Замена должна содержать более одного слова</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">URL вебхука чат-бота</string>
+    <string name="only_when_live">Только во время стрима</string>
+    <string name="discord_snapshots_help">Автоматически загружать в каналы на вашем сервере Discord снимки, сделанные быстрой кнопкой или командой из чата.</string>
+    <string name="discord_webhook_help">Создайте вебхук в настройках вашего сервера Discord и вставьте его URL-адрес в поле выше.</string>
+    <string name="url">URL</string>
 </resources>

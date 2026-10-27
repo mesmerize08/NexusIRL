@@ -69,6 +69,21 @@ def goto(self, url, *args, **kwargs):
 
 Page.goto = goto
 
+original_import_settings = Moblin.import_settings
+
+
+def import_settings(self, overrides, *args, **kwargs):
+    # The chat bot can fetch snapshots from a web remote control, which on NexusIRL needs the
+    # login link.
+    snapshot = overrides.get("chat", {}).get("botCommandSnapshot", {})
+    url = snapshot.get("webRemoteControlUrl", "")
+    if ":1180" in url and "t=" not in url:
+        snapshot["webRemoteControlUrl"] = f"{url.rstrip('/')}/?t={TEST_TOKEN}"
+    return original_import_settings(self, overrides, *args, **kwargs)
+
+
+Moblin.import_settings = import_settings
+
 original_get_status_top_right = Moblin.get_status_top_right
 
 

@@ -50,4 +50,7 @@
     <string name="permissions">Permissions</string>
     <string name="minimum_subscriber_tier">Niveau d\'abonnement minimum</string>
     <string name="send_chat_responses_footer">Envoie généralement un message de chat si l\'utilisateur n\'est pas autorisé à exécuter la commande. Certaines commandes répondent également en cas de succès.</string>
+    <string name="webhook_url">URL du webhook</string>
+    <string name="chat_bot_webhook_url">URL du Webhook du chat bot</string>
+    <string name="url">URL</string>
 </resources>

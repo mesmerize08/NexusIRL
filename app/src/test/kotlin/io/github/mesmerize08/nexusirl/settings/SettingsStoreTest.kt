@@ -59,6 +59,27 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun discordWebhooksAndSnapshotSourceAreSecret() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        val webhook = "https://discord.com/api/webhooks/123/$key"
+        val remote = "http://192.168.1.10/?t=$key"
+        store.import(
+            """{"streams":[{"name":"IRL","discordSnapshotWebhook":"$webhook","discordChatBotSnapshotWebhook":"$webhook"}],
+               "chat":{"botCommandSnapshot":{"source":"Web remote control","webRemoteControlUrl":"$remote"}}}""",
+        )
+        assertFalse(key in file.readText(), file.readText())
+        val stream = store.current.streams.single()
+        assertEquals(webhook, store.resolve(stream.discordSnapshotWebhook))
+        assertEquals(webhook, store.resolve(stream.discordChatBotSnapshotWebhook))
+        assertEquals(remote, store.resolve(store.current.chat.botCommandSnapshot.webRemoteControlUrl))
+        assertFalse(key in store.exportJson())
+        assertTrue("https://discord.com\"" in store.exportJson())
+        assertTrue(webhook in store.exportJson(includeSecrets = true))
+        assertTrue(remote in store.exportJson(includeSecrets = true))
+    }
+
+    @Test
     fun remoteControlPasswordIsSecret() {
         val secrets = InMemorySecretStore()
         val file = File(directory, "settings.json")

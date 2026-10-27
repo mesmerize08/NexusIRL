@@ -15,8 +15,10 @@ import io.github.mesmerize08.nexusirl.chat.bot.ChatBotOnOffArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotPermissionCheck
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotStreamArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotTorchArgument
+import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotSource
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsChatBotPermissionsCommand
+import io.github.mesmerize08.nexusirl.stream.Snapshots
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.twitch.TwitchChannel
 
@@ -199,7 +201,11 @@ object ChatBot {
         StreamController.setQuickButton(context, type, state == ChatBotOnOffArgument.ON)
     }
 
-    /** Upstream's snapshot command, saving to the phone (no countdown message or Discord upload). */
+    /**
+     * Upstream's snapshot command: from this phone or another phone's web remote control, saved
+     * and uploaded to the stream's chat bot Discord webhook with "Snapshot taken by <user>.".
+     * The countdown variant with a message (`!moblin snapshot <message>`) takes it at once.
+     */
     private fun snapshot(context: Context, command: ChatBotCommand, permissions: SettingsChatBotPermissionsCommand) {
         val user = command.user()
         ifAllowed(context, "snapshot", permissions, command, onNotAllowed = {
@@ -210,9 +216,25 @@ object ChatBot {
             if (user != null && permissions.sendChatMessages) {
                 reply(command.message, "$user, thanks for bringing our photo album to life. 🎉")
             }
-            StreamController.takeSnapshot(context) { saved ->
-                if (saved) {
-                    toast(if (user != null) "Snapshot taken by $user." else "Snapshot taken")
+            val message = user?.let { "Snapshot taken by $it." }
+            val database = StreamController.settings(context).current
+            when (database.chat.botCommandSnapshot.effectiveSource(StreamController.isLive)) {
+                ChatBotSnapshotSource.THIS_DEVICE -> StreamController.takeSnapshot(context, isChatBot = true, message = message) { saved ->
+                    if (saved) {
+                        toast(message ?: "Snapshot taken")
+                    }
+                }
+                ChatBotSnapshotSource.WEB_REMOTE_CONTROL -> {
+                    val url = StreamController.settings(context).resolve(database.chat.botCommandSnapshot.webRemoteControlUrl)
+                    val appContext = context.applicationContext
+                    Thread({
+                        val jpeg = Snapshots.fetchFromWebRemoteControl(url, age = 0f)
+                        if (jpeg == null) {
+                            toast("Failed to fetch snapshot from web remote control")
+                        } else {
+                            StreamController.handleSnapshot(appContext, jpeg, message, isChatBot = true, upload = true)
+                        }
+                    }, "chat-bot-snapshot").apply { isDaemon = true }.start()
                 }
             }
         }

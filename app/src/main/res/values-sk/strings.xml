@@ -32,4 +32,8 @@
     <string name="send_chat_responses_footer">Zvyčajne odošle chatovú správu, ak používateľ nie je povolený vykonávať príkaz. Niektoré príkazy reagujú aj na úspech.</string>
     <string name="alias_moblin">Alias ​​nesmie začať s !moblin.</string>
     <string name="replacement_start">Výmena musí začať! !moblin.</string>
+    <string name="chat_bot_webhook_url">Chat bot webhook URL</string>
+    <string name="only_when_live">Iba keď je LIVE</string>
+    <string name="discord_webhook_help">Vytvorte webhook v nastaveniach svojho Discord servera a vložte jeho adresu URL vyššie.</string>
+    <string name="url">URL</string>
 </resources>

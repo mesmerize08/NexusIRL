@@ -50,6 +50,6 @@ fun ChatSettingsScreen(store: SettingsStore, onBack: () -> Unit) {
                 update { it.copy(maximumAge = (age / 5).roundToInt() * 5) }
             }
         }
-        ChatBotSettings(chat, ::update)
+        ChatBotSettings(chat, store::resolve, ::update)
     }
 }

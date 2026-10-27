@@ -86,4 +86,10 @@
     <string name="cooldown_none">-- Hiçbiri --</string>
     <string name="send_chat_responses">Sohbet yanıtlarını gönder</string>
     <string name="send_chat_responses_footer">Kullanıcının komutu yürütmesine izin verilmezse genellikle bir sohbet mesajı gönderir. Bazı komutlar, çalıştığında da yanıt verir.</string>
+    <string name="webhook_url">Webhook URL\'si</string>
+    <string name="chat_bot_webhook_url">Sohbet botu webhook URL\'si</string>
+    <string name="only_when_live">Sadece yayında olduğunda</string>
+    <string name="discord_snapshots_help">Anlık görüntüleri ve sohbet botu anlık görüntülerini otomatik olarak Discord sunucunuzdaki kanallara yükleyin.</string>
+    <string name="discord_webhook_help">Discord sunucunuzun ayarlarından bir webhook oluşturun ve URL\'sini yukarıya yapıştırın.</string>
+    <string name="url">URL</string>
 </resources>

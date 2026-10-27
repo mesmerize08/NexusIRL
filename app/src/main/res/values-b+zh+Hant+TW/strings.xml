@@ -112,4 +112,11 @@
     <string name="replacement_empty">替換不能空白。</string>
     <string name="replacement_start">替換必須以 !moblin 開頭。</string>
     <string name="replacement_words">替換必須多於一個單字。</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">聊天 Bot Webhook URL</string>
+    <string name="only_when_live">僅限實況時</string>
+    <string name="discord_snapshots_help">自動將快速按鈕截圖和聊天機器人截圖上傳到 Discord 伺服器的頻道中。</string>
+    <string name="discord_webhook_help">在您的 Discord 伺服器設定中建立一個 Webhook，然後將 URL 貼到上方。</string>
+    <string name="url">URL</string>
+    <string name="this_device">此裝置</string>
 </resources>

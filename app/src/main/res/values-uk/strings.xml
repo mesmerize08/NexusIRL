@@ -47,4 +47,5 @@
     <string name="mute">Вимкнути звук</string>
     <string name="zoom">Збільшити</string>
     <string name="add">додати</string>
+    <string name="url">URL</string>
 </resources>

@@ -108,4 +108,10 @@
     <string name="replacement_empty">不能是空白</string>
     <string name="replacement_start">必需以!moblin作開端</string>
     <string name="replacement_words">必需多過一個字元</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">聊天機器人webhook URL</string>
+    <string name="only_when_live">僅限直播時</string>
+    <string name="discord_snapshots_help">自動將快速按鈕和聊天機器人的截圖上傳到你的Discord伺服器。</string>
+    <string name="discord_webhook_help">在你的Discord伺服器設定，建立webhook並在這裡貼上URL。</string>
+    <string name="url">URL</string>
 </resources>

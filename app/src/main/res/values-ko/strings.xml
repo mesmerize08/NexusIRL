@@ -108,4 +108,10 @@
     <string name="replacement_empty">비워둘 수 없습니다.</string>
     <string name="replacement_start">!moblin으로 시작해야합니다.</string>
     <string name="replacement_words">두 단어 이상이여야 합니다.</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">채팅 봇 Webhook URL</string>
+    <string name="only_when_live">라이브일때만</string>
+    <string name="discord_snapshots_help">디스코드 서버의 채널에 퀵 버튼 스냅샷과 채팅 봇 스냅샷을 자동으로 업로드합니다.</string>
+    <string name="discord_webhook_help">디스코드 서버 설정에서 webhook을 만들고 위에 URL을 붙여넣으세요.</string>
+    <string name="url">URL</string>
 </resources>

@@ -20,7 +20,7 @@ Turn it on under **Settings → Chat → Bot → Enabled**.
 | `!moblin zoom <x>` | Zooms the camera, for example `!moblin zoom 2`. |
 | `!moblin torch on`, `!moblin torch off` | Turns the torch on or off. |
 | `!moblin filter <filter> <on or off>` | Turns an effect on or off: `grayscale`, `sepia`, `pixellate`, `4:3`, `whirlpool` or `pinch`. |
-| `!moblin snapshot` | Saves a picture of the stream to the phone (Pictures/NexusIRL). |
+| `!moblin snapshot` | Saves a picture of the stream to the phone (Pictures/NexusIRL) and, if the stream has a chat bot Discord webhook, posts it there with "Snapshot taken by <user>." The picture can come from another phone's web remote control instead (tap the command to choose); for another NexusIRL phone, paste its whole web remote control link, including `?t=`. |
 | `!moblin stream start`, `!moblin stream stop` | Goes live or ends the stream. |
 | `!moblin stream title <title>` | Changes the Twitch title (needs Twitch sign-in on the stream). |
 | `!moblin stream category <category name>` | Changes the Twitch category; the name must match exactly. |

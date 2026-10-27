@@ -104,4 +104,10 @@
     <string name="replacement_empty">nowe polecenie nie może być puste.</string>
     <string name="replacement_start">nowe polecenie musi zaczynać się od !moblin.</string>
     <string name="replacement_words">nowe polecenie musi składać się z więcej niż jednego słowa.</string>
+    <string name="webhook_url">Adres URL Webhooka</string>
+    <string name="chat_bot_webhook_url">URL webhook’u dla bota</string>
+    <string name="only_when_live">Tylko podczas trwania live</string>
+    <string name="discord_snapshots_help">Automatycznie przesyłaj migawki z przycisku szybkich akcji i migawki z czatbota do kanałów na swoim serwerze Discord.</string>
+    <string name="discord_webhook_help">Utwórz webhook w ustawieniach serwera Discord i wklej jego adres URL powyżej.</string>
+    <string name="url">URL</string>
 </resources>

@@ -23,8 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import io.github.mesmerize08.nexusirl.R
+import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotSource
+import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotWebRemoteControlMode
 import io.github.mesmerize08.nexusirl.settings.SettingsChat
 import io.github.mesmerize08.nexusirl.settings.SettingsChatBotAlias
+import io.github.mesmerize08.nexusirl.settings.SettingsChatBotCommandSnapshot
 import io.github.mesmerize08.nexusirl.settings.SettingsChatBotPermissions
 import io.github.mesmerize08.nexusirl.settings.SettingsChatBotPermissionsCommand
 
@@ -33,6 +36,7 @@ private class BotCommand(
     val usage: String,
     val get: (SettingsChatBotPermissions) -> SettingsChatBotPermissionsCommand,
     val set: (SettingsChatBotPermissions, SettingsChatBotPermissionsCommand) -> SettingsChatBotPermissions,
+    val isSnapshot: Boolean = false,
 )
 
 private val COMMANDS = listOf(
@@ -45,7 +49,7 @@ private val COMMANDS = listOf(
         { it.filter },
         { p, c -> p.copy(filter = c) },
     ),
-    BotCommand("!moblin snapshot", { it.snapshot }, { p, c -> p.copy(snapshot = c) }),
+    BotCommand("!moblin snapshot", { it.snapshot }, { p, c -> p.copy(snapshot = c) }, isSnapshot = true),
     BotCommand(
         "!moblin stream start, stop, title <title> or category <category name>",
         { it.stream },
@@ -75,7 +79,7 @@ private fun replacementError(value: String): Int? = when {
 
 /** The chat bot part of the chat settings. */
 @Composable
-fun ChatBotSettings(chat: SettingsChat, update: ((SettingsChat) -> SettingsChat) -> Unit) {
+fun ChatBotSettings(chat: SettingsChat, resolve: (String) -> String, update: ((SettingsChat) -> SettingsChat) -> Unit) {
     var editing by remember { mutableStateOf<BotCommand?>(null) }
     var addingAlias by remember { mutableStateOf(false) }
     Text(stringResource(R.string.bot), style = MaterialTheme.typography.titleMedium)
@@ -99,7 +103,26 @@ fun ChatBotSettings(chat: SettingsChat, update: ((SettingsChat) -> SettingsChat)
     TextButton(onClick = { addingAlias = true }) { Text(stringResource(R.string.add)) }
 
     editing?.let { command ->
-        PermissionsDialog(command.usage, command.get(chat.botCommandPermissions), onDismiss = { editing = null }) { changed ->
+        // The snapshot command can also take its picture from another phone (upstream's source).
+        var snapshot by remember(command) {
+            mutableStateOf(chat.botCommandSnapshot.copy(webRemoteControlUrl = resolve(chat.botCommandSnapshot.webRemoteControlUrl)))
+        }
+        val isSnapshot = command.isSnapshot
+        PermissionsDialog(
+            command.usage,
+            command.get(chat.botCommandPermissions),
+            onDismiss = {
+                if (isSnapshot) {
+                    update { it.copy(botCommandSnapshot = snapshot) }
+                }
+                editing = null
+            },
+            extra = if (isSnapshot) {
+                { SnapshotSource(snapshot) { snapshot = it } }
+            } else {
+                {}
+            },
+        ) { changed ->
             update { it.copy(botCommandPermissions = command.set(it.botCommandPermissions, changed)) }
         }
     }
@@ -117,6 +140,7 @@ private fun PermissionsDialog(
     title: String,
     permissions: SettingsChatBotPermissionsCommand,
     onDismiss: () -> Unit,
+    extra: @Composable () -> Unit = {},
     onChange: (SettingsChatBotPermissionsCommand) -> Unit,
 ) {
     // Follows the edits, since the settings flow back in only after recomposition.
@@ -130,6 +154,7 @@ private fun PermissionsDialog(
         title = { Text(title, style = MaterialTheme.typography.titleSmall) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                extra()
                 Text(stringResource(R.string.permissions), style = MaterialTheme.typography.labelLarge)
                 SwitchRow(stringResource(R.string.moderators), current.moderatorsEnabled) { change(current.copy(moderatorsEnabled = it)) }
                 SwitchRow(
@@ -172,6 +197,42 @@ private fun PermissionsDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.back)) } },
     )
+}
+
+/** Upstream `SnapshotPermissionsSettingsView`'s source part. The URL is kept secret on save. */
+@Composable
+private fun SnapshotSource(snapshot: SettingsChatBotCommandSnapshot, onChange: (SettingsChatBotCommandSnapshot) -> Unit) {
+    val sources = mapOf(
+        ChatBotSnapshotSource.THIS_DEVICE to stringResource(R.string.this_device),
+        ChatBotSnapshotSource.WEB_REMOTE_CONTROL to stringResource(R.string.web_remote_control),
+    )
+    ChoiceField(stringResource(R.string.source), snapshot.source, sources.keys.toList(), { sources.getValue(it) }, {
+        onChange(snapshot.copy(source = it))
+    })
+    if (snapshot.source == ChatBotSnapshotSource.WEB_REMOTE_CONTROL) {
+        val modes = mapOf(
+            ChatBotSnapshotWebRemoteControlMode.FALLBACK_WHEN_NOT_LIVE to stringResource(R.string.when_not_live),
+            ChatBotSnapshotWebRemoteControlMode.ALWAYS to stringResource(R.string.always),
+        )
+        ChoiceField(
+            stringResource(
+                R.string.use_remote_source,
+            ),
+            snapshot.webRemoteControlMode,
+            modes.keys.toList(),
+            { modes.getValue(it) },
+            {
+                onChange(snapshot.copy(webRemoteControlMode = it))
+            },
+        )
+        SecretTextField(
+            stringResource(R.string.url),
+            snapshot.webRemoteControlUrl,
+            { onChange(snapshot.copy(webRemoteControlUrl = it.trim())) },
+        )
+        Text(stringResource(R.string.snapshot_source_token_help), style = MaterialTheme.typography.bodySmall)
+    }
+    Text(stringResource(R.string.snapshot_source_help), style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable

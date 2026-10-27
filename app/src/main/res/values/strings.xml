@@ -305,4 +305,17 @@
     <string name="replacement_empty">The replacement must not be empty.</string>
     <string name="replacement_start">The replacement must start with !moblin.</string>
     <string name="replacement_words">The replacement must be more than one word.</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">Chat bot webhook URL</string>
+    <string name="only_when_live">Only when live</string>
+    <string name="discord_snapshots_help">Automatically upload quick button snapshots and chat bot snapshots to channels in your Discord server.</string>
+    <string name="discord_webhook_help">Create a webhook in your Discord server\'s settings and paste it\'s URL above.</string>
+    <string name="source">Source</string>
+    <string name="use_remote_source">Use remote source</string>
+    <string name="url">URL</string>
+    <string name="this_device">This device</string>
+    <string name="when_not_live">When not live</string>
+    <string name="always">Always</string>
+    <string name="snapshot_source_help">Take the snapshot on this device, or fetch it from another device\'s web remote control.</string>
+    <string name="snapshot_source_token_help">For another NexusIRL phone, use its whole web remote control link, including ?t=.</string>
 </resources>

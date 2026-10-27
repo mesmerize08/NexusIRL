@@ -112,4 +112,11 @@
     <string name="replacement_empty">Ersättningen får inte vara tom.</string>
     <string name="replacement_start">Ersättningen måste börja med !moblin.</string>
     <string name="replacement_words">Ersättningen måste vara mer än ett ord.</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">Chat bot webhook URL</string>
+    <string name="only_when_live">Bara när man är live</string>
+    <string name="discord_snapshots_help">Ladda automatiskt upp snabbknappsfoton och chattbotsfoton till kanaler på din Discord-server.</string>
+    <string name="discord_webhook_help">Skapa en webhook i din Discord-servers inställningar och klistra in dess URL ovan.</string>
+    <string name="url">URL</string>
+    <string name="this_device">Den här enheten</string>
 </resources>

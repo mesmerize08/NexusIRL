@@ -11,6 +11,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   snapshots, and start or stop the stream or change its Twitch title and category. Each command
   has Moblin's permissions (moderators, subscribers, everyone, cooldown, chat answers), and
   aliases such as `!screen` work. Moblin's chat bot settings import from iOS.
+- Snapshots upload to Discord, as in Moblin: set a webhook per stream (Streams → edit → Discord),
+  with a separate one for chat bot snapshots and an "only when live" switch. The webhook links are
+  kept in the encrypted secret store and left out of exports without keys.
+- The chat bot's snapshot command can take the picture from another phone's web remote control
+  (Settings → Chat → Bot → `!moblin snapshot`), as in Moblin.
 - Chat and Twitch alerts forwarded by a remote control assistant (Moblin's `chatMessages` and
   `twitchEventSubNotification` requests) show in chat, the chat widget and alert toasts, as in
   Moblin. Messages from SOOP and Open Streaming Platform are shown too.

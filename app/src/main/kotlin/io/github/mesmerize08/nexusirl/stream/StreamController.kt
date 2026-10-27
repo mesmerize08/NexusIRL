@@ -525,36 +525,52 @@ object StreamController {
     }
 
     /**
-     * Saves the current frame as a JPEG (quality 0.9, as upstream) to `Pictures/NexusIRL`.
-     * [onDone] runs on the main thread with true when saved.
+     * Upstream `takeSnapshot`: saves the current frame as a JPEG (quality 0.9) to
+     * `Pictures/NexusIRL` and uploads it to the stream's Discord webhook (the chat bot's one when
+     * [isChatBot]) with [message], unless that webhook is for live streams only and this one is
+     * not live. [onDone] runs on the main thread with true when saved.
      */
-    fun takeSnapshot(context: Context, onDone: (Boolean) -> Unit) {
-        val video = pipeline
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        if (video == null) {
-            onDone(false)
-            return
-        }
-        val resolver = context.applicationContext.contentResolver
+    fun takeSnapshot(context: Context, isChatBot: Boolean = false, message: String? = null, onDone: (Boolean) -> Unit = {}) {
+        val video = pipeline ?: return onDone(false)
+        val stream = settings(context).current.selectedStream
+        val upload = stream != null && (!stream.discordSnapshotWebhookOnlyWhenLive || isLive)
         video.takeSnapshot { bitmap ->
-            val saved = bitmap != null && try {
-                val name = "NexusIRL_${SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())}.jpg"
-                val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, name)
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/NexusIRL")
+            val jpeg = bitmap?.let {
+                try {
+                    java.io.ByteArrayOutputStream().also { out -> it.compress(Bitmap.CompressFormat.JPEG, 90, out) }.toByteArray()
+                } finally {
+                    it.recycle()
                 }
-                val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                val output = uri?.let { resolver.openOutputStream(it) }
-                output?.use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) } == true
-            } catch (e: Exception) {
-                false
-            } finally {
-                bitmap?.recycle()
             }
-            main.post { onDone(saved) }
+            if (jpeg == null) {
+                mainHandler.post { onDone(false) }
+            } else {
+                handleSnapshot(context, jpeg, message, isChatBot, upload, onDone)
+            }
         }
     }
+
+    /** Upstream `handleSnapshot` (and saving): blocking, call off the main thread. */
+    fun handleSnapshot(
+        context: Context,
+        jpeg: ByteArray,
+        message: String?,
+        isChatBot: Boolean,
+        upload: Boolean,
+        onDone: (Boolean) -> Unit = {},
+    ) {
+        val saved = Snapshots.save(context, jpeg)
+        mainHandler.post { onDone(saved) }
+        val store = settings(context)
+        val stream = store.current.selectedStream ?: return
+        val webhook = store.resolve(if (isChatBot) stream.discordChatBotSnapshotWebhook else stream.discordSnapshotWebhook)
+        if (upload && webhook.isNotBlank()) {
+            val uploaded = Snapshots.uploadToDiscord(webhook, jpeg, message)
+            ChatController.showToast(if (uploaded) "Snapshot uploaded to Discord" else "Failed to upload snapshot to Discord")
+        }
+    }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     // Capture lifetime
 

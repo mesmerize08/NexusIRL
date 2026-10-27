@@ -136,6 +136,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.okhttp.mockwebserver)
     testRuntimeOnly(libs.junit.platform.launcher)
     // UI smoke tests on an emulator (app/src/androidTest; CI job "ui-tests").
     androidTestImplementation(platform(libs.compose.bom))

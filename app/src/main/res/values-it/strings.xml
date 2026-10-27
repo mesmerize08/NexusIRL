@@ -109,4 +109,10 @@
     <string name="replacement_empty">La sostituzione non deve essere vuota.</string>
     <string name="replacement_start">La sostituzione deve iniziare con !moblin.</string>
     <string name="replacement_words">La sostituzione deve essere più di una parola.</string>
+    <string name="webhook_url">URL webhook</string>
+    <string name="chat_bot_webhook_url">URL webhook del chat bot</string>
+    <string name="only_when_live">Solo in diretta</string>
+    <string name="discord_snapshots_help">Carica automaticamente gli snapshot dei pulsanti rapidi e del chat bot nei canali del tuo server Discord.</string>
+    <string name="discord_webhook_help">Crea un webhook nelle impostazioni del tuo server Discord e incollane l\'URL qui sopra.</string>
+    <string name="url">URL</string>
 </resources>

@@ -63,4 +63,5 @@
     <string name="add">追加</string>
     <string name="subscribers">サブスクライバー</string>
     <string name="minimum_subscriber_tier">最低サブスクティア</string>
+    <string name="url">URL</string>
 </resources>

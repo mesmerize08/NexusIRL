@@ -261,6 +261,10 @@ data class SettingsStream(
     val chat: SettingsStreamChat = SettingsStreamChat(),
     val twitchChatAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
     val twitchToastAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
+    /** Discord webhooks for snapshots (secret: the path holds the webhook's token). */
+    val discordSnapshotWebhook: String = "",
+    val discordChatBotSnapshotWebhook: String = "",
+    val discordSnapshotWebhookOnlyWhenLive: Boolean = true,
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     // Up to 0.2.0 the Android app wrote "youTubeVideoIds", which iOS does not read.

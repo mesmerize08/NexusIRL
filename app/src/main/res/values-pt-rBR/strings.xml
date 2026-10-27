@@ -84,4 +84,10 @@
     <string name="cooldown_none">-- Nenhum --</string>
     <string name="send_chat_responses">Envie respostas no bate-papo</string>
     <string name="send_chat_responses_footer">Normalmente, envia uma mensagem no bate-papo se o usuário não tiver permissão para executar o comando. Alguns comandos também respondem quando são bem-sucedidos.</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">Bate-papo bot webhook url</string>
+    <string name="only_when_live">Somente quando ao vivo</string>
+    <string name="discord_snapshots_help">Carregue automaticamente capturas de tela por botões e capturas de tela dos bots de bate-papo para canais no seu servidor Discord.</string>
+    <string name="discord_webhook_help">Crie um webhook nas configurações do seu servidor Discord e cole o URL acima.</string>
+    <string name="url">URL</string>
 </resources>

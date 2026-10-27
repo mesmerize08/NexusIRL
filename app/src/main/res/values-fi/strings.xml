@@ -109,4 +109,10 @@
     <string name="replacement_empty">Korvaaja ei saa olla tyhjä.</string>
     <string name="replacement_start">Korvaajan on alettava ”!moblin”.</string>
     <string name="replacement_words">Korvaajan on oltava useampi kuin yksi sana.</string>
+    <string name="webhook_url">Webhook -URL-osoite</string>
+    <string name="chat_bot_webhook_url">Chatbot webhook -URL-osoite</string>
+    <string name="only_when_live">Vain lähetyksen aikana</string>
+    <string name="discord_snapshots_help">Lataa automaattisesti pikapainikkeella ja chat-bottien kautta otetut kuvankaappaukset Discord-palvelimesi kanaville</string>
+    <string name="discord_webhook_help">Luo webhook Discord-palvelimesi asetuksissa ja liitä sen URL-osoite yllä.</string>
+    <string name="url">URL</string>
 </resources>

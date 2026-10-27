@@ -9,7 +9,7 @@ MediaMTX or ffmpeg. Because NexusIRL speaks the same protocol, the same tests ru
 - No check for macOS tools (qrtool, ltc-tools, lsof, tcpdump); tests that need them fail.
 - NexusIRL's web remote control needs its access token: the imported settings set a known test
   token, requests to the phone's web remote control send it, and browser pages open it with the
-  `?t=` login link.
+  `?t=` login link. The chat bot's snapshot source URL gets the link too.
 - A browser's request reaches the phone by another route than the harness's own connection, so
   a status read right after it may not see it yet; the bitrate check then polls again instead of
   failing on the missing entry.
@@ -66,11 +66,11 @@ XDG_CONFIG_HOME=$PWD/config PATH=/path/to/mediamtx:$PATH \
 | StreamRtmpToMediaMtx (5 Mbps, at least 10 MB, checked at MediaMTX) | Pass |
 | StreamMultiRtmpToMediaMtx | Fails: streaming to several destinations is not ported |
 | Record (H.264 and H.265, 1080p30 to 4K, and 1080p60) | Pass, including the strict timing, B-frame and audio checks |
-| Scene widget tests | VTuber and PNGTuber widgets are not ported; LUT tests need images the macOS setup makes |
+| Scene widget tests (2026-10-27): map, image with cube and PNG LUT | Pass; VTuber and PNGTuber widgets are not ported |
 | MicDelay | Assumes iOS microphone IDs and a mic delay setting |
 | SRT and SRTLA tests | Not run yet (need the firewall setup above) |
 | Chat (2026-10-27): ChatEmotes (150 messages at 10 per second, 100 emotes each fetched once) and all 22 Twitch and YouTube event tests | Pass; the alerts and highlights show in chat |
-| ChatBot tests (`!moblin` commands, snapshot to Discord) | Fail: the chat bot is not ported |
+| ChatBot tests (2026-10-27): mute and unmute, not allowed, snapshot from a web remote control to Discord | Pass; the two scene tests switch to a screen capture scene, which Android does not have |
 | WebRemoteControlLive (go live and end from a browser, 5 Mbps at MediaMTX) | Pass |
 | WebRemoteControlSnapshot | Fails by design: NexusIRL's `/snapshot` is JPEG, upstream's HEIC |
 
@@ -81,4 +81,6 @@ Recordings page, frame and audio timing (upstream's frame timer), B-frames and m
 recordings, and two crashes in the camera and preview set-up. On 2026-10-27: chat and Twitch
 alerts forwarded by an assistant, a crash on emotes without a name, a crash when a stream was
 stopped within a moment of starting (Android's foreground service rule), and remote control
-status reporting live (and the bitrate) from the moment a stream starts, as upstream.
+status reporting live (and the bitrate) from the moment a stream starts, as upstream. Then: the
+chat bot, quick buttons missing after an import, "None" camera scenes (status and black picture),
+images in settings archives, widget LUTs, the map dot's size, and Discord snapshot uploads.

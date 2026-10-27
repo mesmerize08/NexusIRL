@@ -65,11 +65,18 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
      */
     fun exportJson(includeSecrets: Boolean = false): String {
         val database = current
+        fun exported(url: String) = if (includeSecrets) SecretRef.resolve(url, secrets) else StreamUrlSecrets.publicPart(url)
         val streams = database.streams.map { stream ->
-            val url = if (includeSecrets) resolveUrl(stream) else StreamUrlSecrets.publicPart(stream.url)
             // Twitch tokens are never exported; the other device signs in itself.
-            stream.copy(url = url, twitchAccessToken = "", twitchLoggedIn = false)
+            stream.copy(
+                url = exported(stream.url),
+                twitchAccessToken = "",
+                twitchLoggedIn = false,
+                discordSnapshotWebhook = exported(stream.discordSnapshotWebhook),
+                discordChatBotSnapshotWebhook = exported(stream.discordChatBotSnapshotWebhook),
+            )
         }
+        val snapshot = database.chat.botCommandSnapshot.let { it.copy(webRemoteControlUrl = exported(it.webRemoteControlUrl)) }
         val password = if (includeSecrets) remoteControlPassword() else ""
         val streamer = database.remoteControl.streamer.let { streamer ->
             streamer.copy(url = if (includeSecrets) remoteControlUrl() else StreamUrlSecrets.publicPart(streamer.url))
@@ -84,8 +91,11 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
                 web = database.remoteControl.web.copy(token = ""),
             ),
             moblink = database.moblink.copy(password = moblinkPassword),
+            chat = database.chat.copy(botCommandSnapshot = snapshot),
         ).toJson()
     }
+
+    private fun protectUrl(url: String) = StreamUrlSecrets.protect(url) { secret -> secrets.put(secret).placeholder }
 
     private fun protectSecrets(database: Database): Database {
         // Remote control and Moblink passwords are secret as a whole (docs/PORT_PLAN.md §9.2).
@@ -98,15 +108,26 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             moblink = database.moblink.copy(password = protect(database.moblink.password)),
             streams = database.streams.map { stream ->
                 stream.copy(
-                    url = StreamUrlSecrets.protect(stream.url) { secret -> secrets.put(secret).placeholder },
+                    url = protectUrl(stream.url),
                     twitchAccessToken = protect(stream.twitchAccessToken),
+                    // A Discord webhook's path holds its token: anyone with it can post.
+                    discordSnapshotWebhook = protectUrl(stream.discordSnapshotWebhook),
+                    discordChatBotSnapshotWebhook = protectUrl(stream.discordChatBotSnapshotWebhook),
                 )
             },
+            // May carry the other phone's web remote control token.
+            chat = database.chat.copy(
+                botCommandSnapshot = database.chat.botCommandSnapshot.let {
+                    it.copy(
+                        webRemoteControlUrl = protectUrl(it.webRemoteControlUrl),
+                    )
+                },
+            ),
             remoteControl = database.remoteControl.copy(
                 password = protect(database.remoteControl.password),
                 // A relay URL's path holds the bridge ID, which lets anyone take the assistant's place.
                 streamer = database.remoteControl.streamer.copy(
-                    url = StreamUrlSecrets.protect(database.remoteControl.streamer.url) { secret -> secrets.put(secret).placeholder },
+                    url = protectUrl(database.remoteControl.streamer.url),
                 ),
                 web = database.remoteControl.web.copy(token = protect(database.remoteControl.web.token)),
             ),
@@ -125,11 +146,17 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     /** The assistant (or relay) URL the streamer connects to, with its secret path. Keep it in memory only. */
     fun remoteControlUrl(): String = SecretRef.resolve(current.remoteControl.streamer.url, secrets)
 
+    /** A setting holding a secret reference (such as a Discord webhook), filled in. Keep it in memory only. */
+    fun resolve(value: String): String = SecretRef.resolve(value, secrets)
+
     /** The remote control password, from the secret store. Keep it in memory only. */
     fun remoteControlPassword(): String = SecretRef.resolve(current.remoteControl.password, secrets)
 
     private fun removeUnreferencedSecrets(database: Database) {
-        val streamSecrets = database.streams.flatMap { SecretRef.findAll(it.url) + SecretRef.findAll(it.twitchAccessToken) }
+        val streamSecrets = database.streams.flatMap { stream ->
+            listOf(stream.url, stream.twitchAccessToken, stream.discordSnapshotWebhook, stream.discordChatBotSnapshotWebhook)
+                .flatMap { SecretRef.findAll(it) }
+        } + SecretRef.findAll(database.chat.botCommandSnapshot.webRemoteControlUrl)
         val passwords = SecretRef.findAll(database.remoteControl.password) + SecretRef.findAll(database.moblink.password) +
             SecretRef.findAll(database.remoteControl.web.token) + SecretRef.findAll(database.remoteControl.streamer.url)
         val referenced = (streamSecrets + passwords).toSet()

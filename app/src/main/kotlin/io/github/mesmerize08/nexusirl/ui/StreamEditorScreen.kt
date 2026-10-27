@@ -67,6 +67,15 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             } ?: "",
         )
     }
+
+    // Discord webhook URLs hold the webhook's token: secret too.
+    fun resolved(value: String) = try {
+        store.resolve(value)
+    } catch (e: MissingSecretException) {
+        StreamUrlSecrets.publicPart(value)
+    }
+    var snapshotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordSnapshotWebhook) }.orEmpty()) }
+    var chatBotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordChatBotSnapshotWebhook) }.orEmpty()) }
     val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
     val urlValid = StreamUrlSecrets.isValid(url)
     val scheme = url.substringBefore("://", "").lowercase()
@@ -84,6 +93,8 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                     val edited = stream.copy(
                         name = stream.name.trim(),
                         url = url,
+                        discordSnapshotWebhook = snapshotWebhook,
+                        discordChatBotSnapshotWebhook = chatBotWebhook,
                         twitchAccessToken = account?.twitchAccessToken.orEmpty(),
                         twitchLoggedIn = account?.twitchLoggedIn ?: false,
                     )
@@ -207,6 +218,16 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         TwitchAlertSwitches(stringResource(R.string.twitch_alerts_chat), stream.twitchChatAlerts) {
             stream = stream.copy(twitchChatAlerts = it)
         }
+        HorizontalDivider()
+        // Upstream's snapshot settings: Discord uploads.
+        Text("Discord", style = MaterialTheme.typography.titleMedium)
+        SecretTextField(stringResource(R.string.webhook_url), snapshotWebhook, { snapshotWebhook = it.trim() })
+        SecretTextField(stringResource(R.string.chat_bot_webhook_url), chatBotWebhook, { chatBotWebhook = it.trim() })
+        SwitchRow(stringResource(R.string.only_when_live), stream.discordSnapshotWebhookOnlyWhenLive) {
+            stream = stream.copy(discordSnapshotWebhookOnlyWhenLive = it)
+        }
+        Text(stringResource(R.string.discord_snapshots_help), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.discord_webhook_help), style = MaterialTheme.typography.bodySmall)
     }
 }
 

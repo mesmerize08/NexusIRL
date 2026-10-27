@@ -105,4 +105,10 @@
     <string name="replacement_empty">替换不得为空。</string>
     <string name="replacement_start">替换必须以！</string>
     <string name="replacement_words">替换必须不止一个单词。</string>
+    <string name="webhook_url">Webhook URL</string>
+    <string name="chat_bot_webhook_url">聊天bot webhook URL</string>
+    <string name="only_when_live">仅限直播时</string>
+    <string name="discord_snapshots_help">自动将快速按钮快照和聊天机器人快照上传到 Discord 服务器中的频道。</string>
+    <string name="discord_webhook_help">在您的 Discord 服务器设置中创建一个 webhook 并将其 URL 粘贴到上面。</string>
+    <string name="url">URL</string>
 </resources>

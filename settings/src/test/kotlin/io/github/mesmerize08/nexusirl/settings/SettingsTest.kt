@@ -86,6 +86,20 @@ class SettingsTest {
     }
 
     @Test
+    fun chatBotSnapshotSource() {
+        val snapshot = Database.fromJson("""{"chat":{"botCommandSnapshot":{"source":"Web remote control"}}}""").chat.botCommandSnapshot
+        assertEquals(ChatBotSnapshotSource.WEB_REMOTE_CONTROL, snapshot.source)
+        // Upstream's default: the other phone only while this one is not live.
+        assertEquals(ChatBotSnapshotSource.THIS_DEVICE, snapshot.effectiveSource(isLive = true))
+        assertEquals(ChatBotSnapshotSource.WEB_REMOTE_CONTROL, snapshot.effectiveSource(isLive = false))
+        val always = snapshot.copy(webRemoteControlMode = ChatBotSnapshotWebRemoteControlMode.ALWAYS)
+        assertEquals(ChatBotSnapshotSource.WEB_REMOTE_CONTROL, always.effectiveSource(isLive = true))
+        assertEquals(ChatBotSnapshotSource.THIS_DEVICE, SettingsChatBotCommandSnapshot().effectiveSource(isLive = false))
+        assertTrue(Database.fromJson("{}").streams.isEmpty())
+        assertTrue(SettingsStream().discordSnapshotWebhookOnlyWhenLive)
+    }
+
+    @Test
     fun chatBotSettings() {
         // As the upstream harness's chat suite sets them up, with an iOS-only "migrated" key.
         val database = Database.fromJson(
