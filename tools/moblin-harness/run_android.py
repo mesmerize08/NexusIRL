@@ -13,13 +13,23 @@ import logging
 import requests
 import systest
 
-from tests.suites import mic, record, scenes, settings, stream
+from tests.suites import browser_widget, chat, macros, mic, record, scenes, settings, stream, web_remote_control
 from tests.utils import generate_device_settings, moblin as moblin_module
 from tests.utils.config import Config
 from tests.utils.runner import _remove_previous_run_artifacts
 from tests.utils.moblin import Moblin
 
-SUITES = {"stream": stream, "settings": settings, "scenes": scenes, "mic": mic, "record": record}
+SUITES = {
+    "stream": stream,
+    "settings": settings,
+    "scenes": scenes,
+    "mic": mic,
+    "record": record,
+    "chat": chat,
+    "web_remote_control": web_remote_control,
+    "browser_widget": browser_widget,
+    "macros": macros,
+}
 # Obviously fake, low-entropy value (secret scanners would flag a random-looking one).
 TEST_TOKEN = "a" * 32
 

@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
+import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +14,8 @@ import java.util.concurrent.Executors
 
 /**
  * Downloads and caches emote images (first frame only; upstream also shows still images unless
- * animated emotes are turned on). Only https URLs are fetched.
+ * animated emotes are turned on). The shared client's [CleartextPolicy] allows plain http only to
+ * loopback (a test server through `adb reverse`); platform emotes are https.
  */
 object EmoteImages {
     private const val MAXIMUM_SIZE_BYTES = 1_000_000
@@ -35,7 +37,7 @@ object EmoteImages {
     fun get(url: String): Bitmap? {
         cache.get(url)?.let { return it }
         synchronized(this) {
-            if (!url.startsWith("https://") || url in failed || !loading.add(url)) {
+            if (!(url.startsWith("https://") || url.startsWith("http://")) || url in failed || !loading.add(url)) {
                 return null
             }
         }

@@ -138,7 +138,8 @@ private fun chatLineText(post: ChatPost, settings: SettingsChat): Pair<Annotated
                         ) {
                             Image(bitmap.asImageBitmap(), contentDescription = emote.name)
                         }
-                        appendInlineContent(key, emote.name ?: "")
+                        // Forwarded chat may have nameless emotes; Compose rejects empty alternate text.
+                        appendInlineContent(key, emote.name?.takeIf { it.isNotEmpty() } ?: "�")
                         append(" ")
                     }
                     emote != null -> emote.name?.let { append("$it ") }
