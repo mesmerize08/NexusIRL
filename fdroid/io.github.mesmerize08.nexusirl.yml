@@ -17,9 +17,9 @@ RepoType: git
 Repo: https://github.com/mesmerize08/NexusIRL.git
 
 Builds:
-  - versionName: 0.2.1
-    versionCode: 4
-    commit: v0.2.1
+  - versionName: 0.3.0
+    versionCode: 5
+    commit: v0.3.0
     subdir: app
     gradle:
       - yes
@@ -28,5 +28,5 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.2.1
-CurrentVersionCode: 4
+CurrentVersion: 0.3.0
+CurrentVersionCode: 5

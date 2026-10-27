@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-27
+
 ### Added
 - Encrypted settings exports: exporting with stream keys can encrypt the file with a passphrase
   (AES-256-GCM, PBKDF2 key). NexusIRL imports it after asking for the passphrase; the plain
@@ -17,6 +19,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Recordings use B-frames (better quality for the same size), like Moblin's.
 - Built-in microphones record and stream in mono unless **Prefer stereo** is on (microphone
   picker), as in Moblin; remote control assistants now see the real channel count.
+- Ready for F-Droid: the APK has no Google-encrypted dependency block, the app builds with any JDK
+  17 or newer and without the upstream submodule, and `fdroid/` holds the build recipe (checked
+  with F-Droid's scanner and build tools).
 
 ### Fixed
 - Switching between the back and front cameras failed with "Camera session configuration failed"

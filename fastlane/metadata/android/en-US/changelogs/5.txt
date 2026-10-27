@@ -1,0 +1,1 @@
+Fixes switching between the back and front cameras, and the sideways picture with the Portrait button. Smoother video and audio timing, better-quality recordings, and encrypted settings exports with stream keys. Microphones are mono by default; Prefer stereo is in the microphone picker.

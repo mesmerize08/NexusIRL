@@ -102,6 +102,6 @@ docker run --rm --entrypoint sh -v "$PWD/metadata:/meta:ro" registry.gitlab.com/
 
 Requirements this relies on: no dependency metadata block in the APK (`dependenciesInfo`), one
 release APK with `-PnoAbiSplits`, any JDK 17 or newer, and no `upstream/` submodule needed for the
-build. To submit: point the build entry at the next release tag (v0.2.1 predates these fixes), copy
+build. To submit: update the build entry to the latest release tag (v0.3.0 is the first that builds), copy
 the file to `metadata/` in a fork of https://gitlab.com/fdroid/fdroiddata, check the categories
 against fdroiddata's `config/categories.yml`, and open a merge request.
