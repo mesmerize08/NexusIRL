@@ -496,6 +496,7 @@ object RemoteControlController {
             handler.post {
                 if (isCurrent() && !StreamController.status.value.active) {
                     imported = try {
+                        SettingsArchive.replaceImages(data, File(context.filesDir, SettingsArchive.IMAGES_DIRECTORY))
                         StreamController.settings(context).import(json)
                         StreamController.settingsImported(context)
                         true

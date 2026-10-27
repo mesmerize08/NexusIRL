@@ -23,6 +23,12 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Zooming sends remote controls at most two updates a second, as Moblin now does.
 
 ### Fixed
+- Importing a `.moblinSettings` file now brings its images along (image widgets and LUT files), and
+  exports include them, as in Moblin. Before, image widgets from iOS stayed empty.
+- Image widgets apply their LUT effects from Moblin settings.
+- A scene whose camera is "None" shows black behind its widgets, as in Moblin, instead of the last
+  camera.
+- The map widget's position dot is the same size on every map, as in Moblin.
 - After importing settings without quick buttons, mute, torch and effects did nothing until the
   app was restarted. An import now adds the missing buttons (all off, as Moblin) and applies them.
 - Remote control: the camera status says "None" for a scene without a camera, as in Moblin.

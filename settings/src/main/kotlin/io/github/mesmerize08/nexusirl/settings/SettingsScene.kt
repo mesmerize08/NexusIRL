@@ -172,6 +172,37 @@ data class SettingsWidgetMap(
     }
 }
 
+/** Upstream `SettingsVideoEffectLut`: which LUT (an entry of the colour settings) to apply. */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsVideoEffectLut.Serializer::class)
+data class SettingsVideoEffectLut(
+    val lut: SUuid? = null,
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsVideoEffectLut>(generatedSerializer())
+}
+
+/**
+ * Upstream `SettingsVideoEffect`, an effect on one widget. [type] is upstream's raw value
+ * ("lut", "grayScale", "shape", ...), kept as is so effects NexusIRL does not draw survive a
+ * round trip; only "lut" is applied, to image widgets.
+ */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsVideoEffect.Serializer::class)
+data class SettingsVideoEffect(
+    val id: SUuid = UUID.randomUUID(),
+    val enabled: Boolean = true,
+    val type: String = "shape",
+    val lut: SettingsVideoEffectLut = SettingsVideoEffectLut(),
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsVideoEffect>(generatedSerializer())
+
+    companion object {
+        const val TYPE_LUT = "lut"
+    }
+}
+
 /**
  * Upstream `SettingsWidget`. Image widgets keep their picture in a file named after the widget id
  * (upstream `imagesStorageDirectory`), not in the settings.
@@ -188,9 +219,14 @@ data class SettingsWidget(
     val chat: SettingsWidgetChat = SettingsWidgetChat(),
     val map: SettingsWidgetMap = SettingsWidgetMap(),
     val enabled: Boolean = true,
+    val effects: List<SettingsVideoEffect> = emptyList(),
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsWidget>(generatedSerializer())
+
+    /** The LUTs of the enabled "lut" effects, in order. */
+    val lutEffectIds: List<UUID>
+        get() = effects.filter { it.enabled && it.type == SettingsVideoEffect.TYPE_LUT }.mapNotNull { it.lut.lut }
 }
 
 /**

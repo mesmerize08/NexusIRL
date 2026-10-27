@@ -21,10 +21,19 @@ object LutLoader {
     private fun file(context: Context, id: UUID): File =
         File(File(context.filesDir, SceneEngine.IMAGES_DIRECTORY), id.toString().uppercase())
 
+    /** Forgets every loaded LUT, for example after an import replaced the files. */
+    fun clearCache() = cache.clear()
+
     /** Loads (or takes from the cache) a LUT as a texture strip; null when it cannot be read. */
     fun load(context: Context, lut: SettingsColorLut): VideoPipeline.LutStrip? {
         val key = lut.id.toString()
         cache[key]?.let { return it }
+        val limited = cube(context, lut) ?: return null
+        return VideoPipeline.LutStrip(key, limited.dimension, Luts.toStrip(limited)).also { cache[key] = it }
+    }
+
+    /** A LUT's cube, limited to upstream's size, for applying on the CPU; null when it cannot be read. */
+    fun cube(context: Context, lut: SettingsColorLut): LutCube? {
         val cube = try {
             when (lut.type) {
                 "bundled" -> context.assets.open("luts/${lut.name}.png").use { decodeImage(BitmapFactory.decodeStream(it)) }
@@ -34,8 +43,7 @@ object LutLoader {
         } catch (e: Exception) {
             null
         } ?: return null
-        val limited = Luts.limit(cube)
-        return VideoPipeline.LutStrip(key, limited.dimension, Luts.toStrip(limited)).also { cache[key] = it }
+        return Luts.limit(cube)
     }
 
     private fun decodeImage(bitmap: Bitmap?): LutCube {

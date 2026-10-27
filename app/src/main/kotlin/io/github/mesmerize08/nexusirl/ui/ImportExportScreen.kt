@@ -39,19 +39,20 @@ import io.github.mesmerize08.nexusirl.stream.StreamController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /** An import waiting for the user's confirmation. */
-private class PendingImport(val json: String, val database: Database) {
+private class PendingImport(val data: ByteArray, val json: String, val database: Database) {
     val containsSecrets: Boolean = database.streams.any { StreamUrlSecrets.split(it.url).second.isNotEmpty() }
 }
 
 /** How the next export is written. */
 private enum class ExportMode { WITHOUT_KEYS, WITH_KEYS, ENCRYPTED }
 
-/** Largest settings file accepted (upstream archives can include media; v1 reads settings.json only). */
+/** Largest settings file accepted (upstream archives can include media). */
 private const val MAX_IMPORT_BYTES = 64 * 1024 * 1024
 
 private fun readBytes(context: Context, uri: Uri): ByteArray = context.contentResolver.openInputStream(uri)?.use { input ->
@@ -69,7 +70,7 @@ private fun readBytes(context: Context, uri: Uri): ByteArray = context.contentRe
 
 private fun parseImport(archive: ByteArray): PendingImport {
     val json = SettingsArchive.readSettingsJson(archive)
-    return PendingImport(json, Database.fromJson(json))
+    return PendingImport(archive, json, Database.fromJson(json))
 }
 
 private fun exportFileName(extension: String): String =
@@ -117,7 +118,10 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
             message = try {
                 // Key derivation takes about a second: off the main thread.
                 withContext(Dispatchers.Default) {
-                    val archive = SettingsArchive.write(store.exportJson(includeSecrets = mode != ExportMode.WITHOUT_KEYS))
+                    val archive = SettingsArchive.write(
+                        store.exportJson(includeSecrets = mode != ExportMode.WITHOUT_KEYS),
+                        File(context.filesDir, SettingsArchive.IMAGES_DIRECTORY),
+                    )
                     val data = if (mode == ExportMode.ENCRYPTED) EncryptedSettings.encrypt(archive, passphrase!!) else archive
                     context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(data) }
                 }
@@ -177,14 +181,23 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
             },
             confirmButton = {
                 TextButton(onClick = {
-                    message = try {
-                        store.import(pending.json)
-                        StreamController.settingsImported(context)
-                        context.getString(R.string.imported)
-                    } catch (e: Exception) {
-                        failure(context.getString(R.string.import_failed), e)
-                    }
                     pendingImport = null
+                    busy = true
+                    scope.launch {
+                        message = try {
+                            // Images first (off the main thread): the settings were already read.
+                            withContext(Dispatchers.IO) {
+                                SettingsArchive.replaceImages(pending.data, File(context.filesDir, SettingsArchive.IMAGES_DIRECTORY))
+                            }
+                            store.import(pending.json)
+                            StreamController.settingsImported(context)
+                            context.getString(R.string.imported)
+                        } catch (e: Exception) {
+                            failure(context.getString(R.string.import_failed), e)
+                        } finally {
+                            busy = false
+                        }
+                    }
                 }) { Text(stringResource(R.string.replace_settings)) }
             },
             dismissButton = { TextButton(onClick = { pendingImport = null }) { Text(stringResource(R.string.cancel)) } },

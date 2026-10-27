@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import io.github.mesmerize08.nexusirl.chat.ChatPost
 import io.github.mesmerize08.nexusirl.chat.EmoteImages
+import io.github.mesmerize08.nexusirl.effects.LutCube
 import io.github.mesmerize08.nexusirl.effects.TextFormat
 import io.github.mesmerize08.nexusirl.effects.TextFormatter
 import io.github.mesmerize08.nexusirl.effects.TextVariables
@@ -39,6 +40,7 @@ class SceneEngine(context: Context) {
     private var variables: () -> TextVariables = { TextVariables() }
     private var chatPosts: () -> List<ChatPost> = { emptyList() }
     private var mapBitmap: (UUID) -> Bitmap? = { null }
+    private var lutCube: (UUID) -> LutCube? = { null }
     private val cache = HashMap<String, Cached>()
     private var ticking = false
 
@@ -80,6 +82,11 @@ class SceneEngine(context: Context) {
         handler.post { mapBitmap = provider }
     }
 
+    /** The colour settings' LUTs by id, for widgets' LUT effects. */
+    fun setLutCubes(provider: (UUID) -> LutCube?) {
+        handler.post { lutCube = provider }
+    }
+
     /** Redraws now instead of at the next tick (new chat messages). */
     fun invalidate() {
         handler.post(::render)
@@ -117,9 +124,12 @@ class SceneEngine(context: Context) {
                 }
                 WidgetType.IMAGE -> {
                     val file = File(imagesDirectory, widget.id.toString().uppercase())
-                    key = "${file.lastModified()}|${file.length()}"
+                    val luts = widget.lutEffectIds
+                    key = "${file.lastModified()}|${file.length()}|$luts"
                     if (key != previous?.key) {
-                        bitmap = WidgetBitmaps.image(file, maxOf(canvasWidth, canvasHeight)) ?: continue
+                        bitmap = WidgetBitmaps.image(file, maxOf(canvasWidth, canvasHeight))?.let { image ->
+                            WidgetBitmaps.withLuts(image, luts.mapNotNull { lutCube(it) })
+                        } ?: continue
                     }
                 }
                 WidgetType.QR_CODE -> {

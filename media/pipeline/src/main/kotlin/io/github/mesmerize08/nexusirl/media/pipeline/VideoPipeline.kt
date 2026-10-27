@@ -65,6 +65,10 @@ class VideoPipeline(
     private val snapshotExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "video-snapshot") }
     private var effectRenderer: EffectRenderer? = null
 
+    /** False for a scene without a camera (upstream `.none`): black under the widgets. */
+    @Volatile
+    var showCamera = true
+
     /** Global effects to apply to the camera image, before widgets (upstream order). */
     @Volatile
     var effects: Set<VideoEffect> = emptySet()
@@ -669,7 +673,7 @@ class VideoPipeline(
         }
         lastPresentationNanos = presentationNanos
         updateDrawMatrix()
-        compose(camera = true)
+        compose(camera = showCamera)
         output(presentationNanos)
     }
 

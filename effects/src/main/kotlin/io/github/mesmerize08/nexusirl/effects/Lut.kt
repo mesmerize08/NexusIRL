@@ -145,6 +145,21 @@ object Luts {
     }
 
     /**
+     * Applies [cube] to ARGB [pixels] in place, keeping alpha (for widget images, which are drawn
+     * once on the CPU rather than every frame on the GPU).
+     */
+    fun apply(cube: LutCube, pixels: IntArray) {
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val r = (pixel shr 16 and 0xFF) / 255f
+            val g = (pixel shr 8 and 0xFF) / 255f
+            val b = (pixel and 0xFF) / 255f
+            fun channel(index: Int) = (interpolate(cube, r, g, b, index) * 255 + 0.5f).toInt().coerceIn(0, 255)
+            pixels[i] = (pixel and 0xFF000000.toInt()) or (channel(0) shl 16) or (channel(1) shl 8) or channel(2)
+        }
+    }
+
+    /**
      * The cube as an RGBA texture strip for GLES 2 (no 3D textures): width N*N, height N, blue
      * slice b at x = b*N + red, y = green.
      */

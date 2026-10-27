@@ -212,6 +212,8 @@ object StreamController {
         applyQuickButtons(context)
         setTorch(false)
         refreshScene(context)
+        // Imported LUT files may reuse ids.
+        LutLoader.clearCache()
         refreshLuts(context)
     }
 
@@ -239,6 +241,11 @@ object StreamController {
         sceneEngine = engine
         engine.setVariables(::textVariables)
         engine.setChatPosts { ChatController.posts.value }
+        val appContext = context.applicationContext
+        engine.setLutCubes { id ->
+            val color = settings(appContext).current.color
+            (color.allLuts + color.diskLuts).firstOrNull { it.id == id }?.let { LutLoader.cube(appContext, it) }
+        }
         ChatController.addPostListener { engine.invalidate() }
     }
 
@@ -308,6 +315,7 @@ object StreamController {
         val enabled = database.scenes.filter { it.enabled }
         val scene = enabled.firstOrNull { it.id == mutableSelectedSceneId.value } ?: enabled.firstOrNull()
         mutableSelectedSceneId.value = scene?.id
+        pipeline?.showCamera = scene?.camera != SceneCamera.NONE
         scenes(context).setScene(scene, database.widgets)
         val browserWidgetIds = scene?.widgets.orEmpty().map { it.widgetId }.toSet()
         browsers(

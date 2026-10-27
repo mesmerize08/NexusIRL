@@ -27,6 +27,22 @@ class LutTest {
     }
 
     @Test
+    fun appliesToPixelsKeepingAlpha() {
+        // Swaps red and blue, as the upstream harness's widget LUT test.
+        val n = 2
+        val text = "LUT_3D_SIZE $n\n" + (0 until n * n * n).joinToString("\n") { i ->
+            val r = i % n
+            val g = i / n % n
+            val b = i / (n * n)
+            "$b $g $r"
+        }
+        val pixels = intArrayOf(0x80FF0000.toInt(), 0xFF00FF00.toInt())
+        Luts.apply(Luts.parseCube(text), pixels)
+        assertEquals(0x800000FF.toInt(), pixels[0])
+        assertEquals(0xFF00FF00.toInt(), pixels[1])
+    }
+
+    @Test
     fun domainIsNormalised() {
         val text = "LUT_3D_SIZE 2\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 2 2 2\n" + (0 until 8).joinToString("\n") { "2 1 0" }
         val cube = Luts.parseCube(text)

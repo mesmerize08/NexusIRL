@@ -71,6 +71,21 @@ class SettingsTest {
     }
 
     @Test
+    fun widgetEffects() {
+        val lut = UUID.randomUUID()
+        val database = Database.fromJson(
+            """{"widgets": [{"type": "image", "effects": [
+                 {"type": "lut", "enabled": true, "lut": {"lut": "$lut"}},
+                 {"type": "lut", "enabled": false, "lut": {"lut": "${UUID.randomUUID()}"}},
+                 {"type": "shape", "shape": {"cornerRadius": 0.5}}]}]}""",
+        )
+        val widget = database.widgets.single()
+        assertEquals(listOf(lut), widget.lutEffectIds)
+        val effects = SwiftJson.parseToJsonElement(database.toJson()).jsonObject["widgets"]!!.jsonArray[0].jsonObject["effects"]!!.jsonArray
+        assertEquals("0.5", effects[2].jsonObject["shape"]!!.jsonObject["cornerRadius"].toString())
+    }
+
+    @Test
     fun chatBotSettings() {
         // As the upstream harness's chat suite sets them up, with an iOS-only "migrated" key.
         val database = Database.fromJson(

@@ -13,6 +13,8 @@ import androidx.core.graphics.createBitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import io.github.mesmerize08.nexusirl.effects.LutCube
+import io.github.mesmerize08.nexusirl.effects.Luts
 import io.github.mesmerize08.nexusirl.effects.TextSegment
 import io.github.mesmerize08.nexusirl.settings.HorizontalAlignment
 import io.github.mesmerize08.nexusirl.settings.SettingsWidgetText
@@ -114,6 +116,20 @@ object WidgetBitmaps {
             sample *= 2
         }
         return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    /** Upstream widget `LutEffect`s, applied in order (to a mutable copy when needed). */
+    fun withLuts(image: Bitmap, cubes: List<LutCube>): Bitmap {
+        if (cubes.isEmpty()) {
+            return image
+        }
+        val pixels = IntArray(image.width * image.height)
+        image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
+        cubes.forEach { Luts.apply(it, pixels) }
+        val result = image.copy(Bitmap.Config.ARGB_8888, true)
+        image.recycle()
+        result.setPixels(pixels, 0, result.width, 0, 0, result.width, result.height)
+        return result
     }
 
     /** Upstream QrCodeEffect: black modules on white with a quiet zone. */

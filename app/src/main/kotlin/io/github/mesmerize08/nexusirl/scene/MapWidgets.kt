@@ -174,14 +174,14 @@ class MapWidgets(context: Context) {
         val bitmap = map.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(bitmap)
         val side = bitmap.width.toFloat()
-        val radius = (side * 0.04f).coerceAtLeast(5f)
         val x = side / 2
         val y = bitmap.height / 2 + (dotOffsetRatio * bitmap.height / 2).toFloat()
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        // Upstream's MapDot image: 30 stream pixels on any map, a 22 px blue disc in a white ring.
         paint.color = Color.WHITE
-        canvas.drawCircle(x, y, radius * 1.3f, paint)
-        paint.color = Color.rgb(0, 122, 255)
-        canvas.drawCircle(x, y, radius, paint)
+        canvas.drawCircle(x, y, 15f, paint)
+        paint.color = Color.rgb(59, 130, 247)
+        canvas.drawCircle(x, y, 11f, paint)
         val text = attributionText(attributions)
         if (text.isNotEmpty()) {
             paint.textSize = (side * 0.045f).coerceIn(9f, 18f)
