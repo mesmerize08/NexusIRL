@@ -28,6 +28,7 @@ import io.github.mesmerize08.nexusirl.transport.srt.SrtStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStreamConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
 import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.BondingConnection
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -72,6 +73,8 @@ data class StreamStatus(
     val sentBytes: Long = 0,
     /** Measured over the last second, in bits per second (upstream stream speed). */
     val sentBitsPerSecond: Long = 0,
+    /** SRTLA paths over the last second (upstream bonding statistics); empty when not bonding. */
+    val bonding: List<BondingConnection> = emptyList(),
 ) {
     val live: Boolean
         get() = state == StreamState.LIVE
@@ -144,7 +147,10 @@ class StreamSession(
         /** A new ceiling for adaptive bitrate; false when there is none (the encoder takes it). */
         fun setTargetBitrate(bitrate: Long): Boolean = false
 
-        fun debugStats(): String = ""
+        /** Each bonding path's data since the previous call (SRTLA only). Stream executor. */
+        fun bonding(): List<BondingConnection> = emptyList()
+
+        fun debugStats(bonding: List<BondingConnection>): String = ""
     }
 
     fun start() {
@@ -348,10 +354,13 @@ class StreamSession(
                 return driver != null
             }
 
-            override fun debugStats(): String {
+            // Runs on the stream executor (publishStatus), as connectionStatistics requires.
+            // Plain SRT also runs through the SRTLA client, as one path: not bonding (upstream).
+            override fun bonding(): List<BondingConnection> = if (networks != null) stream.connectionStatistics() else emptyList()
+
+            override fun debugStats(bonding: List<BondingConnection>): String {
                 val performance = stream.getPerformanceData() ?: return ""
-                // Runs on the stream executor (publishStatus), as connectionStatistics requires.
-                val paths = stream.connectionStatistics().joinToString(" ") { "${it.name}:${it.usage / 1024}KiB/${it.rtt}ms" }
+                val paths = bonding.joinToString(" ") { "${it.name}:${it.usage / 1024}KiB/${it.rtt}ms" }
                 return "srt drop=${performance.pktSndDropTotal} retrans=${performance.pktRetransTotal} " +
                     "nak=${performance.pktRecvNakTotal} pif=${performance.pktFlightSize} rtt=${performance.msRtt} paths[$paths]"
             }
@@ -403,10 +412,12 @@ class StreamSession(
     }
 
     private fun publishStatus() {
+        // Read once: each read returns the data since the previous one.
+        val bonding = destination?.bonding().orEmpty()
         val encoded = encoder?.encodedFrames ?: 0
         val line = "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} " +
             "bitrate=${(encoder?.currentBitrate ?: 0) / 1000}kbps rtt=${destination?.rttMs()?.toInt() ?: 0}ms " +
-            "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats() ?: ""}"
+            "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats(bonding) ?: ""}"
         android.util.Log.d("StreamSession", line)
         log.line(line)
         lastEncodedFrames = encoded
@@ -424,6 +435,7 @@ class StreamSession(
                 encoder = encoder?.info?.let { it.name + if (it.hardware) " (HW)" else " (SW)" } ?: "",
                 sentBytes = sent,
                 sentBitsPerSecond = sentBitsPerSecond,
+                bonding = bonding,
             ),
         )
     }

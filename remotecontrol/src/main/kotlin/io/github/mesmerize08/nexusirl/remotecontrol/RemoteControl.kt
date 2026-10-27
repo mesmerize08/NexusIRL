@@ -201,10 +201,20 @@ data class RemoteControlStatusTopLeft(
 )
 
 /** Upstream `RemoteControlStatusTopRight`. */
+/** Upstream `RemoteControlStatusTopRightBitrateInfo` (added upstream after 97e26d2): the bitrate as numbers. */
+@Serializable
+data class RemoteControlStatusTopRightBitrateInfo(val bitsPerSecond: Long, val totalBytes: Long)
+
+/** Upstream `RemoteControlStatusTopRightBondingConnection` (added upstream after 97e26d2): one bonding path. */
+@Serializable
+data class RemoteControlStatusTopRightBondingConnection(val name: String, val bytesPerSecond: Long, val rtt: Int? = null)
+
 @Serializable
 data class RemoteControlStatusTopRight(
     val audioInfo: RemoteControlAudioInfo? = null,
     val audioLevel: RemoteControlStatusItem? = null,
+    val bitrateInfo: RemoteControlStatusTopRightBitrateInfo? = null,
+    val bondingInfo: List<RemoteControlStatusTopRightBondingConnection>? = null,
     val rtmpServer: RemoteControlStatusItem? = null,
     val remoteControl: RemoteControlStatusItem? = null,
     val gameController: RemoteControlStatusItem? = null,

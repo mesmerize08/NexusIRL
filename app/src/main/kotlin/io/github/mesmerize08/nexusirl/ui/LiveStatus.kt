@@ -31,6 +31,7 @@ import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.StreamState
 import io.github.mesmerize08.nexusirl.stream.StreamStatus
 import io.github.mesmerize08.nexusirl.stream.ThermalState
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.formatBondingStatistics
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -102,6 +103,8 @@ fun LiveStatusBar(status: StreamStatus) {
                 ),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            // Upstream's bonding status: each network's share of the data, e.g. "60% Cellular, 40% WiFi".
+            formatBondingStatistics(status.bonding)?.let { Text(it.usage, style = MaterialTheme.typography.bodySmall) }
         }
         if (status.active || recording != null) {
             // Peak level: green, amber above -12 dBFS, red above -3 dBFS (clipping soon).

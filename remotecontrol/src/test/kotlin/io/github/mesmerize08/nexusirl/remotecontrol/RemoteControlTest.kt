@@ -142,6 +142,36 @@ class RemoteControlTest {
         assertEquals(status, SwiftJson.decodeFromString(RemoteControlMessageToAssistant.Serializer, status.toJson()))
     }
 
+    /** Protocol additions upstream made after 97e26d2. */
+    @Test
+    fun newerUpstreamMessages() {
+        val topRight = RemoteControlStatusTopRight(
+            bitrateInfo = RemoteControlStatusTopRightBitrateInfo(5_000_000, 12_300_000),
+            bondingInfo = listOf(RemoteControlStatusTopRightBondingConnection("Cellular", 375_000, 48)),
+        )
+        assertEquals(
+            """{"bitrateInfo":{"bitsPerSecond":5000000,"totalBytes":12300000},"bondingInfo":[{"name":"Cellular","bytesPerSecond":375000,"rtt":48}]}""",
+            SwiftJson.encodeToString(RemoteControlStatusTopRight.serializer(), topRight),
+        )
+        // An iOS streamer proves itself to Moblin Cloud with App Attest; assistants ignore it.
+        assertEquals(
+            RemoteControlMessageToAssistant.Identify("S", "h"),
+            SwiftJson.decodeFromString(
+                RemoteControlMessageToAssistant.Serializer,
+                """{"identify":{"streamerId":"S","authentication":"h","appAttest":{"keyId":"k","attestation":"a","attestationChallenge":"c","assertion":"x"}}}""",
+            ),
+        )
+        // Events NexusIRL does not show (here the new top right icon) are skipped, not fatal.
+        assertTrue(
+            runCatching {
+                SwiftJson.decodeFromString(
+                    RemoteControlMessageToAssistant.Serializer,
+                    """{"event":{"data":{"icon":{"id":"AppIconKing"}}}}""",
+                )
+            }.isFailure,
+        )
+    }
+
     /** A fake assistant: the streamer connects to it, like to an iOS assistant on port 2345. */
     @Test
     fun handshakeAndRequests() {

@@ -9,6 +9,13 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Chat and Twitch alerts forwarded by a remote control assistant (Moblin's `chatMessages` and
   `twitchEventSubNotification` requests) show in chat, the chat widget and alert toasts, as in
   Moblin. Messages from SOOP and Open Streaming Platform are shown too.
+- Bonding status: while live over SRTLA, the main screen shows each network's share of the data
+  (for example "60% Cellular, 40% WiFi"), as in Moblin. Remote controls get it too, with each
+  path's round-trip time, and the bitrate as numbers (Moblin's newer `bitrateInfo` and
+  `bondingInfo`).
+
+### Changed
+- Zooming sends remote controls at most two updates a second, as Moblin now does.
 
 ### Fixed
 - A crash when a stream was stopped within a moment of starting (for example two quick taps, or

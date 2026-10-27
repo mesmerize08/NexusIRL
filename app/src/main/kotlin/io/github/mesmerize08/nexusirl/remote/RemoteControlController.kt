@@ -28,6 +28,8 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusGeneralFl
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusItem
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopLeft
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopRight
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopRightBitrateInfo
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusTopRightBondingConnection
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamer
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStreamerDelegate
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlWeb
@@ -38,6 +40,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.formatBondingStatistics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -129,11 +132,37 @@ object RemoteControlController {
                 settings.database,
             ) { _, _, _, _, _ -> }
                 .combine(Microphones.selected) { _, _ -> state() }
-                .distinctUntilChanged().collect {
-                    streamer?.stateChanged(it)
-                    web?.stateChanged(it)
-                }
+                .distinctUntilChanged().collect(::onStateChanged)
         }
+    }
+
+    private var lastSentState: RemoteControlAssistantStreamerState? = null
+    private var zoomThrottled = false
+    private var pendingZoomState: RemoteControlAssistantStreamerState? = null
+
+    /**
+     * Upstream `remoteControlZoomChanged` (added upstream after 97e26d2): a pinch sends zoom
+     * changes at most every 500 ms, ending with the latest; other changes go at once. Main thread.
+     */
+    private fun onStateChanged(state: RemoteControlAssistantStreamerState) {
+        val last = lastSentState
+        if (last != null && state.zoom != last.zoom && state == last.copy(zoom = state.zoom)) {
+            if (zoomThrottled) {
+                pendingZoomState = state
+                return
+            }
+            zoomThrottled = true
+            handler.postDelayed(zoomThrottleEnd, ZOOM_STATE_INTERVAL_MILLIS)
+        }
+        pendingZoomState = null
+        lastSentState = state
+        streamer?.stateChanged(state)
+        web?.stateChanged(state)
+    }
+
+    private val zoomThrottleEnd = Runnable {
+        zoomThrottled = false
+        pendingZoomState?.let(::onStateChanged)
     }
 
     private fun reload(config: Config) {
@@ -302,6 +331,7 @@ object RemoteControlController {
             status.audioLevelDbfs <= -160f -> RemoteControlAudioLevel.Unknown
             else -> RemoteControlAudioLevel.Value(status.audioLevelDbfs)
         }
+        val bonding = if (StreamController.isLive) formatBondingStatistics(status.bonding) else null
         val topRight = RemoteControlStatusTopRight(
             audioInfo = RemoteControlAudioInfo(audioLevel, StreamController.audioChannels),
             // Upstream's formats ("5.0 Mbps (12.3 MB)", "1m 23s"): assistants and Moblin's test
@@ -314,7 +344,21 @@ object RemoteControlController {
             } else {
                 null
             },
+            bitrateInfo = if (StreamController.isLive) {
+                RemoteControlStatusTopRightBitrateInfo(
+                    status.sentBitsPerSecond,
+                    status.sentBytes,
+                )
+            } else {
+                null
+            },
             uptime = if (StreamController.isLive) RemoteControlStatusItem(StatusFormat.uptime(status.uptimeSeconds), status.live) else null,
+            // Upstream `isStatusBondingActive`: SRTLA while live. Usage is per second.
+            srtla = bonding?.let { RemoteControlStatusItem(it.usage) },
+            srtlaRtts = bonding?.let { RemoteControlStatusItem(it.rtts) },
+            bondingInfo = status.bonding.takeIf { bonding != null }?.map {
+                RemoteControlStatusTopRightBondingConnection(it.name, it.usage, it.rtt)
+            },
             recording = StreamController.recording.value?.let { RemoteControlStatusItem("Recording") },
         )
         return RemoteControlResponse.GetStatus(general, topLeft, topRight)
@@ -368,6 +412,7 @@ object RemoteControlController {
     private const val PREVIEW_LONG_SIDE = 400
 
     private const val REQUEST_TIMEOUT_SECONDS = 3L
+    private const val ZOOM_STATE_INTERVAL_MILLIS = 500L
 
     /** See [Delegate.importSettings]. */
     const val TEST_IMPORT_MARKER = "accept-remote-settings-import-for-tests"

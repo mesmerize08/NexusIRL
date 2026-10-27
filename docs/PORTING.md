@@ -12,6 +12,7 @@ git -C upstream diff <old>..<new> -- <path>
 | Date | Range | Result |
 |---|---|---|
 | 2026-10-25 | `97e26d2..e4e8ebc` (30 commits) | Nothing to port for compatibility. Remote control: Moblin Cloud tips and wheel of luck only (not ported). Settings: new `zoomSlider`, per-mic `gainDb` and controller button functions, `songRequests` removed (kept or ignored by the forgiving decoder). SRTLA, Moblink and remote control streamer/assistant: refactoring only. Possible features: per-mic gain, zoom slider. |
+| 2026-10-27 | `e4e8ebc..1f0fe63` (16 commits) | Remote control: `bitrateInfo` and `bondingInfo` in the status and zoom state changes at most every 500 ms (ported); `identify` may carry `appAttest` and a new `icon` event exists, both for Moblin Cloud (decoded or skipped by the assistant, tested). Moblin Cloud and App Attest: not ported (§8.1). Also recorder audio channel handling, screen capture audio as mic, ElevenLabs TTS, and the frontend's dependency bumps (no asset resync needed). |
 
 | Upstream (Swift) | Kotlin port | Notes |
 |---|---|---|
@@ -34,6 +35,7 @@ git -C upstream diff <old>..<new> -- <path>
 | `Moblin/Media/Srtla/Common/Srt.swift`, `Srtla.swift`, `HaishinKit/Srt/SrtPerformanceData.swift` | `transport/srt/.../Srt.kt` | 32-bit sequence numbers held in `Long` |
 | `Moblin/Media/HaishinKit/Srt/SrtSender.swift` | `transport/srt/.../SrtSender.kt` | Injected `HostClock` and `SerialExecutor` (instead of `srtlaClientQueue`) for deterministic tests. Quirks kept: no shutdown is sent; a received shutdown is only logged. |
 | `Moblin/Media/HaishinKit/Srt/SrtStreamMoblin.swift` + SRT parts of `Various/Media.swift` | `transport/srt/.../SrtStream.kt` | Rejects `passphrase` until SRT encryption lands (plan §9.5) |
+| `Moblin/Various/BondingStatisticsFormatter.swift` | `transport/srt/.../srtla/BondingStatistics.kt`; bonding line in `ui/LiveStatus.kt`; `srtla`, `srtlaRtts` and `bondingInfo` in the remote control status | Texts only (the pie chart is not ported). SRTLA streams only, as upstream's `isBonding`. |
 | `Moblin/Media/Srtla/Client/RemoteConnection.swift` | `transport/srt/.../srtla/RemoteConnection.kt` | `NWConnection` replaced by `UdpLink`/`BondingInterface` (Android binds the socket to a `Network`) |
 | `Moblin/Media/Srtla/Client/SrtlaClient.swift` | `transport/srt/.../srtla/SrtlaClient.kt` | `NWPathMonitor` replaced by `setInterfaces()`. The interface sort is a stable rank, because upstream's comparator isn't a strict ordering. The libsrt `LocalListener` path is deferred to post-v1. |
 | `SrtSenderSuite`, `SrtSuite` | `transport/srt/src/test/.../SrtSenderTest.kt` | Golden handshake vectors copied verbatim, plus pacing, retransmit, ACK and drop tests |
