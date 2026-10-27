@@ -23,6 +23,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
@@ -193,6 +194,29 @@ class TwitchEventSub(
                 }
             }
             "notification" -> handleNotification(metadata.text("subscription_type"), payload.field("event"))
+        }
+    }
+
+    /**
+     * Upstream `remoteControlStreamerTwitchEventSubNotification`: an EventSub message a remote
+     * control assistant received for this channel. Only notifications are taken; session
+     * messages belong to the assistant's own connection.
+     */
+    fun handleForwardedMessage(text: String) {
+        try {
+            executor.execute {
+                val message = try {
+                    json.parseToJsonElement(text)
+                } catch (e: Exception) {
+                    return@execute
+                }
+                val metadata = message.field("metadata")
+                if (metadata.text("message_type") == "notification") {
+                    handleNotification(metadata.text("subscription_type"), message.field("payload").field("event"))
+                }
+            }
+        } catch (e: RejectedExecutionException) {
+            // Stopped (the chat settings changed); the notification is dropped, as upstream.
         }
     }
 

@@ -56,6 +56,37 @@ class TwitchEventSubTest {
         return alerts
     }
 
+    /** Notifications a remote control assistant forwards become alerts; its session messages are ignored. */
+    @Test
+    fun forwardedNotifications() {
+        val alerts = LinkedBlockingQueue<TwitchAlert>()
+        val api = LinkedBlockingQueue<Unit>()
+        val eventSub = TwitchEventSub(
+            "1337",
+            object : ChatListener {
+                override fun onPost(post: ChatPost) = Unit
+
+                override fun onTwitchAlert(alert: TwitchAlert) {
+                    alerts += alert
+                }
+            },
+            api = {
+                api += Unit
+                null
+            },
+        )
+        eventSub.handleForwardedMessage("""{"metadata":{"message_type":"session_welcome"},"payload":{"session":{"id":"s"}}}""")
+        eventSub.handleForwardedMessage("not json")
+        eventSub.handleForwardedMessage(notification("channel.follow", """{"user_name":"Alice"}"""))
+        val alert = assertNotNull(alerts.poll(5, TimeUnit.SECONDS))
+        assertEquals(TwitchAlertType.FOLLOW, alert.type)
+        assertEquals("Alice", alert.user)
+        assertTrue(api.isEmpty(), "a forwarded welcome must not subscribe")
+        eventSub.stop()
+        eventSub.handleForwardedMessage(notification("channel.follow", """{"user_name":"Bob"}"""))
+        assertNull(alerts.poll(200, TimeUnit.MILLISECONDS))
+    }
+
     /** Each alert says what kind it is (for the per-kind chat and toast settings) and the bits of a cheer. */
     @Test
     fun typedAlerts() {

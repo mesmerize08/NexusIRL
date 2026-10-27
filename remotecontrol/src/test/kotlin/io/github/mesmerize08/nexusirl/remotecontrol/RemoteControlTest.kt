@@ -68,6 +68,33 @@ class RemoteControlTest {
     }
 
     @Test
+    fun forwardedChatAndEvents() {
+        // Shapes as sent by upstream tests/utils/moblin.py (the harness chat suite).
+        val chat = toStreamer(
+            """{"request":{"id":3,"data":{"chatMessages":{"history":false,"messages":[""" +
+                """{"id":1761800000123,"platform":{"twitch":{}},"displayName":"Viewer","user":"viewer","userBadges":[],""" +
+                """"segments":[{"id":0,"text":"Hello "},{"id":1,"text":"there "}],"timestamp":"12:34","isAction":false,""" +
+                """"isModerator":true,"isSubscriber":false,"isOwner":false,""" +
+                """"highlight":{"kind":{"newFollower":{}},"barColor":{"red":255,"green":0,"blue":128},"image":"heart"}},""" +
+                """{"id":1761800000124,"platform":{"someNewPlatform":{}},"segments":[]}]}}}}""",
+        )
+        val messages = ((chat as RemoteControlMessageToStreamer.Request).data as RemoteControlRequest.ChatMessages).messages
+        assertEquals(2, messages.size)
+        val first = messages[0]
+        assertEquals(1761800000123, first.id)
+        assertEquals(RemoteControlPlatform.TWITCH, first.platform)
+        assertEquals(listOf("Hello ", "there "), first.segments.map { it.text })
+        assertTrue(first.isModerator)
+        assertEquals(RemoteControlChatHighlightKind.NEW_FOLLOWER, first.highlight?.kind)
+        assertEquals(RemoteControlRgbColor(255, 0, 128), first.highlight?.barColor)
+        assertEquals(RemoteControlPlatform.TWITCH, messages[1].platform)
+        assertEquals(
+            RemoteControlMessageToStreamer.Request(4, RemoteControlRequest.TwitchEventSubNotification("{\"metadata\":{}}")),
+            toStreamer("""{"request":{"id":4,"data":{"twitchEventSubNotification":{"message":"{\"metadata\":{}}"}}}}"""),
+        )
+    }
+
+    @Test
     fun messagesToAssistant() {
         assertEquals(
             """{"identify":{"streamerId":"S","authentication":"h"}}""",

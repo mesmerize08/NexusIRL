@@ -338,6 +338,30 @@ object ChatController {
         }, "youtube-video-id").apply { isDaemon = true }.start()
     }
 
+    /** Upstream `remoteControlStreamerLatestReceivedChatMessageId`. Main thread. */
+    private var latestForwardedId = -1L
+
+    /**
+     * Upstream `remoteControlStreamerChatMessages`: chat a remote control assistant forwards
+     * (for example when it reads chat for the streamer). Ids only increase, so messages already
+     * shown are skipped, including a history batch sent again after reconnecting. Called on the
+     * main thread.
+     */
+    fun appendForwarded(posts: List<Pair<Long, ChatPost>>) {
+        for ((id, post) in posts) {
+            if (id > latestForwardedId) {
+                mutablePosts.value = (listOf(post) + mutablePosts.value).take(MAXIMUM_NUMBER_OF_MESSAGES)
+                postListeners.forEach { it(post) }
+                latestForwardedId = id
+            }
+        }
+    }
+
+    /** Upstream `remoteControlStreamerTwitchEventSubNotification`: alerts the assistant received. Main thread. */
+    fun handleForwardedTwitchEventSub(message: String) {
+        eventSub?.handleForwardedMessage(message)
+    }
+
     private fun listener(current: Int) = object : ChatListener {
         override fun onPost(post: ChatPost) = onMain(current) {
             mutablePosts.value = (listOf(post) + mutablePosts.value).take(MAXIMUM_NUMBER_OF_MESSAGES)

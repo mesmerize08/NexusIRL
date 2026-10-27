@@ -8,6 +8,10 @@ enum class ChatPlatform(val displayName: String) {
     TWITCH("Twitch"),
     KICK("Kick"),
     YOUTUBE("YouTube"),
+
+    /** Only in chat forwarded by a remote control assistant (NexusIRL has no SOOP or OSP chat). */
+    SOOP("SOOP"),
+    OPEN_STREAMING_PLATFORM("Open Streaming Platform"),
 }
 
 /** Upstream `ChatPostEmote`: an emote image, animated and/or still. */
@@ -19,7 +23,17 @@ data class ChatEmote(val moving: String?, val still: String?, val name: String? 
 data class ChatPostSegment(val id: Int, val text: String? = null, val url: ChatEmote? = null, val bigGifUrl: ChatEmote? = null)
 
 /** Upstream `ChatHighlightKind`. */
-enum class ChatHighlightKind { OTHER, REDEMPTION, FIRST_MESSAGE, NEW_FOLLOWER, REPLY, MODERATOR, GIGANTIFIED_EMOTE }
+enum class ChatHighlightKind {
+    OTHER,
+    REDEMPTION,
+    FIRST_MESSAGE,
+    NEW_FOLLOWER,
+    REPLY,
+    MODERATOR,
+    REMOTE_CONTROL_ASSISTANT,
+    GIGANTIFIED_EMOTE,
+    MACRO_NOTIFICATION,
+}
 
 /** Upstream `ChatHighlight`. A null [barColor] is upstream's `.clear` (replies). */
 data class ChatHighlight(

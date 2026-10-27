@@ -60,6 +60,12 @@ interface RemoteControlStreamerDelegate {
 
     fun sendMessage(text: String) {}
 
+    /** Upstream `remoteControlStreamerTwitchEventSubNotification`: an EventSub message to handle as if received. */
+    fun twitchEventSubNotification(message: String) {}
+
+    /** Upstream `remoteControlStreamerChatMessages`: chat messages to show as if received. */
+    fun chatMessages(history: Boolean, messages: List<RemoteControlChatMessage>) {}
+
     /**
      * Upstream applies imported settings directly. Android only does so after the user agrees on
      * the device (docs/threat-model.md T6); return whether it was accepted.
@@ -251,6 +257,8 @@ fun RemoteControlStreamerDelegate.handle(request: RemoteControlRequest): Pair<Re
         RemoteControlRequest.StopStatus -> stopStatus()
         is RemoteControlRequest.SetFilter -> setFilter(request.filter, request.on)
         is RemoteControlRequest.SendMessage -> sendMessage(request.text)
+        is RemoteControlRequest.TwitchEventSubNotification -> twitchEventSubNotification(request.message)
+        is RemoteControlRequest.ChatMessages -> chatMessages(request.history, request.messages)
         is RemoteControlRequest.ImportSettings -> if (!importSettings(request.data)) {
             result = RemoteControlResult.ERROR
         }

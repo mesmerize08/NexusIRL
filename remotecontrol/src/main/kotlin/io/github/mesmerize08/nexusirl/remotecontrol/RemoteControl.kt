@@ -100,6 +100,12 @@ sealed interface RemoteControlRequest {
 
     @Serializable data class SendMessage(val text: String) : RemoteControlRequest
 
+    /** A Twitch EventSub message the assistant received for the streamer's channel. */
+    @Serializable data class TwitchEventSubNotification(val message: String) : RemoteControlRequest
+
+    /** Chat messages the assistant forwards; [history] marks a catch-up batch after connecting. */
+    @Serializable data class ChatMessages(val history: Boolean, val messages: List<RemoteControlChatMessage>) : RemoteControlRequest
+
     /** Any request Android does not handle yet; answered with `unknownRequest`. */
     @Serializable data object Unknown : RemoteControlRequest
 
@@ -127,6 +133,8 @@ sealed interface RemoteControlRequest {
             swiftCase("setFilter", SetFilter.serializer()),
             swiftCase("importSettings", ImportSettings.serializer()),
             swiftCase("sendMessage", SendMessage.serializer()),
+            swiftCase("twitchEventSubNotification", TwitchEventSubNotification.serializer()),
+            swiftCase("chatMessages", ChatMessages.serializer()),
             swiftCase("unknown", Unknown.serializer()),
         ),
         fallback = Unknown,

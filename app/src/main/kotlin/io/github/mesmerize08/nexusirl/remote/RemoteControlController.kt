@@ -10,9 +10,11 @@ import android.os.Looper
 import androidx.core.content.edit
 import androidx.core.graphics.scale
 import io.github.mesmerize08.nexusirl.BuildConfig
+import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAssistantStreamerState
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioInfo
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioLevel
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlChatMessage
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlFilter
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlResponse
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettings
@@ -526,6 +528,15 @@ object RemoteControlController {
 
         override fun stopPreview() = main {
             if (!web) streamerPreview = false
+        }
+
+        override fun twitchEventSubNotification(message: String) = main { ChatController.handleForwardedTwitchEventSub(message) }
+
+        // Upstream's `history` only keeps a catch-up batch from firing live-only actions (chat
+        // bot, text to speech), which NexusIRL does not have yet.
+        override fun chatMessages(history: Boolean, messages: List<RemoteControlChatMessage>) {
+            val posts = messages.map { it.id to it.toChatPost() }
+            main { ChatController.appendForwarded(posts) }
         }
     }
 

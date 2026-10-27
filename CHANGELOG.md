@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- Chat and Twitch alerts forwarded by a remote control assistant (Moblin's `chatMessages` and
+  `twitchEventSubNotification` requests) show in chat, the chat widget and alert toasts, as in
+  Moblin. Messages from SOOP and Open Streaming Platform are shown too.
+
 ## [0.3.0] - 2026-10-27
 
 ### Added
