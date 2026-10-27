@@ -24,5 +24,6 @@ Taps are only made on controls found by their exact label in a fresh reading of 
 their position is stable, and a run stops if NexusIRL's main screen is not showing. Stealth mode
 is left with a double tap in the middle of the screen.
 
-Results on a Galaxy S26 Ultra (2026-10-27): `sweep.py` 27/27, `camera_stress.py` 3 runs of 10 pairs
-with 60 camera switches, never two cameras open and no errors.
+Results (2026-10-27): Galaxy S26 Ultra `sweep.py` 27/27; `camera_stress.py` on the S26 Ultra (Android 17) and
+Huawei P30 Pro (Android 10), every switch a close before the next open,
+never two cameras open and no errors.

@@ -55,8 +55,19 @@ for _ in range(pairs):
 time.sleep(4)
 log = adb("logcat", "-d")
 pid = adb("shell", "pidof", "io.github.mesmerize08.nexusirl").strip()
-refs = [int(r) for r in re.findall(r"increaseCamConnRef: ref=(\d+)", log)]
-connects = re.findall(r"connect call \(PID \d+ UID \d+ \"io.github.mesmerize08.nexusirl\", camera ID (\d+)\)", log)
+# Camera opens and closes in order, from the camera service's log. Android versions word the open
+# line differently ("PID 123 UID 456 ..." or "PID -1 ..."), so match loosely.
+connects, open_now, most_open = [], set(), 0
+for line in log.splitlines():
+    opened = re.search(r'connect call \(PID [-\d]+ (?:UID \d+ )?"io\.github\.mesmerize08\.nexusirl", camera ID (\d+)', line)
+    if opened:
+        open_now.add(opened.group(1))
+        connects.append(opened.group(1))
+        most_open = max(most_open, len(open_now))
+    closed = re.search(r"Disconnected client for camera (\d+)", line)
+    if closed:
+        open_now.discard(closed.group(1))
+refs = [most_open]
 problems = [line for line in log.splitlines() if re.search(
     r"Unsupported set|Can't finish configuring|Camera error|configuration failed|request failed|FATAL EXCEPTION|ERROR_MAX_CAMERAS|dead thread", line)
     and (f" {pid} " in line or "Camera3" in line or "CameraDeviceClient" in line)]
