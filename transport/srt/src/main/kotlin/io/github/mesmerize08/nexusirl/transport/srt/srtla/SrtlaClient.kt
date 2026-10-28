@@ -12,12 +12,7 @@ import io.github.mesmerize08.nexusirl.transport.srt.net.UdpLinkFactory
 import java.util.UUID
 
 /** User priority for one bonding path (upstream `SettingsStreamSrtConnectionPriority`). */
-data class ConnectionPriority(
-    val name: String,
-    val priority: Int,
-    val enabled: Boolean,
-    val relayId: UUID? = null,
-)
+data class ConnectionPriority(val name: String, val priority: Int, val enabled: Boolean, val relayId: UUID? = null)
 
 data class ConnectionPriorities(val enabled: Boolean = false, val priorities: List<ConnectionPriority> = emptyList())
 

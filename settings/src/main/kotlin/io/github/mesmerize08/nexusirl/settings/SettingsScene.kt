@@ -125,10 +125,7 @@ data class SettingsWidgetText(
 
 @KeepGeneratedSerializer
 @Serializable(with = SettingsWidgetQrCode.Serializer::class)
-data class SettingsWidgetQrCode(
-    val message: String = "",
-    @Transient override var extra: JsonObject = EMPTY,
-) : SwiftPreserving {
+data class SettingsWidgetQrCode(val message: String = "", @Transient override var extra: JsonObject = EMPTY) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsWidgetQrCode>(generatedSerializer())
 }
 
@@ -175,10 +172,7 @@ data class SettingsWidgetMap(
 /** Upstream `SettingsVideoEffectLut`: which LUT (an entry of the colour settings) to apply. */
 @KeepGeneratedSerializer
 @Serializable(with = SettingsVideoEffectLut.Serializer::class)
-data class SettingsVideoEffectLut(
-    val lut: SUuid? = null,
-    @Transient override var extra: JsonObject = EMPTY,
-) : SwiftPreserving {
+data class SettingsVideoEffectLut(val lut: SUuid? = null, @Transient override var extra: JsonObject = EMPTY) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsVideoEffectLut>(generatedSerializer())
 }
 

@@ -26,10 +26,20 @@ class ThirdPartyEmotesTest {
 
     private val responses = mapOf(
         "/3/cached/emotes/global" to ok("""[{"id":"b1","code":"LUL"},{"id":"b2","code":"Shared"}]"""),
-        "/3/cached/users/twitch/123" to ok("""{"sharedEmotes":[{"id":"s1","code":"Shared"}],"channelEmotes":[{"id":"c1","code":"Mine"},{"id":"c2","code":"Shared"}]}"""),
-        "/3/cached/frankerfacez/emotes/global" to ok("""[{"code":"FfzA","images":{"1x":null,"2x":"https://cdn.ffz/a/2"}},{"code":"NoImage","images":{}}]"""),
-        "/v3/emote-sets/global" to ok("""{"emotes":[{"name":"Seven","data":{"host":{"url":"//cdn.7tv.app/emote/x","files":[{"name":"1x.avif"},{"name":"1x.webp","static_name":"1x_static.webp"}]}}}]}"""),
-        "/v3/users/twitch/123" to ok("""{"emote_set":{"emotes":[{"name":"LUL","data":{"host":{"url":"//cdn.7tv.app/emote/y","files":[{"name":"1x.webp"}]}}}]}}"""),
+        "/3/cached/users/twitch/123" to
+            ok(
+                """{"sharedEmotes":[{"id":"s1","code":"Shared"}],"channelEmotes":[{"id":"c1","code":"Mine"},{"id":"c2","code":"Shared"}]}""",
+            ),
+        "/3/cached/frankerfacez/emotes/global" to
+            ok("""[{"code":"FfzA","images":{"1x":null,"2x":"https://cdn.ffz/a/2"}},{"code":"NoImage","images":{}}]"""),
+        "/v3/emote-sets/global" to
+            ok(
+                """{"emotes":[{"name":"Seven","data":{"host":{"url":"//cdn.7tv.app/emote/x","files":[{"name":"1x.avif"},{"name":"1x.webp","static_name":"1x_static.webp"}]}}}]}""",
+            ),
+        "/v3/users/twitch/123" to
+            ok(
+                """{"emote_set":{"emotes":[{"name":"LUL","data":{"host":{"url":"//cdn.7tv.app/emote/y","files":[{"name":"1x.webp"}]}}}]}}""",
+            ),
     )
 
     private fun loader(server: MockWebServer, settings: SettingsStreamChat, set: EmoteSet, channelId: String = "123") = ThirdPartyEmotes(

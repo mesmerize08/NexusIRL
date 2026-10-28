@@ -174,7 +174,10 @@ log = adb("logcat", "-d")
 new_pid = adb("shell", "pidof", PACKAGE).strip()
 errors = [line for line in log.splitlines()
           if f" {pid} " in line and re.search(r" E |FATAL|Exception|Camera error|failed", line)
-          and not re.search(r"AdrenoGLES|libpenguin|chromium|BufferQueueProducer|cr_|SurfaceComposer|HWUI", line)]
+          # Android's own graphics and WebView noise. "perf_hint: Session ID too large" is the
+          # platform's render thread on Android 17 once the system's hint-session counter passes
+          # 32 bits (seen on the S26 on 2026-10-28, with old and new builds alike).
+          and not re.search(r"AdrenoGLES|libpenguin|chromium|BufferQueueProducer|cr_|SurfaceComposer|HWUI|perf_hint: Session ID too large", line)]
 step("app still running (same process)", new_pid == pid, f"{pid} -> {new_pid}")
 step("no errors in the app's log", not errors, f"{len(errors)} lines")
 for line in errors[:12]:

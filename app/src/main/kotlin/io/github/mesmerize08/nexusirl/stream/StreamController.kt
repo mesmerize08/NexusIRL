@@ -447,12 +447,7 @@ object StreamController {
 
     // Recording (upstream ModelRecording.swift)
 
-    private class ActiveRecording(
-        val uri: Uri,
-        val descriptor: ParcelFileDescriptor,
-        val recorder: Mp4Recorder,
-        val encoder: VideoEncoder,
-    )
+    private class ActiveRecording(val uri: Uri, val descriptor: ParcelFileDescriptor, val recorder: Mp4Recorder, val encoder: VideoEncoder)
 
     private var activeRecording: ActiveRecording? = null
     private val mutableRecording = MutableStateFlow<RecordingState?>(null)

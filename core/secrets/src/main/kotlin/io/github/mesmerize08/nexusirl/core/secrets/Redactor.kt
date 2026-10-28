@@ -42,7 +42,8 @@ class Redactor(private val secrets: SecretStore? = null) {
             Regex("""(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+""") to "$1 $MASK",
             Regex("""(?i)\boauth:[A-Za-z0-9]+""") to "oauth:$MASK",
             Regex("""(?i)\b(streamid|passphrase|password|key|token|access_token|refresh_token|secret)=[^&\s"']+""") to "$1=$MASK",
-            Regex("""(?i)("(?:password|passphrase|accessToken|refreshToken|token|streamKey|authentication)"\s*:\s*)"[^"]*"""") to "$1\"$MASK\"",
+            Regex("""(?i)("(?:password|passphrase|accessToken|refreshToken|token|streamKey|authentication)"\s*:\s*)"[^"]*"""") to
+                "$1\"$MASK\"",
         )
 
         /**

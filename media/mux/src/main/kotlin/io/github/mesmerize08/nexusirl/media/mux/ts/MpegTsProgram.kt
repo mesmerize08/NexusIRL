@@ -21,10 +21,7 @@ object ElementaryStreamDescriptorTag {
 
 val OPUS_REGISTRATION: ByteArray = "Opus".toByteArray(Charsets.US_ASCII)
 
-class ElementaryStreamSpecificData(
-    var streamType: Int = ElementaryStreamType.UNSPECIFIC,
-    var elementaryPacketId: Int = 0,
-) {
+class ElementaryStreamSpecificData(var streamType: Int = ElementaryStreamType.UNSPECIFIC, var elementaryPacketId: Int = 0) {
     private var esDescriptors = ByteArray(0)
 
     fun appendDescriptor(tag: Int, data: ByteArray) {

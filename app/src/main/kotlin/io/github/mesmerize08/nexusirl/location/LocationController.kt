@@ -29,12 +29,7 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /** The values text widgets show (metres, metres per second). */
-data class LocationValues(
-    val speed: Double?,
-    val averageSpeed: Double?,
-    val altitude: Double?,
-    val totals: SettingsLocation,
-)
+data class LocationValues(val speed: Double?, val averageSpeed: Double?, val altitude: Double?, val totals: SettingsLocation)
 
 /**
  * Follows the device location while location is enabled in settings (upstream

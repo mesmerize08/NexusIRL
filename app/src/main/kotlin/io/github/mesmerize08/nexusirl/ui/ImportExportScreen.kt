@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -79,6 +80,7 @@ private fun exportFileName(extension: String): String =
 @Composable
 fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -101,7 +103,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                     pendingImport = parseImport(bytes)
                 }
             } catch (e: Exception) {
-                message = failure(context.getString(R.string.import_failed), e)
+                message = failure(resources.getString(R.string.import_failed), e)
             }
         }
     }
@@ -125,7 +127,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                     val data = if (mode == ExportMode.ENCRYPTED) EncryptedSettings.encrypt(archive, passphrase!!) else archive
                     context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(data) }
                 }
-                context.getString(
+                resources.getString(
                     when (mode) {
                         ExportMode.WITHOUT_KEYS -> R.string.exported_without_keys
                         ExportMode.WITH_KEYS -> R.string.exported_with_keys
@@ -133,7 +135,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                     },
                 )
             } catch (e: Exception) {
-                context.getString(R.string.export_failed, e.message ?: e.javaClass.simpleName)
+                resources.getString(R.string.export_failed, e.message ?: e.javaClass.simpleName)
             } finally {
                 passphrase?.fill(' ')
                 busy = false
@@ -191,9 +193,9 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                             }
                             store.import(pending.json)
                             StreamController.settingsImported(context)
-                            context.getString(R.string.imported)
+                            resources.getString(R.string.imported)
                         } catch (e: Exception) {
-                            failure(context.getString(R.string.import_failed), e)
+                            failure(resources.getString(R.string.import_failed), e)
                         } finally {
                             busy = false
                         }
@@ -217,7 +219,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
                         val archive = withContext(Dispatchers.Default) { EncryptedSettings.decrypt(data, passphrase) }
                         pendingImport = parseImport(archive)
                     } catch (e: Exception) {
-                        message = failure(context.getString(R.string.import_failed), e)
+                        message = failure(resources.getString(R.string.import_failed), e)
                     } finally {
                         passphrase.fill(' ')
                         busy = false

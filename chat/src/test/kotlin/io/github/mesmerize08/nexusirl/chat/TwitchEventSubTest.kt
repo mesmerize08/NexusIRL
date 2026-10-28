@@ -220,7 +220,9 @@ class TwitchEventSubTest {
             val requests = (1..7).map { helix.takeRequest(5, TimeUnit.SECONDS)!! }
             assertTrue(
                 requests.all {
-                    it.path == "/helix/eventsub/subscriptions" && it.getHeader("Authorization") == "Bearer token" && it.getHeader("Client-Id") == "clientid123"
+                    it.path == "/helix/eventsub/subscriptions" &&
+                        it.getHeader("Authorization") == "Bearer token" &&
+                        it.getHeader("Client-Id") == "clientid123"
                 },
             )
             val follow = requests.first().body.readUtf8()

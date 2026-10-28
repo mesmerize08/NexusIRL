@@ -36,12 +36,7 @@ object RtmpUserControlEvent {
 class RtmpMessage(val type: Int, val streamId: Long, val timestamp: Long, val payload: ByteArray)
 
 /** An AMF0/AMF3 command message (`connect`, `_result`, `onStatus`, ...). */
-data class RtmpCommand(
-    val name: String,
-    val transactionId: Long,
-    val commandObject: AsObject?,
-    val arguments: List<AsValue>,
-) {
+data class RtmpCommand(val name: String, val transactionId: Long, val commandObject: AsObject?, val arguments: List<AsValue>) {
     fun encode(amf3: Boolean = false): ByteArray {
         val encoder = Amf0Encoder()
         if (amf3) {

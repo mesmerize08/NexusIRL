@@ -12,10 +12,7 @@ import kotlin.test.assertEquals
 @OptIn(ExperimentalSerializationApi::class)
 @KeepGeneratedSerializer
 @Serializable(with = Inner.Serializer::class)
-private data class Inner(
-    val latency: Int = 3000,
-    @Transient override var extra: JsonObject = JsonObject(emptyMap()),
-) : SwiftPreserving {
+private data class Inner(val latency: Int = 3000, @Transient override var extra: JsonObject = JsonObject(emptyMap())) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Inner>(generatedSerializer())
 }
 

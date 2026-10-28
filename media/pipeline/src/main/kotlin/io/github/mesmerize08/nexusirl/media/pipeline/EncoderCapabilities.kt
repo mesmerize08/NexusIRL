@@ -41,10 +41,11 @@ object EncoderCapabilities {
 
     private fun describe(info: MediaCodecInfo, type: String): VideoEncoderInfo {
         val capabilities = info.getCapabilitiesForType(type)
+        // Null for codecs that are not video encoders (annotated so from Android 17's SDK).
         val video = capabilities.videoCapabilities
         val encoder = capabilities.encoderCapabilities
         fun supports(width: Int, height: Int, fps: Int): Boolean = try {
-            video.areSizeAndRateSupported(width, height, fps.toDouble())
+            video?.areSizeAndRateSupported(width, height, fps.toDouble()) == true
         } catch (e: IllegalArgumentException) {
             false
         }
@@ -52,8 +53,8 @@ object EncoderCapabilities {
             name = info.name,
             mimeType = type,
             hardware = info.isHardwareAccelerated,
-            supportsVbr = encoder.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR),
-            supportsCbr = encoder.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR),
+            supportsVbr = encoder?.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR) == true,
+            supportsCbr = encoder?.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR) == true,
             supports1080p30 = supports(1920, 1080, 30),
             supports1080p60 = supports(1920, 1080, 60),
             supports4k30 = supports(3840, 2160, 30),

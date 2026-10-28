@@ -163,11 +163,8 @@ sealed interface MpegTsVideoConfig {
         }
     }
 
-    data class Hevc(
-        val videoParameterSet: ByteArray?,
-        val sequenceParameterSet: ByteArray?,
-        val pictureParameterSet: ByteArray?,
-    ) : MpegTsVideoConfig {
+    data class Hevc(val videoParameterSet: ByteArray?, val sequenceParameterSet: ByteArray?, val pictureParameterSet: ByteArray?) :
+        MpegTsVideoConfig {
         companion object {
             /** Parses an `hvcC` (ISO/IEC 14496-15 8.3.3.1.2) record. */
             fun fromHvcC(hvcC: ByteArray): Hevc {

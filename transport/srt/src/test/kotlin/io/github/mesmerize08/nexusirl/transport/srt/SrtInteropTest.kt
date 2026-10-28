@@ -135,8 +135,10 @@ class SrtInteropTest {
     }
 
     /** True if a data packet's payload looks like plaintext MPEG-TS (sync byte every 188 bytes). */
-    private fun looksLikePlainMpegTs(packet: ByteArray): Boolean = isSrtDataPacket(packet) && packet.size >= 16 + 188 * 2 &&
-        packet[16].toInt() == 0x47 && packet[16 + 188].toInt() == 0x47
+    private fun looksLikePlainMpegTs(packet: ByteArray): Boolean = isSrtDataPacket(packet) &&
+        packet.size >= 16 + 188 * 2 &&
+        packet[16].toInt() == 0x47 &&
+        packet[16 + 188].toInt() == 0x47
 
     @Test
     fun libsrtReceivesStreamFromMoblinSender() {

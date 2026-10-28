@@ -20,10 +20,8 @@ import kotlinx.serialization.json.JsonObject
  * associated values). Swift encodes such a dictionary as a flat array `[key, value, key, value]`,
  * e.g. remote control `filters: [RemoteControlFilter: Bool]`.
  */
-open class SwiftKeyedArrayMapSerializer<K, V>(
-    private val keySerializer: KSerializer<K>,
-    private val valueSerializer: KSerializer<V>,
-) : KSerializer<Map<K, V>> {
+open class SwiftKeyedArrayMapSerializer<K, V>(private val keySerializer: KSerializer<K>, private val valueSerializer: KSerializer<V>) :
+    KSerializer<Map<K, V>> {
     override val descriptor: SerialDescriptor = ListSerializer(keySerializer).descriptor
 
     override fun serialize(encoder: Encoder, value: Map<K, V>) {
@@ -60,9 +58,7 @@ open class SwiftKeyedArrayMapSerializer<K, V>(
  * A Swift `[String: V?]`. Swift writes `null` for nil values inside dictionaries even though nil
  * properties are omitted, so this serializer always emits explicit nulls for map values.
  */
-open class SwiftNullableValueMapSerializer<V : Any>(
-    private val valueSerializer: KSerializer<V>,
-) : KSerializer<Map<String, V?>> {
+open class SwiftNullableValueMapSerializer<V : Any>(private val valueSerializer: KSerializer<V>) : KSerializer<Map<String, V?>> {
     override val descriptor: SerialDescriptor =
         MapSerializer(String.serializer(), valueSerializer).descriptor
 

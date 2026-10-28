@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.R
@@ -66,6 +67,7 @@ val SUPPORTED_QUICK_BUTTONS = setOf(
 @Composable
 fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val database by store.database.collectAsState()
     val status by StreamController.status.collectAsState()
     val recording by StreamController.recording.collectAsState()
@@ -105,7 +107,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                             StreamController.startRecording(context)?.let(::toast)
                         } else {
                             val saved = StreamController.stopRecording(context)
-                            toast(context.getString(if (saved) R.string.recording_saved else R.string.recording_failed))
+                            toast(resources.getString(if (saved) R.string.recording_saved else R.string.recording_failed))
                         }
                         QuickButtonType.SNAPSHOT -> StreamController.takeSnapshot(context) { saved ->
                             Toast.makeText(

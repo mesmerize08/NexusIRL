@@ -370,21 +370,15 @@ sealed interface RemoteControlMessageToStreamer {
 sealed interface RemoteControlMessageToAssistant {
     @Serializable data class Identify(val streamerId: String? = null, val authentication: String) : RemoteControlMessageToAssistant
 
-    @Serializable data class Response(
-        val id: Int,
-        val result: RemoteControlResult,
-        val data: RemoteControlResponse? = null,
-    ) : RemoteControlMessageToAssistant
+    @Serializable data class Response(val id: Int, val result: RemoteControlResult, val data: RemoteControlResponse? = null) :
+        RemoteControlMessageToAssistant
 
     @Serializable data class Event(val data: RemoteControlEvent) : RemoteControlMessageToAssistant
 
     @Serializable data class Preview(val preview: SData) : RemoteControlMessageToAssistant
 
-    @Serializable data class TwitchStart(
-        val channelName: String? = null,
-        val channelId: String,
-        val accessToken: String,
-    ) : RemoteControlMessageToAssistant
+    @Serializable data class TwitchStart(val channelName: String? = null, val channelId: String, val accessToken: String) :
+        RemoteControlMessageToAssistant
 
     @Serializable data object Ping : RemoteControlMessageToAssistant
 

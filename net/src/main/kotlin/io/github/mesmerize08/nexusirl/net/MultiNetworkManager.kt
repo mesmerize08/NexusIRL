@@ -15,11 +15,7 @@ import java.net.InetAddress
  * resolved on that network, so cellular traffic really leaves over cellular even while Wi-Fi is
  * the default (upstream: `NWParameters.requiredInterface`).
  */
-class AndroidBondingInterface(
-    val network: Network,
-    override val type: InterfaceType,
-    override val name: String,
-) : BondingInterface {
+class AndroidBondingInterface(val network: Network, override val type: InterfaceType, override val name: String) : BondingInterface {
     override val id: String = network.networkHandle.toString()
 
     override fun bind(socket: DatagramSocket) {

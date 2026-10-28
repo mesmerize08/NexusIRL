@@ -64,10 +64,9 @@ Monthly, and before each release:
    Compose BOM, OkHttp, kotlinx, MapLibre, Tink, test libraries). Prefer releases that are a few
    weeks old. Update, regenerate the verification metadata (below), review that the new
    checksums are for the expected groups, run the full gate and the UI tests, and test on a
-   phone when the camera, codec or network stack changed.
-   Compose 1.12 (BOM 2026.x), core 1.19 and lifecycle 2.11 need AGP 9.1 and compile SDK 37,
-   so they wait for the AGP 9 migration; until then the AndroidX libraries stay on their
-   AGP 8 versions.
+   phone when the camera, codec or network stack changed. The build uses AGP 9 (Kotlin built
+   into AGP, so Android modules have no `kotlin-android` plugin), Gradle 9 and compile SDK 37;
+   the target SDK is a separate decision because it changes app behaviour.
 3. Security advisories (GitHub's Dependabot alerts on the repository) are handled right away.
 
 ## Dependency verification
@@ -78,10 +77,13 @@ it and review the diff:
 
 ```sh
 ./gradlew --write-verification-metadata sha256 --refresh-dependencies ktlintCheck test lint :app:licensee assembleDebug assembleDebugAndroidTest assembleRelease
+ANDROID_SERIAL=emulator-5554 ./gradlew --write-verification-metadata sha256 :app:connectedDebugAndroidTest
 ```
 
 `--refresh-dependencies` matters: with a warm cache Gradle skips BOM files, and CI on Linux then
-fails verification.
+fails verification. The second command records the UI-test runner, which only the emulator run
+(CI's "ui-tests" job) downloads. Gradle only ever adds entries, so after a big upgrade delete the
+file first and run both commands to drop versions no longer used.
 
 `aapt2` is published per operating system and Gradle only records the jar for the machine it runs
 on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync by hand

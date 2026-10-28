@@ -72,9 +72,7 @@ fun interface UdpLinkFactory {
 }
 
 /** [UdpLinkFactory] on `java.net.DatagramSocket`, used on both the JVM and Android. */
-class DatagramUdpLinkFactory(
-    private val dnsLookupStrategy: DnsLookupStrategy = DnsLookupStrategy.SYSTEM,
-) : UdpLinkFactory {
+class DatagramUdpLinkFactory(private val dnsLookupStrategy: DnsLookupStrategy = DnsLookupStrategy.SYSTEM) : UdpLinkFactory {
     override fun open(
         host: String,
         port: Int,

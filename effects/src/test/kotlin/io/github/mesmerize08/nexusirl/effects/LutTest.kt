@@ -9,8 +9,12 @@ class LutTest {
         appendLine("TITLE \"identity\"")
         appendLine("# comment")
         appendLine("LUT_3D_SIZE $n")
-        for (b in 0 until n) for (g in 0 until n) for (r in 0 until n) {
-            appendLine("${r / (n - 1.0)} ${g / (n - 1.0)} ${b / (n - 1.0)}")
+        for (b in 0 until n) {
+            for (g in 0 until n) {
+                for (r in 0 until n) {
+                    appendLine("${r / (n - 1.0)} ${g / (n - 1.0)} ${b / (n - 1.0)}")
+                }
+            }
         }
     }
 
@@ -57,10 +61,14 @@ class LutTest {
         val width = 8
         val height = 8
         val pixels = IntArray(width * height)
-        for (b in 0 until n) for (g in 0 until n) for (r in 0 until n) {
-            val row = b / 2 * n + g
-            val column = b % 2 * n + r
-            pixels[row * width + column] = (0xFF shl 24) or ((r * 85) shl 16) or ((g * 85) shl 8) or (b * 85)
+        for (b in 0 until n) {
+            for (g in 0 until n) {
+                for (r in 0 until n) {
+                    val row = b / 2 * n + g
+                    val column = b % 2 * n + r
+                    pixels[row * width + column] = (0xFF shl 24) or ((r * 85) shl 16) or ((g * 85) shl 8) or (b * 85)
+                }
+            }
         }
         val cube = Luts.fromImage(width, height, pixels)
         assertEquals(n, cube.dimension)

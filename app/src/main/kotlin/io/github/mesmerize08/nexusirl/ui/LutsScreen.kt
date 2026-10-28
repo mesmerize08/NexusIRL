@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.scene.LutLoader
@@ -41,6 +42,7 @@ private fun SettingsColor.mapLut(lut: SettingsColorLut, transform: (SettingsColo
 @Composable
 fun LutsScreen(store: SettingsStore, onBack: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val database by store.database.collectAsState()
     var message by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -58,7 +60,7 @@ fun LutsScreen(store: SettingsStore, onBack: () -> Unit) {
                 }
                 null
             } catch (e: Exception) {
-                context.getString(R.string.lut_import_failed) + ": " + (e.message ?: e.javaClass.simpleName)
+                resources.getString(R.string.lut_import_failed) + ": " + (e.message ?: e.javaClass.simpleName)
             }
         }
     }

@@ -6,11 +6,7 @@ package io.github.mesmerize08.nexusirl.core.clock
  * continuously increasing timestamp. Small backwards jumps across the wrap point (reordered
  * packets) are mapped into the previous period.
  */
-class WrappingTimestamp(
-    private val name: String,
-    private val maximumTimestamp: MediaTime,
-    private val onWrap: (String) -> Unit = {},
-) {
+class WrappingTimestamp(private val name: String, private val maximumTimestamp: MediaTime, private val onWrap: (String) -> Unit = {}) {
     private val halfMaximumTimestamp = MediaTime(maximumTimestamp.value / 2, maximumTimestamp.timescale)
     private var highTimestamp = MediaTime(0, maximumTimestamp.timescale)
     private var previousTimestamp = MediaTime(0, maximumTimestamp.timescale)

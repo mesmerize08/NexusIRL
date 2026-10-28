@@ -215,7 +215,8 @@ class VideoPipeline(
      */
     fun startEncoder(encoderSettings: VideoEncoderSettings, sink: MediaSink): VideoEncoder? {
         require(
-            encoderSettings.width == settings.width && encoderSettings.height == settings.height &&
+            encoderSettings.width == settings.width &&
+                encoderSettings.height == settings.height &&
                 encoderSettings.fps == settings.fps,
         ) { "Encoder settings do not match the pipeline" }
         var created: VideoEncoder? = null

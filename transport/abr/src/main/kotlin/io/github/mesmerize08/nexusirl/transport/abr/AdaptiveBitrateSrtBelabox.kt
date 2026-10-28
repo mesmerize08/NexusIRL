@@ -14,11 +14,8 @@ private const val BITRATE_DECR_FAST_INTERVAL_NANOS = 250_000_000L
 private const val BITRATE_DECR_SCALE = 10L
 
 /** The BELABOX algorithm. Call [update] every 20 ms while live. */
-class AdaptiveBitrateSrtBelabox(
-    targetBitrate: Long,
-    listener: AdaptiveBitrateListener,
-    clock: HostClock,
-) : AdaptiveBitrate(listener, clock) {
+class AdaptiveBitrateSrtBelabox(targetBitrate: Long, listener: AdaptiveBitrateListener, clock: HostClock) :
+    AdaptiveBitrate(listener, clock) {
     private var targetBitrate = targetBitrate
     private var settings = AdaptiveBitrateSettings.BELABOX
     private var sendBufferSizeAverage = 0.0

@@ -651,7 +651,13 @@ class RtmpStream(
         totalBytesSent = 0
         inputBuffer = ByteArray(0)
         val tls = target.scheme.equals("rtmps", ignoreCase = true)
-        val port = if (target.port >= 0) target.port else if (tls) 443 else 1935
+        val port = if (target.port >= 0) {
+            target.port
+        } else if (tls) {
+            443
+        } else {
+            1935
+        }
         connection = Connection(target.host ?: "", port, tls)
     }
 

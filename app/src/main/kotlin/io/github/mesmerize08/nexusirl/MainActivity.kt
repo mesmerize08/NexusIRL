@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -244,14 +246,13 @@ class MainActivity : ComponentActivity() {
         val missing = wanted
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) {
-            requestPermissions(missing.toTypedArray(), 1)
+            permissionRequest.launch(missing.toTypedArray())
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        val camera = permissions.indexOf(Manifest.permission.CAMERA)
-        if (camera >= 0 && grantResults.getOrNull(camera) == PackageManager.PERMISSION_GRANTED) {
+    // Registered before the activity starts, as the Activity Result API requires.
+    private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.CAMERA] == true) {
             StreamController.cameraPermissionGranted()
         }
         LocationController.start(this)
@@ -301,6 +302,7 @@ private sealed interface Screen {
 @Composable
 private fun App(pendingLink: MutableStateFlow<String?>) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val store = remember { StreamController.settings(context) }
     val status by StreamController.status.collectAsState()
     val database by store.database.collectAsState()
@@ -318,7 +320,7 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
         try {
             parsedLink = MoblinSettingsUrl.parse(text)
         } catch (e: MoblinSettingsUrl.InvalidSettingsUrlException) {
-            Toast.makeText(context, context.getString(R.string.link_failed) + ": " + e.message, Toast.LENGTH_LONG).show()
+            Toast.makeText(context, resources.getString(R.string.link_failed) + ": " + e.message, Toast.LENGTH_LONG).show()
             pendingLink.value = null
         }
     }

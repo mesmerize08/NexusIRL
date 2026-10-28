@@ -64,8 +64,7 @@ enum class StreamRateControl(override val rawValue: String) : SwiftRawValueEnum 
 }
 
 @Serializable(with = StreamResolution.Serializer::class)
-enum class StreamResolution(override val rawValue: String, val width: Int, val height: Int, val shortName: String) :
-    SwiftRawValueEnum {
+enum class StreamResolution(override val rawValue: String, val width: Int, val height: Int, val shortName: String) : SwiftRawValueEnum {
     R4032X3024("4032x3024", 4032, 3024, "3024p (4:3)"),
     R3840X2160("3840x2160", 3840, 2160, "4K"),
     R2560X1440("2560x1440", 2560, 1440, "1440p"),
@@ -150,10 +149,8 @@ data class SrtAdaptiveBitrateCustomSettings(
 
 @KeepGeneratedSerializer
 @Serializable(with = SrtAdaptiveBitrateBelaboxSettings.Serializer::class)
-data class SrtAdaptiveBitrateBelaboxSettings(
-    val minimumBitrate: SFloat = 250f,
-    @Transient override var extra: JsonObject = EMPTY,
-) : SwiftPreserving {
+data class SrtAdaptiveBitrateBelaboxSettings(val minimumBitrate: SFloat = 250f, @Transient override var extra: JsonObject = EMPTY) :
+    SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SrtAdaptiveBitrateBelaboxSettings>(generatedSerializer())
 }
 
@@ -183,10 +180,8 @@ data class SettingsStreamSrt(
 
 @KeepGeneratedSerializer
 @Serializable(with = SettingsStreamRtmp.Serializer::class)
-data class SettingsStreamRtmp(
-    val adaptiveBitrateEnabled: Boolean = true,
-    @Transient override var extra: JsonObject = EMPTY,
-) : SwiftPreserving {
+data class SettingsStreamRtmp(val adaptiveBitrateEnabled: Boolean = true, @Transient override var extra: JsonObject = EMPTY) :
+    SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsStreamRtmp>(generatedSerializer())
 }
 

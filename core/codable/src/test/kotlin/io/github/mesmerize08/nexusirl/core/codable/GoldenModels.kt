@@ -158,8 +158,7 @@ sealed interface MoblinkResponse {
     @Serializable data class StartTunnel(val port: Int) : MoblinkResponse
 
     @Serializable
-    data class Status(val batteryPercentage: Int? = null, val thermalState: MoblinkThermalState? = null) :
-        MoblinkResponse
+    data class Status(val batteryPercentage: Int? = null, val thermalState: MoblinkThermalState? = null) : MoblinkResponse
 
     object Serializer : SwiftEnumSerializer<MoblinkResponse>(
         "MoblinkResponse",
@@ -169,11 +168,9 @@ sealed interface MoblinkResponse {
 
 @Serializable(with = MoblinkMessageToStreamer.Serializer::class)
 sealed interface MoblinkMessageToStreamer {
-    @Serializable data class Identify(val id: SUuid, val name: String, val authentication: String) :
-        MoblinkMessageToStreamer
+    @Serializable data class Identify(val id: SUuid, val name: String, val authentication: String) : MoblinkMessageToStreamer
 
-    @Serializable data class Response(val id: Int, val result: MoblinkResult, val data: MoblinkResponse? = null) :
-        MoblinkMessageToStreamer
+    @Serializable data class Response(val id: Int, val result: MoblinkResult, val data: MoblinkResponse? = null) : MoblinkMessageToStreamer
 
     object Serializer : SwiftEnumSerializer<MoblinkMessageToStreamer>(
         "MoblinkMessageToStreamer",

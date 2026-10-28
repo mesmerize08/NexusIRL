@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.licensee)
 }
@@ -21,7 +20,7 @@ licensee {
 
 android {
     namespace = "io.github.mesmerize08.nexusirl"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.mesmerize08.nexusirl"
@@ -134,7 +133,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
 
-    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit5"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.mockwebserver)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -148,9 +147,25 @@ dependencies {
 }
 
 // LICENSE and NOTICE (Moblin's MIT notice) ship in the APK for the licences screen.
-val copyNotices = tasks.register<Copy>("copyNotices") {
-    from(rootProject.file("LICENSE"), rootProject.file("NOTICE"))
-    into(layout.buildDirectory.dir("generated/notices"))
+abstract class CopyNotices : DefaultTask() {
+    @get:InputFiles
+    abstract val notices: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val output = outputDirectory.get().asFile
+        output.deleteRecursively()
+        output.mkdirs()
+        notices.forEach { it.copyTo(File(output, it.name)) }
+    }
 }
-android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/notices"))
-tasks.named("preBuild") { dependsOn(copyNotices) }
+
+val copyNotices = tasks.register<CopyNotices>("copyNotices") {
+    notices.from(rootProject.file("LICENSE"), rootProject.file("NOTICE"))
+}
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(copyNotices, CopyNotices::outputDirectory) }
+}

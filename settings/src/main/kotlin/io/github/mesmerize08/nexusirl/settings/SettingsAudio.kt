@@ -18,9 +18,7 @@ import kotlinx.serialization.json.JsonObject
  */
 @KeepGeneratedSerializer
 @Serializable(with = SettingsAudio.Serializer::class)
-data class SettingsAudio(
-    val preferStereoMic: Boolean = false,
-    @Transient override var extra: JsonObject = JsonObject(emptyMap()),
-) : SwiftPreserving {
+data class SettingsAudio(val preferStereoMic: Boolean = false, @Transient override var extra: JsonObject = JsonObject(emptyMap())) :
+    SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsAudio>(generatedSerializer())
 }

@@ -1,8 +1,11 @@
 // Port of SettingsTwitchAlerts in Moblin/Various/Settings/SettingsStream.swift @97e26d2.
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package io.github.mesmerize08.nexusirl.settings
 
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreserving
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreservingSerializer
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KeepGeneratedSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient

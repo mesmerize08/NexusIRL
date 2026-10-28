@@ -28,6 +28,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   `bondingInfo`).
 
 ### Changed
+- Build tools updated: Android Gradle Plugin 9.4, Gradle 9.8, Kotlin 2.4 and compile SDK 37
+  (Android 17), with newer AndroidX libraries (Compose BOM 2026.09, core 1.19, lifecycle 2.11,
+  activity 1.13). The app still targets Android 16.
 - Zooming sends remote controls at most two updates a second, as Moblin now does.
 
 ### Fixed
