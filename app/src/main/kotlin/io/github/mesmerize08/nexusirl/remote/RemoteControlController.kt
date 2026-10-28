@@ -348,7 +348,7 @@ object RemoteControlController {
             // harness read them.
             bitrate = if (StreamController.isLive) {
                 RemoteControlStatusItem(
-                    "${StatusFormat.bitsPerSecond(status.sentBitsPerSecond)} (${StatusFormat.bytes(status.sentBytes)})",
+                    StatusFormat.speedAndTotal(status.sentBitsPerSecond, status.destinations, status.totalSentBytes),
                     status.live,
                 )
             } else {
@@ -357,7 +357,7 @@ object RemoteControlController {
             bitrateInfo = if (StreamController.isLive) {
                 RemoteControlStatusTopRightBitrateInfo(
                     status.sentBitsPerSecond,
-                    status.sentBytes,
+                    status.totalSentBytes,
                 )
             } else {
                 null

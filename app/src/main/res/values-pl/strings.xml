@@ -110,4 +110,8 @@
     <string name="discord_snapshots_help">Automatycznie przesyłaj migawki z przycisku szybkich akcji i migawki z czatbota do kanałów na swoim serwerze Discord.</string>
     <string name="discord_webhook_help">Utwórz webhook w ustawieniach serwera Discord i wklej jego adres URL powyżej.</string>
     <string name="url">URL</string>
+    <string name="multi_streaming">Multi Streaming</string>
+    <string name="multi_streaming_help">Streamuj do dodatkowych miejsc bezpośrednio z tego urządzenia.</string>
+    <string name="multi_streaming_warning">⚠️ Zwiększy to wykorzystanie pasma sieci, obciążenie systemu i wpłynie na temperaturę urządzenia.</string>
+    <string name="destination">Miejsce docelowe</string>
 </resources>

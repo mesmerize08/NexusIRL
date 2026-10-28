@@ -265,6 +265,7 @@ data class SettingsStream(
     val discordSnapshotWebhook: String = "",
     val discordChatBotSnapshotWebhook: String = "",
     val discordSnapshotWebhookOnlyWhenLive: Boolean = true,
+    val multiStreaming: SettingsStreamMultiStreaming = SettingsStreamMultiStreaming(),
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     // Up to 0.2.0 the Android app wrote "youTubeVideoIds", which iOS does not read.
@@ -283,4 +284,28 @@ data class SettingsStream(
     /** Upstream `getYouTubeVideoIds`. */
     val youTubeVideoIdList: List<String>
         get() = youTubeVideoIds.split(",").filter { it.isNotEmpty() }
+}
+
+/** Upstream `SettingsStreamMultiStreamingDestination`: one more RTMP server the stream also goes to. */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsStreamMultiStreamingDestination.Serializer::class)
+data class SettingsStreamMultiStreamingDestination(
+    val id: SUuid = UUID.randomUUID(),
+    val name: String = "My destination",
+    /** Holds the stream key: kept in the secret store like the stream's own URL. */
+    val url: String = "rtmp://my_public_ip:1935/live/foobar",
+    val enabled: Boolean = false,
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsStreamMultiStreamingDestination>(generatedSerializer())
+}
+
+/** Upstream `SettingsStreamMultiStreaming`: used when the stream itself is RTMP. */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsStreamMultiStreaming.Serializer::class)
+data class SettingsStreamMultiStreaming(
+    val destinations: List<SettingsStreamMultiStreamingDestination> = emptyList(),
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsStreamMultiStreaming>(generatedSerializer())
 }

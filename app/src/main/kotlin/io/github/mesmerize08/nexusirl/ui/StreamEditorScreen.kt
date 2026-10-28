@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,6 +25,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.settings.STREAM_FPS_CHOICES
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
+import io.github.mesmerize08.nexusirl.settings.SettingsStreamMultiStreamingDestination
 import io.github.mesmerize08.nexusirl.settings.SettingsTwitchAlerts
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
@@ -76,6 +78,10 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
     }
     var snapshotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordSnapshotWebhook) }.orEmpty()) }
     var chatBotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordChatBotSnapshotWebhook) }.orEmpty()) }
+    // Multi streaming destinations hold stream keys: real URLs only in memory while editing.
+    var destinations by remember(streamId) {
+        mutableStateOf(original?.multiStreaming?.destinations.orEmpty().map { it.copy(url = resolved(it.url)) })
+    }
     val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
     val urlValid = StreamUrlSecrets.isValid(url)
     val scheme = url.substringBefore("://", "").lowercase()
@@ -95,6 +101,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                         url = url,
                         discordSnapshotWebhook = snapshotWebhook,
                         discordChatBotSnapshotWebhook = chatBotWebhook,
+                        multiStreaming = stream.multiStreaming.copy(destinations = destinations),
                         twitchAccessToken = account?.twitchAccessToken.orEmpty(),
                         twitchLoggedIn = account?.twitchLoggedIn ?: false,
                     )
@@ -127,6 +134,9 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+        if (scheme == "rtmp" || scheme == "rtmps") {
+            MultiStreamingSection(destinations) { destinations = it }
         }
         HorizontalDivider()
         Text(stringResource(R.string.video), style = MaterialTheme.typography.titleMedium)
@@ -228,6 +238,50 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         }
         Text(stringResource(R.string.discord_snapshots_help), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.discord_webhook_help), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** Upstream `StreamMultiStreamingSettingsView`: more RTMP servers fed by the same encoders. */
+@Composable
+private fun MultiStreamingSection(
+    destinations: List<SettingsStreamMultiStreamingDestination>,
+    onChange: (List<SettingsStreamMultiStreamingDestination>) -> Unit,
+) {
+    HorizontalDivider()
+    Text(stringResource(R.string.multi_streaming), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.multi_streaming_help), style = MaterialTheme.typography.bodySmall)
+    Text(stringResource(R.string.multi_streaming_warning), style = MaterialTheme.typography.bodySmall)
+    fun change(index: Int, transform: (SettingsStreamMultiStreamingDestination) -> SettingsStreamMultiStreamingDestination) =
+        onChange(destinations.mapIndexed { i, destination -> if (i == index) transform(destination) else destination })
+    for ((index, destination) in destinations.withIndex()) {
+        OutlinedTextField(
+            value = destination.name,
+            onValueChange = { name -> change(index) { it.copy(name = name) } },
+            label = { Text(stringResource(R.string.destination)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        val url = destination.url
+        SecretTextField(
+            label = stringResource(R.string.url),
+            value = url,
+            onValueChange = { value -> change(index) { it.copy(url = value.trim()) } },
+            supportingText = if (url.isNotEmpty() && (!StreamUrlSecrets.isValid(url) || !url.startsWith("rtmp", ignoreCase = true))) {
+                stringResource(R.string.multi_streaming_url_invalid)
+            } else {
+                null
+            },
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.enabled), modifier = Modifier.weight(1f))
+            Switch(checked = destination.enabled, onCheckedChange = { on -> change(index) { it.copy(enabled = on) } })
+            TextButton(onClick = { onChange(destinations.filterIndexed { i, _ -> i != index }) }) {
+                Text(stringResource(R.string.delete))
+            }
+        }
+    }
+    TextButton(onClick = { onChange(destinations + SettingsStreamMultiStreamingDestination(url = "")) }) {
+        Text(stringResource(R.string.add))
     }
 }
 

@@ -119,4 +119,8 @@
     <string name="discord_webhook_help">Skapa en webhook i din Discord-servers inställningar och klistra in dess URL ovan.</string>
     <string name="url">URL</string>
     <string name="this_device">Den här enheten</string>
+    <string name="multi_streaming">Multi-streaming</string>
+    <string name="multi_streaming_help">Streama till ytterligare destinationer direkt från den här enheten.</string>
+    <string name="multi_streaming_warning">⚠️ Detta kommer att öka användningen av nätverksbandbredd, systembelastning och enhetsvärme.</string>
+    <string name="destination">Destination</string>
 </resources>

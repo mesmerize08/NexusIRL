@@ -74,6 +74,9 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
                 twitchLoggedIn = false,
                 discordSnapshotWebhook = exported(stream.discordSnapshotWebhook),
                 discordChatBotSnapshotWebhook = exported(stream.discordChatBotSnapshotWebhook),
+                multiStreaming = stream.multiStreaming.copy(
+                    destinations = stream.multiStreaming.destinations.map { it.copy(url = exported(it.url)) },
+                ),
             )
         }
         val snapshot = database.chat.botCommandSnapshot.let { it.copy(webRemoteControlUrl = exported(it.webRemoteControlUrl)) }
@@ -113,6 +116,10 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
                     // A Discord webhook's path holds its token: anyone with it can post.
                     discordSnapshotWebhook = protectUrl(stream.discordSnapshotWebhook),
                     discordChatBotSnapshotWebhook = protectUrl(stream.discordChatBotSnapshotWebhook),
+                    // Extra RTMP destinations hold stream keys like the stream's own URL.
+                    multiStreaming = stream.multiStreaming.copy(
+                        destinations = stream.multiStreaming.destinations.map { it.copy(url = protectUrl(it.url)) },
+                    ),
                 )
             },
             // May carry the other phone's web remote control token.
@@ -154,8 +161,10 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
 
     private fun removeUnreferencedSecrets(database: Database) {
         val streamSecrets = database.streams.flatMap { stream ->
-            listOf(stream.url, stream.twitchAccessToken, stream.discordSnapshotWebhook, stream.discordChatBotSnapshotWebhook)
-                .flatMap { SecretRef.findAll(it) }
+            (
+                listOf(stream.url, stream.twitchAccessToken, stream.discordSnapshotWebhook, stream.discordChatBotSnapshotWebhook) +
+                    stream.multiStreaming.destinations.map { it.url }
+                ).flatMap { SecretRef.findAll(it) }
         } + SecretRef.findAll(database.chat.botCommandSnapshot.webRemoteControlUrl)
         val passwords = SecretRef.findAll(database.remoteControl.password) + SecretRef.findAll(database.moblink.password) +
             SecretRef.findAll(database.remoteControl.web.token) + SecretRef.findAll(database.remoteControl.streamer.url)

@@ -115,4 +115,8 @@
     <string name="discord_snapshots_help">Автоматически загружать в каналы на вашем сервере Discord снимки, сделанные быстрой кнопкой или командой из чата.</string>
     <string name="discord_webhook_help">Создайте вебхук в настройках вашего сервера Discord и вставьте его URL-адрес в поле выше.</string>
     <string name="url">URL</string>
+    <string name="multi_streaming">Многопотоковая передача</string>
+    <string name="multi_streaming_help">Мультипоточная трансляция позволяет стримить сразу на несколько площадок одновременно прямо с этого устройства</string>
+    <string name="multi_streaming_warning">⚠️ Это увеличит использование сети, нагрузку на систему и нагрев устройства.</string>
+    <string name="destination">Пункт назначения</string>
 </resources>

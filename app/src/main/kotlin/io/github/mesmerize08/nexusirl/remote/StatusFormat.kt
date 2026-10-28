@@ -16,6 +16,13 @@ object StatusFormat {
     /** For example "12.3 MB", "640 kB". */
     fun bytes(bytes: Long): String = if (bytes < 1000) "$bytes bytes" else scaled(bytes, listOf("bytes", "kB", "MB", "GB"))
 
+    /**
+     * Upstream `speedAndTotal`: "5.0 Mbps (12.3 MB)", or "5.0 Mbps x3 (36.9 MB)" when streaming to
+     * several destinations.
+     */
+    fun speedAndTotal(bits: Long, destinations: Int, bytes: Long): String =
+        if (destinations <= 1) "${bitsPerSecond(bits)} (${bytes(bytes)})" else "${bitsPerSecond(bits)} x$destinations (${bytes(bytes)})"
+
     /** For example "1h 2m 3s", "45s"; zero units are left out, like upstream. */
     fun uptime(seconds: Long): String {
         val parts = listOf(seconds / 86_400 to "d", seconds / 3600 % 24 to "h", seconds / 60 % 60 to "m", seconds % 60 to "s")

@@ -115,4 +115,8 @@
     <string name="discord_snapshots_help">Carica automaticamente gli snapshot dei pulsanti rapidi e del chat bot nei canali del tuo server Discord.</string>
     <string name="discord_webhook_help">Crea un webhook nelle impostazioni del tuo server Discord e incollane l\'URL qui sopra.</string>
     <string name="url">URL</string>
+    <string name="multi_streaming">Multi streaming</string>
+    <string name="multi_streaming_help">Trasmetti a destinazioni aggiuntive direttamente da questo dispositivo.</string>
+    <string name="multi_streaming_warning">⚠️ Aumenta il consumo di banda, il carico di sistema e il calore del dispositivo.</string>
+    <string name="destination">Destinazione</string>
 </resources>

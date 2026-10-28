@@ -64,7 +64,7 @@ XDG_CONFIG_HOME=$PWD/config PATH=/path/to/mediamtx:$PATH \
 |---|---|
 | SettingsImportWithoutSettingsFile, SceneSwitchMultipleTimes | Pass (scene switching also on the S26) |
 | StreamRtmpToMediaMtx (5 Mbps, at least 10 MB, checked at MediaMTX) | Pass |
-| StreamMultiRtmpToMediaMtx | Fails: streaming to several destinations is not ported |
+| StreamMultiRtmpToMediaMtx (2026-10-28: three RTMP destinations, each at least 10 MB at MediaMTX, status "x3") | Pass |
 | Record (H.264 and H.265, 1080p30 to 4K, and 1080p60) | Pass, including the strict timing, B-frame and audio checks |
 | Scene widget tests (2026-10-27): map, image with cube and PNG LUT | Pass; VTuber and PNGTuber widgets are not ported |
 | MicDelay | Assumes iOS microphone IDs and a mic delay setting |

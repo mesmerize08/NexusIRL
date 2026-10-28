@@ -34,7 +34,11 @@ class StatusFormatTest {
     fun matchesTheHarnessPattern() {
         // upstream tests/utils/moblin.py RE_BITRATE_STATUS
         val pattern = Regex("""(\S+) (\S+) ((\S+) )?\((\S+) (\S+)\)""")
-        val message = "${StatusFormat.bitsPerSecond(5_012_000)} (${StatusFormat.bytes(12_300_000)})"
+        val message = StatusFormat.speedAndTotal(5_012_000, 1, 12_300_000)
+        assertEquals("5.0 Mbps (12.3 MB)", message)
         assertTrue(pattern.matches(message), message)
+        val multi = StatusFormat.speedAndTotal(5_012_000, 3, 36_900_000)
+        assertEquals("5.0 Mbps x3 (36.9 MB)", multi)
+        assertEquals("x3", pattern.matchEntire(multi)!!.groupValues[4])
     }
 }

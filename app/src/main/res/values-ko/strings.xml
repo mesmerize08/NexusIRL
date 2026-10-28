@@ -114,4 +114,8 @@
     <string name="discord_snapshots_help">디스코드 서버의 채널에 퀵 버튼 스냅샷과 채팅 봇 스냅샷을 자동으로 업로드합니다.</string>
     <string name="discord_webhook_help">디스코드 서버 설정에서 webhook을 만들고 위에 URL을 붙여넣으세요.</string>
     <string name="url">URL</string>
+    <string name="multi_streaming">동시 송출</string>
+    <string name="multi_streaming_help">이 기기에서 여러 플랫폼으로 동시 송출이 가능합니다.</string>
+    <string name="multi_streaming_warning">⚠️ 네트워크 대역폭 사용량과 시스템 부하 및 발열을 증가시킵니다.</string>
+    <string name="destination">송출 대상</string>
 </resources>

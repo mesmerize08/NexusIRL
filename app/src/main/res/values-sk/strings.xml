@@ -36,4 +36,6 @@
     <string name="only_when_live">Iba keď je LIVE</string>
     <string name="discord_webhook_help">Vytvorte webhook v nastaveniach svojho Discord servera a vložte jeho adresu URL vyššie.</string>
     <string name="url">URL</string>
+    <string name="multi_streaming_help">Streamujte na ďalšie platformy priamo z tohto zariadenia.</string>
+    <string name="multi_streaming_warning">⚠ Tým sa zvýši využitie šírky pásma siete, zaťaženie systému a teplo zariadenia.</string>
 </resources>

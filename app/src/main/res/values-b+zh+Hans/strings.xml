@@ -111,4 +111,8 @@
     <string name="discord_snapshots_help">自动将快速按钮快照和聊天机器人快照上传到 Discord 服务器中的频道。</string>
     <string name="discord_webhook_help">在您的 Discord 服务器设置中创建一个 webhook 并将其 URL 粘贴到上面。</string>
     <string name="url">URL</string>
+    <string name="multi_streaming">多重推流</string>
+    <string name="multi_streaming_help">直接从该设备推流到其他地址。</string>
+    <string name="multi_streaming_warning">⚠️这将增加网络带宽的使用，系统负载和设备加热。</string>
+    <string name="destination">目的地</string>
 </resources>

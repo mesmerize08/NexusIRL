@@ -96,8 +96,10 @@ fun LiveStatusBar(status: StreamStatus) {
             Text(
                 String.format(
                     Locale.US,
-                    "%.1f Mbps · %d fps · RTT %d ms",
+                    "%.1f Mbps%s · %d fps · RTT %d ms",
                     status.videoBitrateKbps / 1000.0,
+                    // Upstream's "x3" when also streaming to more RTMP destinations.
+                    if (status.destinations > 1) " x${status.destinations}" else "",
                     status.fps,
                     status.rttMs.toInt(),
                 ),

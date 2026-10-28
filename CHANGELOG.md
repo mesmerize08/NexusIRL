@@ -6,6 +6,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 ## [Unreleased]
 
 ### Added
+- Multi streaming, as in Moblin: an RTMP stream can also go to more RTMP servers at once (for
+  example Twitch and YouTube), from the same encoder (Streams → edit → Multi streaming). Each
+  destination reconnects on its own, and their stream keys are kept like the stream's own.
 - Chat bot (Settings → Chat → Bot), as in Moblin: you and your moderators run `!moblin` commands
   from chat to switch scenes, mute and unmute, zoom, turn the torch and effects on and off, take
   snapshots, and start or stop the stream or change its Twitch title and category. Each command

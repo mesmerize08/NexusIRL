@@ -318,4 +318,9 @@
     <string name="always">Always</string>
     <string name="snapshot_source_help">Take the snapshot on this device, or fetch it from another device\'s web remote control.</string>
     <string name="snapshot_source_token_help">For another NexusIRL phone, use its whole web remote control link, including ?t=.</string>
+    <string name="multi_streaming">Multi streaming</string>
+    <string name="multi_streaming_help">Stream to additional destinations directly from this device.</string>
+    <string name="multi_streaming_warning">⚠️ This will increase network bandwidth usage, system load and device heat.</string>
+    <string name="destination">Destination</string>
+    <string name="multi_streaming_url_invalid">Enter an rtmp:// or rtmps:// URL with the stream key.</string>
 </resources>

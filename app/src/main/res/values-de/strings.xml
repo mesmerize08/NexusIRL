@@ -119,4 +119,8 @@
     <string name="discord_webhook_help">Erstelle einen Webhook in den Einstellungen deines Discord-Servers und füge die URL oben ein.</string>
     <string name="url">URL</string>
     <string name="this_device">Dieses Gerät</string>
+    <string name="multi_streaming">Multistreaming</string>
+    <string name="multi_streaming_help">Streame direkt von diesem Gerät zu weiteren Zielen.</string>
+    <string name="multi_streaming_warning">⚠️ Dies erhöht die Nutzung der Netzwerkbandbreite, die Systemlast und die Gerätewärme.</string>
+    <string name="destination">Ziel</string>
 </resources>

@@ -1,6 +1,7 @@
 package io.github.mesmerize08.nexusirl.stream
 
 import io.github.mesmerize08.nexusirl.settings.Database
+import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -62,5 +63,16 @@ class StreamConfigTest {
             ).srtAdaptiveBitrate!!.settings,
         )
         assertNull(StreamConfig.from(stream("""{"srt":{"adaptiveBitrateEnabled":false}}"""), "srt://h").srtAdaptiveBitrate)
+    }
+
+    @Test
+    fun destinationsNeverPrintTheirUrls() {
+        val config = StreamConfig.from(
+            SettingsStream(url = "rtmp://example.com/app/fakekey-main"),
+            "rtmp://example.com/app/fakekey-main",
+            listOf(RtmpDestination("YouTube", "rtmp://example.com/live2/fakekey-extra")),
+        )
+        assertEquals(1, config.rtmpDestinations.size)
+        assertFalse("fakekey" in config.toString(), config.toString())
     }
 }

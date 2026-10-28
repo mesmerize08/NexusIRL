@@ -119,4 +119,8 @@
     <string name="discord_webhook_help">在您的 Discord 伺服器設定中建立一個 Webhook，然後將 URL 貼到上方。</string>
     <string name="url">URL</string>
     <string name="this_device">此裝置</string>
+    <string name="multi_streaming">多平台串流</string>
+    <string name="multi_streaming_help">直接從此裝置串流至額外的目的地。</string>
+    <string name="multi_streaming_warning">⚠️這將增加網路頻寬使用率、系統負荷和裝置溫度。</string>
+    <string name="destination">目的地</string>
 </resources>

@@ -75,6 +75,10 @@ data class StreamStatus(
     val sentBitsPerSecond: Long = 0,
     /** SRTLA paths over the last second (upstream bonding statistics); empty when not bonding. */
     val bonding: List<BondingConnection> = emptyList(),
+    /** The stream plus its extra RTMP destinations (upstream `getNumberOfDestinations`). */
+    val destinations: Int = 1,
+    /** Media bytes sent to all destinations (upstream `streamTotal` adds up every RTMP stream). */
+    val totalSentBytes: Long = 0,
 ) {
     val live: Boolean
         get() = state == StreamState.LIVE
@@ -103,6 +107,8 @@ class StreamSession(
     /** Shared microphone capture (also used by recordings). */
     private val audio: SharedAudio,
     private val onStatus: (StreamStatus) -> Unit,
+    /** Messages for the streamer, such as an extra destination failing (upstream toasts). */
+    private val onMessage: (String) -> Unit = {},
 ) {
     private val url = config.url
     private val settings = config.video
@@ -162,7 +168,10 @@ class StreamSession(
         }
         audio.add(fanOut)
         powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
-        executor.execute { startDestination() }
+        executor.execute {
+            startDestination()
+            extraDestinations.forEach { it.start() }
+        }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
     }
 
@@ -189,6 +198,7 @@ class StreamSession(
             stopped = true
             reconnectTimer?.cancel()
             stopDestination()
+            extraDestinations.forEach { it.stop() }
             done.countDown()
         }
         done.await(3, TimeUnit.SECONDS)
@@ -407,6 +417,108 @@ class StreamSession(
         }
     }
 
+    private val extraBytes = java.util.concurrent.atomic.AtomicLong()
+    private val extraDestinations = config.rtmpDestinations.map { ExtraRtmpDestination(it) }
+
+    /**
+     * Upstream multi streaming: one more RTMP connection fed by the same encoders. Unlike
+     * upstream, which restarts all of them when the main one drops, each connects and retries
+     * (after 5 seconds) on its own, so one failing server does not interrupt the others.
+     * Executor only.
+     */
+    private inner class ExtraRtmpDestination(private val destination: RtmpDestination) {
+        private var stream: RtmpStream? = null
+        private var attached: MediaSink? = null
+        private var retry: Cancellable? = null
+        private var connection = 0
+
+        fun start() {
+            if (stopped) {
+                return
+            }
+            connection += 1
+            val current = connection
+            val stream = RtmpStream(
+                destination.url,
+                executor,
+                clock,
+                object : RtmpStream.Listener {
+                    override fun onStatus(code: String) {
+                        if (code == RtmpCode.CONNECT_FAILED || code == RtmpCode.CONNECT_CLOSED || code == RtmpCode.CONNECT_REJECTED) {
+                            failed(current, code)
+                        }
+                    }
+
+                    override fun onConnected() = connected(current)
+                },
+            )
+            stream.setMetadata(
+                RtmpMetadata(settings.width, settings.height, settings.fps.toDouble(), settings.hevc, settings.bitrate, 128_000, 48_000.0),
+            )
+            this.stream = stream
+            stream.connect()
+        }
+
+        private fun connected(current: Int) {
+            val stream = stream
+            if (current != connection || stopped || stream == null) {
+                return
+            }
+            val sink = object : MediaSink {
+                override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = stream.setAudioConfig(config, sampleRate)
+
+                override fun setVideoConfig(config: MpegTsVideoConfig) = stream.setVideoConfig(config)
+
+                override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) = stream.writeAudio(
+                    frame,
+                    0,
+                    frame.size,
+                    presentationTimeStamp,
+                )
+
+                override fun writeVideo(
+                    accessUnit: ByteArray,
+                    presentationTimeStamp: MediaTime,
+                    decodeTimeStamp: MediaTime?,
+                    isSync: Boolean,
+                ) = stream.writeVideo(accessUnit, presentationTimeStamp, decodeTimeStamp, isSync)
+            }
+            val gate = KeyFrameGate(ByteCountingSink(sink, extraBytes))
+            attached = gate
+            fanOut.add(gate)
+            encoder?.requestKeyFrame()
+            log.line("Multi stream ${destination.name} live")
+            onMessage("\uD83C\uDF89 You are LIVE at multi stream ${destination.name} \uD83C\uDF89")
+        }
+
+        private fun failed(current: Int, code: String) {
+            if (current != connection || stopped || retry != null) {
+                return
+            }
+            disconnect()
+            log.line("Multi stream ${destination.name} failed: $code")
+            onMessage("\uD83D\uDE22 Multi stream ${destination.name} failed \uD83D\uDE22 Attempting again in 5 seconds.")
+            retry = executor.schedule(RECONNECT_DELAY_NANOS) {
+                retry = null
+                start()
+            }
+        }
+
+        private fun disconnect() {
+            attached?.let { fanOut.remove(it) }
+            attached = null
+            stream?.disconnect()
+            stream = null
+        }
+
+        fun stop() {
+            connection += 1
+            retry?.cancel()
+            retry = null
+            disconnect()
+        }
+    }
+
     private fun report(message: String) {
         update(status.copy(detail = REDACTOR.redact(message)))
     }
@@ -436,6 +548,8 @@ class StreamSession(
                 sentBytes = sent,
                 sentBitsPerSecond = sentBitsPerSecond,
                 bonding = bonding,
+                destinations = 1 + extraDestinations.size,
+                totalSentBytes = sent + extraBytes.get(),
             ),
         )
     }

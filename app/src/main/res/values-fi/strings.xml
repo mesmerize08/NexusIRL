@@ -115,4 +115,8 @@
     <string name="discord_snapshots_help">Lataa automaattisesti pikapainikkeella ja chat-bottien kautta otetut kuvankaappaukset Discord-palvelimesi kanaville</string>
     <string name="discord_webhook_help">Luo webhook Discord-palvelimesi asetuksissa ja liitä sen URL-osoite yllä.</string>
     <string name="url">URL</string>
+    <string name="multi_streaming">Multilähetys</string>
+    <string name="multi_streaming_help">Lähetä suoraan useampaan kohteeseen tältä laitteelta.</string>
+    <string name="multi_streaming_warning">⚠️ Tämä kasvattaa verkon kaistan käyttöä, järjestelmän kuormitusta ja laitteen lämpötilaa.</string>
+    <string name="destination">Kohde</string>
 </resources>

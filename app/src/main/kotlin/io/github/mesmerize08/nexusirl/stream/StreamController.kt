@@ -383,7 +383,25 @@ object StreamController {
         if (!StreamUrlSecrets.isValid(url)) {
             return "Edit the stream and enter an srt://, srtla://, rtmp:// or rtmps:// URL"
         }
-        return goLive(context, StreamConfig.from(stream, url))
+        // Upstream multi streaming: more RTMP servers, only when the stream itself is RTMP.
+        val isRtmp = url.substringBefore("://").lowercase() in setOf("rtmp", "rtmps")
+        val destinations = if (!isRtmp) {
+            emptyList()
+        } else {
+            stream.multiStreaming.destinations.filter { it.enabled }.map { destination ->
+                val destinationUrl = try {
+                    store.resolve(destination.url)
+                } catch (e: MissingSecretException) {
+                    return "The stream key of ${destination.name} is missing. Edit it and enter it again."
+                }
+                val destinationScheme = destinationUrl.substringBefore("://").lowercase()
+                if (!StreamUrlSecrets.isValid(destinationUrl) || destinationScheme !in setOf("rtmp", "rtmps")) {
+                    return "Edit ${destination.name} and enter an rtmp:// or rtmps:// URL"
+                }
+                RtmpDestination(destination.name, destinationUrl)
+            }
+        }
+        return goLive(context, StreamConfig.from(stream, url, destinations))
     }
 
     /** Goes live with [requested]. Returns an error message, or null when starting. */
@@ -401,7 +419,14 @@ object StreamController {
             return "Stop recording first: the stream uses a different resolution or frame rate"
         }
         val video = ensurePipeline(context, config.video)
-        val newSession = StreamSession(context.applicationContext, config, video, audio(context)) { mutableStatus.value = it }
+        val newSession = StreamSession(
+            context.applicationContext,
+            config,
+            video,
+            audio(context),
+            onStatus = { mutableStatus.value = it },
+            onMessage = ChatController::showToast,
+        )
         session = newSession
         newSession.start()
         LocationController.onGoLive()

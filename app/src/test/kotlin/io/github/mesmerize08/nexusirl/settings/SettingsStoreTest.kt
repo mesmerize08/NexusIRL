@@ -80,6 +80,26 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun multiStreamingKeysAreSecret() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        val destination = "rtmp://a.rtmp.youtube.com/live2/$key"
+        store.import(
+            """{"streams":[{"name":"IRL","url":"$url",
+               "multiStreaming":{"destinations":[{"name":"YouTube","url":"$destination","enabled":true}]}}]}""",
+        )
+        assertFalse(key in file.readText(), file.readText())
+        val saved = store.current.streams.single().multiStreaming.destinations.single()
+        assertEquals(listOf("YouTube", true), listOf(saved.name, saved.enabled))
+        assertEquals(destination, store.resolve(saved.url))
+        assertFalse(key in store.exportJson())
+        assertTrue(destination in store.exportJson(includeSecrets = true))
+        // Removing the destination removes its key from the secret store.
+        store.update { it.updateStream(it.streams.single().copy(multiStreaming = SettingsStreamMultiStreaming())) }
+        assertFalse(key in File(directory, "settings.json").readText())
+    }
+
+    @Test
     fun remoteControlPasswordIsSecret() {
         val secrets = InMemorySecretStore()
         val file = File(directory, "settings.json")
