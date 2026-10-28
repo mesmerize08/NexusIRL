@@ -83,7 +83,9 @@ ANDROID_SERIAL=emulator-5554 ./gradlew --write-verification-metadata sha256 :app
 `--refresh-dependencies` matters: with a warm cache Gradle skips BOM files, and CI on Linux then
 fails verification. The second command records the UI-test runner, which only the emulator run
 (CI's "ui-tests" job) downloads. Gradle only ever adds entries, so after a big upgrade delete the
-file first and run both commands to drop versions no longer used.
+file first and run both commands to drop versions no longer used. A fresh file only has the
+`aapt2` jar of the computer that made it: add the other two (`-linux`, `-osx`, `-windows`) by hand
+from Google Maven, checking each SHA-1 against its `.sha1` file, or CI on Linux fails.
 
 `aapt2` is published per operating system and Gradle only records the jar for the machine it runs
 on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync by hand
