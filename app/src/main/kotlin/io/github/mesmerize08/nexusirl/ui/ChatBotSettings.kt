@@ -4,7 +4,9 @@ package io.github.mesmerize08.nexusirl.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotSource
 import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotWebRemoteControlMode
@@ -155,6 +158,7 @@ private fun PermissionsDialog(
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 extra()
+                Spacer(Modifier.height(16.dp))
                 Text(stringResource(R.string.permissions), style = MaterialTheme.typography.labelLarge)
                 SwitchRow(stringResource(R.string.moderators), current.moderatorsEnabled) { change(current.copy(moderatorsEnabled = it)) }
                 SwitchRow(

@@ -35,8 +35,16 @@ def adb(*args):
 
 def focused_package():
     out = adb("shell", "dumpsys", "window")
-    match = re.search(r"mCurrentFocus=Window\{\S+ \S+ ([^/}\s]+)", out)
-    return match.group(1) if match else None
+    match = re.search(r"mCurrentFocus=Window\{(\S+) \S+ ([^}]+)\}", out)
+    if not match:
+        return None
+    window, title = match.group(1), match.group(2)
+    if "/" in title or re.fullmatch(r"[\w.]+", title):
+        return title.split("/")[0]
+    # Pop-ups (drop-down menus) are titled "Pop-up window": ask the system which app owns it.
+    details = adb("shell", "dumpsys", "window", "windows")
+    block = re.search(r"Window\{" + re.escape(window) + r" .*?package=(\S+)", details, re.S)
+    return block.group(1) if block else title
 
 
 def guard():
