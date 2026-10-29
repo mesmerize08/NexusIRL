@@ -93,10 +93,12 @@ on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync
 
 ## F-Droid
 
-`fdroid/io.github.mesmerize08.nexusirl.yml` is the build recipe in fdroiddata format. Checked on
-2026-10-26 with F-Droid's own tools (`registry.gitlab.com/fdroid/docker-executable-fdroidserver`):
-`fdroid scanner` finds no problems in the source or the APK, and `fdroid build` builds it on their
-JDK 21 build environment. Re-run both before submitting or after build changes:
+`fdroid/io.github.mesmerize08.nexusirl.yml` is the build recipe in fdroiddata format, exactly as
+`fdroid rewritemeta` writes it (fdroiddata's CI rejects any other layout, so it has no comments).
+Checked on 2026-10-29 for v0.4.0 with F-Droid's own tools
+(`registry.gitlab.com/fdroid/docker-executable-fdroidserver`): `fdroid lint` and `rewritemeta`
+against fdroiddata's `config/` are clean, `fdroid scanner` finds no problems, and `fdroid build`
+builds it on their JDK 21 build environment. Re-run them before submitting or after build changes:
 
 ```sh
 # In a work directory holding metadata/io.github.mesmerize08.nexusirl.yml (commit set to a pushed tag or commit):
@@ -106,6 +108,9 @@ docker run --rm --entrypoint sh -v "$PWD/metadata:/meta:ro" registry.gitlab.com/
 
 Requirements this relies on: no dependency metadata block in the APK (`dependenciesInfo`), one
 release APK with `-PnoAbiSplits`, any JDK 17 or newer, and no `upstream/` submodule needed for the
-build. To submit: update the build entry to the latest release tag (v0.3.0 is the first that builds), copy
-the file to `metadata/` in a fork of https://gitlab.com/fdroid/fdroiddata, check the categories
-against fdroiddata's `config/categories.yml`, and open a merge request.
+build. Lint needs fdroiddata's `config/` folder: run it in a sparse clone of fdroiddata
+(`git sparse-checkout set config`) with the recipe in `metadata/`, then `fdroid lint` and
+`fdroid rewritemeta` (no diff means the layout is right). To submit: update the build entry to the
+latest release tag (v0.3.0 is the first that builds), copy the file to `metadata/` in a fork of
+https://gitlab.com/fdroid/fdroiddata, and open a merge request. The recipe declares the
+`NonFreeNet` anti-feature, as chat and sign-in use Twitch, Kick and YouTube.

@@ -1,14 +1,11 @@
-# Build recipe for F-Droid (fdroiddata format), checked with fdroidserver's scanner and build.
-# To submit, copy it to metadata/io.github.mesmerize08.nexusirl.yml in a fork of
-# https://gitlab.com/fdroid/fdroiddata and update the build entry to the latest release. The
-# upstream/ submodule is not needed to build the app (only for tests and reference).
-Categories:
-  - Multimedia
-  - Connectivity
-License: MIT
 AntiFeatures:
   NonFreeNet:
-    en-US: Chat, alerts and sign-in use Twitch, Kick and YouTube, which are not free software.
+    en-US: Chat, alerts and sign-in use Twitch, Kick and YouTube, which are not free
+      software.
+Categories:
+  - Connectivity
+  - Multimedia
+License: MIT
 AuthorName: NexusIRL contributors
 SourceCode: https://github.com/mesmerize08/NexusIRL
 IssueTracker: https://github.com/mesmerize08/NexusIRL/issues
