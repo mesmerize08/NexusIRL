@@ -170,7 +170,14 @@ class VideoPipeline(
     private val frameIntervalNanos = 1_000_000_000L / settings.fps
 
     /** Output times on an exact frame grid in the camera's capture-time domain (upstream frame timer). */
-    private val frameClock = FrameClock(frameIntervalNanos)
+    private val frameClock = FrameClock(frameIntervalNanos) { calculated, clock ->
+        val direction = if (calculated > clock) "back" else "forward"
+        android.util.Log.i(
+            TAG,
+            "Adjust PTS $direction in time. Calculated is ${calculated / 1_000_000} ms and clock is " +
+                "${clock / 1_000_000} ms (camera latency ${cameraLatencyNanos / 1_000_000} ms)",
+        )
+    }
 
     private companion object {
         const val TAG = "VideoPipeline"
@@ -663,6 +670,7 @@ class VideoPipeline(
         nextTickNanos += frameIntervalNanos
         if (nextTickNanos < now - frameIntervalNanos) {
             // Far behind (the thread was busy): skip the missed ticks instead of bursting.
+            android.util.Log.i(TAG, "Frame timer ${(now - nextTickNanos) / 1_000_000} ms late, skipping ticks")
             nextTickNanos = now + frameIntervalNanos
         }
         glHandler.postDelayed(::handleFrameTimer, ((nextTickNanos - now) / 1_000_000).coerceAtLeast(0))

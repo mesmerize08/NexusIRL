@@ -47,6 +47,18 @@ class FrameClockTest {
     }
 
     @Test
+    fun reportsEachAdjustment() {
+        val adjustments = mutableListOf<Pair<Long, Long>>()
+        val clock = FrameClock(interval) { calculated, now -> adjustments += calculated to now }
+        clock.next(0)
+        clock.next(interval)
+        // The tick comes 40 ms late: the grid is behind the clock and moves forward one frame.
+        val late = 2 * interval + 40_000_000
+        assertEquals(3 * interval, clock.next(late))
+        assertEquals(listOf(2 * interval to late), adjustments)
+    }
+
+    @Test
     fun startsAtTheFirstClockTime() {
         val clock = FrameClock(interval)
         assertEquals(1234L, clock.next(1234L))

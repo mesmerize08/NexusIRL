@@ -8,9 +8,14 @@ import kotlin.math.abs
  * Output times on an exact grid of `start + counter × interval`, so every frame sent to the
  * encoders is exactly one frame time after the previous one, whatever the camera's own timing.
  * When the grid is more than [driftLimitNanos] from the clock, it moves by one frame (upstream's
- * one-frame nudge), so it follows the clock without jumps.
+ * one-frame nudge), so it follows the clock without jumps. [onAdjust] gets the grid time before the
+ * nudge and the clock time, which upstream logs.
  */
-class FrameClock(private val intervalNanos: Long, private val driftLimitNanos: Long = DRIFT_LIMIT_NANOS) {
+class FrameClock(
+    private val intervalNanos: Long,
+    private val driftLimitNanos: Long = DRIFT_LIMIT_NANOS,
+    private val onAdjust: (calculatedNanos: Long, clockNanos: Long) -> Unit = { _, _ -> },
+) {
     private var start: Long? = null
     private var counter = 0L
 
@@ -25,6 +30,7 @@ class FrameClock(private val intervalNanos: Long, private val driftLimitNanos: L
         var time = start + counter * intervalNanos
         val delta = time - clockNanos
         if (abs(delta) > driftLimitNanos) {
+            onAdjust(time, clockNanos)
             counter += if (delta > 0) -1 else 1
             time = start + counter * intervalNanos
         }
