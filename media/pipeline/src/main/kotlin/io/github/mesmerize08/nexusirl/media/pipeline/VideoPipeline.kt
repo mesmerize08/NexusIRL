@@ -226,32 +226,40 @@ class VideoPipeline(
                 encoderSettings.height == settings.height &&
                 encoderSettings.fps == settings.fps,
         ) { "Encoder settings do not match the pipeline" }
-        var created: VideoEncoder? = null
+        // Creating and starting a codec takes tens of milliseconds, so it happens here and not on
+        // the GL thread, where it would hold up the frame timer and leave gaps in the output.
+        // An unsupported size, profile or bitrate makes MediaCodec throw.
+        val encoder = try {
+            VideoEncoder(encoderSettings, sink)
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Video encoder failed: $e")
+            return null
+        }
+        var attached = false
         runOnGlThread {
             val egl = egl ?: return@runOnGlThread
-            // An unsupported size, profile or bitrate makes MediaCodec throw; on this thread that
-            // would take the whole app down.
-            val encoder = try {
-                VideoEncoder(encoderSettings, sink)
-            } catch (e: Exception) {
-                android.util.Log.e(TAG, "Video encoder failed: $e")
-                return@runOnGlThread
-            }
             encoders += encoder to egl.createWindowSurface(encoder.inputSurface)
-            created = encoder
+            attached = true
         }
-        return created
+        if (!attached) {
+            encoder.release()
+            return null
+        }
+        return encoder
     }
 
-    /** Detaches and releases [encoder]; the preview and other encoders keep running. */
+    /**
+     * Detaches and releases [encoder]; the preview and other encoders keep running. The codec is
+     * released on the calling thread, as stopping it waits for its output.
+     */
     fun stopEncoder(encoder: VideoEncoder) {
         runOnGlThread {
             val entry = encoders.firstOrNull { it.first === encoder } ?: return@runOnGlThread
             encoders.remove(entry)
             egl?.makeNothingCurrent()
             egl?.releaseSurface(entry.second)
-            encoder.release()
         }
+        encoder.release()
     }
 
     /**

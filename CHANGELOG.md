@@ -34,6 +34,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Zooming sends remote controls at most two updates a second, as Moblin now does.
 
 ### Fixed
+- Starting or stopping a recording or stream held up the video for up to a tenth of a second, so
+  60 fps recordings could miss frames at the start. Encoders now start and stop beside the video
+  instead of in its way.
 - Importing a `.moblinSettings` file now brings its images along (image widgets and LUT files), and
   exports include them, as in Moblin. Before, image widgets from iOS stayed empty.
 - Image widgets apply their LUT effects from Moblin settings.
