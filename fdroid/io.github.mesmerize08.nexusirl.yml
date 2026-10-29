@@ -15,16 +15,20 @@ AutoName: NexusIRL
 
 RepoType: git
 Repo: https://github.com/mesmerize08/NexusIRL.git
+Binaries: 
+  https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-universal.apk
 
 Builds:
   - versionName: 0.4.0
     versionCode: 6
-    commit: v0.4.0
+    commit: 602a12f0d67e5e97817edab2c2f872cac88c9cf0
     subdir: app
     gradle:
       - yes
     gradleprops:
       - noAbiSplits
+
+AllowedAPKSigningKeys: 00179e11f876bea2cf2189b9c04c91190cb58c6e17f56c7792e989a0038e6329
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags

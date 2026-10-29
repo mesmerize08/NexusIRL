@@ -111,6 +111,14 @@ release APK with `-PnoAbiSplits`, any JDK 17 or newer, and no `upstream/` submod
 build. Lint needs fdroiddata's `config/` folder: run it in a sparse clone of fdroiddata
 (`git sparse-checkout set config`) with the recipe in `metadata/`, then `fdroid lint` and
 `fdroid rewritemeta` (no diff means the layout is right). To submit: update the build entry to the
-latest release tag (v0.3.0 is the first that builds), copy the file to `metadata/` in a fork of
-https://gitlab.com/fdroid/fdroiddata, and open a merge request. The recipe declares the
-`NonFreeNet` anti-feature, as chat and sign-in use Twitch, Kick and YouTube.
+latest release, with the tag's **full commit hash** (fdroiddata does not accept tag names), copy
+the file to `metadata/` in a fork of https://gitlab.com/fdroid/fdroiddata, and open a merge
+request. The recipe declares the `NonFreeNet` anti-feature, as chat and sign-in use Twitch, Kick
+and YouTube.
+
+The build is reproducible: F-Droid's build of v0.4.0 matches the release's universal APK, so the
+recipe sets `Binaries` (the release's universal APK) and `AllowedAPKSigningKeys` (the release
+certificate's SHA-256), and F-Droid publishes our signed APK. Users can move between GitHub and
+F-Droid installs. This depends on the universal release APK staying identical to a
+`-PnoAbiSplits` build: `fdroid build` with `Binaries` set checks exactly that ("compared built
+binary to supplied reference binary successfully"), so run it before changing the build.
