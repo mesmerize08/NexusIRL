@@ -1,8 +1,9 @@
 # Releasing
 
 Releases are built by `.github/workflows/release.yml` when a tag such as `v0.1.0` is pushed.
-The workflow runs the tests and lint, builds signed APKs (`arm64-v8a` and universal), and attaches
-them to a GitHub Release together with `SHA256SUMS`. Releases are marked as pre-releases until v1.
+The workflow runs the tests and lint, builds signed APKs (one each for `arm64-v8a`, `armeabi-v7a`
+and `x86_64`, plus a universal one), and attaches them to a GitHub Release together with
+`SHA256SUMS`. Releases are marked as pre-releases until v1.
 
 ## One-time setup: the signing key
 
@@ -30,19 +31,23 @@ Then add four repository secrets (GitHub → Settings → Secrets and variables 
 ## Making a release
 
 1. Bump `versionCode` (always +1) and `versionName` (semantic versioning) in
-   `app/build.gradle.kts`, and write:
+   `app/build.gradle.kts`. The APKs' own version codes are 10 × `versionCode` plus 0 (universal),
+   1 (`armeabi-v7a`), 2 (`arm64-v8a`) or 3 (`x86_64`), so every APK of a release has its own code
+   and a phone gets the most specific one. Then write:
    - release notes for testers in `docs/release-notes/v<version>.md` (used instead of GitHub's
      commit summary),
    - the `CHANGELOG.md` entry (move it from "unreleased" to the release date),
-   - the F-Droid note `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (500
-     characters at most).
+   - the F-Droid note `fastlane/metadata/android/en-US/changelogs/<code>.txt`, where `<code>` is
+     10 × `versionCode` + 3 (the highest APK code, which F-Droid reads it for; up to v0.4.0 it was
+     plain `versionCode`), 500 characters at most.
 2. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## Local release builds
 
 Set the same variables, with `NEXUSIRL_KEYSTORE` pointing at the `.jks` file, then run
-`./gradlew assembleRelease`. Without them, Gradle produces unsigned APKs
-(`app-<abi>-release-unsigned.apk`). Release builds are split per ABI; debug builds are not.
+`./gradlew assembleRelease -Pabi=arm64-v8a` (or `armeabi-v7a`, `x86_64`; leave out `-Pabi` for
+the universal APK). Without them, Gradle produces an unsigned `app-release-unsigned.apk`. Each APK
+is a separate build, as F-Droid builds them; debug builds are universal.
 
 ## Dry run
 
@@ -107,7 +112,7 @@ docker run --rm --entrypoint sh -v "$PWD/metadata:/meta:ro" registry.gitlab.com/
 ```
 
 Requirements this relies on: no dependency metadata block in the APK (`dependenciesInfo`), one
-release APK with `-PnoAbiSplits`, any JDK 17 or newer, and no `upstream/` submodule needed for the
+APK per build (`-Pabi`, or none for v0.4.0 and earlier), any JDK 17 or newer, and no `upstream/` submodule needed for the
 build. Lint needs fdroiddata's `config/` folder: run it in a sparse clone of fdroiddata
 (`git sparse-checkout set config`) with the recipe in `metadata/`, then `fdroid lint` and
 `fdroid rewritemeta` (no diff means the layout is right). To submit: update the build entry to the
@@ -119,6 +124,17 @@ and YouTube.
 The build is reproducible: F-Droid's build of v0.4.0 matches the release's universal APK, so the
 recipe sets `Binaries` (the release's universal APK) and `AllowedAPKSigningKeys` (the release
 certificate's SHA-256), and F-Droid publishes our signed APK. Users can move between GitHub and
-F-Droid installs. This depends on the universal release APK staying identical to a
-`-PnoAbiSplits` build: `fdroid build` with `Binaries` set checks exactly that ("compared built
+F-Droid installs. `fdroid build` with a reference binary checks exactly that ("compared built
 binary to supplied reference binary successfully"), so run it before changing the build.
+
+**From the next release on, F-Droid builds one APK per ABI** (2026-10-29: F-Droid's builds of
+`-Pabi=armeabi-v7a`, `arm64-v8a` and `x86_64` at ad7e701 matched a signed release dry run byte for
+byte, and lint is clean). When updating the recipe for that release:
+
+- remove the app-level `Binaries` field;
+- replace the single build with three, one per ABI, each with `versionCode` 10 × `versionCode`
+  plus 1, 2 or 3, the tag's full commit hash, `gradleprops: [abi=<abi>]` and
+  `binary: https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-<abi>.apk`;
+- add `VercodeOperation: ['10*%c+1', '10*%c+2', '10*%c+3']` after `UpdateCheckMode`, and set
+  `CurrentVersionCode` to the highest code;
+- run `fdroid rewritemeta` (it wraps each `binary` URL onto its own line), lint and build.

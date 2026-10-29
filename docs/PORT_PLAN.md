@@ -521,7 +521,7 @@ The wire protocol stays identical to upstream, so the Android app also interoper
   - Post-v1 face/segmentation effects use MediaPipe Tasks (Apache-2.0, bundled models) or a separate `gms` product flavour, never the default build.
 - **Secrets:** none in the repo. Twitch Device Flow and Google Android OAuth clients have no secret. Optional per-build overrides go through `local.properties`.
 - **Releases:**
-  - A GitHub Actions workflow builds signed APKs (the signing key lives in repo secrets) on tags and attaches them to GitHub Releases, with `arm64-v8a` plus a universal APK.
+  - A GitHub Actions workflow builds signed APKs (the signing key lives in repo secrets) on tags and attaches them to GitHub Releases, with `arm64-v8a`, `armeabi-v7a` and `x86_64` APKs plus a universal one.
   - Obtainium-friendly naming.
   - Add F-Droid metadata (`fastlane/metadata/android/...`).
   - Google Play is optional later. It needs the privacy policy and a foreground-service-type declaration video.

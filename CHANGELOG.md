@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Changed
+- Releases have an APK for each processor type (`arm64-v8a`, `armeabi-v7a`, `x86_64`) besides the
+  universal one, about a third of its size. Each has its own version code (10 × the release's plus
+  1, 2 or 3; 0 for universal), so F-Droid can offer the same, signed by us.
+
 ## [0.4.0] - 2026-10-29
 
 ### Added

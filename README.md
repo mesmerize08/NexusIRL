@@ -44,7 +44,8 @@ once, WHIP, face and background effects, VTuber widgets, and Kick and YouTube si
 
 1. Download the APK from [Releases](https://github.com/mesmerize08/NexusIRL/releases):
    `NexusIRL-<version>-arm64-v8a.apk` for practically every phone from the last several years,
-   or `NexusIRL-<version>-universal.apk` for anything else.
+   `armeabi-v7a` for older 32-bit phones, `x86_64` for Chromebooks and emulators, or
+   `NexusIRL-<version>-universal.apk` if unsure.
 2. Optionally check it against `SHA256SUMS` from the same release.
 3. Open it on the phone and allow your browser or file manager to install apps when Android asks.
 
