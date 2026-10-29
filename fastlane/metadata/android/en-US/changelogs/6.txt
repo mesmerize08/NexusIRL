@@ -1,0 +1,1 @@
+Chat bot: run !moblin commands from chat to switch scenes, mute, zoom, use the torch and effects, take snapshots and start or stop the stream. Multi streaming to several RTMP servers at once. Snapshots to Discord. Settings imports bring their images. Fixes dropped frames at the start of 60 fps recordings.

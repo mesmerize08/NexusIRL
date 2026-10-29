@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
 ### Added
 - Multi streaming, as in Moblin: an RTMP stream can also go to more RTMP servers at once (for
   example Twitch and YouTube), from the same encoder (Streams → edit → Multi streaming). Each
