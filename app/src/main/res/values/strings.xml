@@ -139,6 +139,17 @@
     <string name="chat_channels_help">Chat is read without signing in. Leave a field empty to skip that platform.</string>
     <string name="twitch_channel_name">Twitch channel name</string>
     <string name="kick_channel_name">Kick channel name</string>
+    <string name="kick_sign_in">Sign in to Kick</string>
+    <string name="kick_sign_in_help">Optional. Needed for sending chat messages, chat bot answers and changing the stream title and category. You sign in on Kick\'s own page; NexusIRL keeps only Kick\'s session, encrypted. Reading chat works without it.</string>
+    <string name="kick_save_first">Save the stream first to sign in to Kick.</string>
+    <string name="kick_signed_in_as">Signed in to Kick as %1$s</string>
+    <string name="kick_signing_in">Finishing the Kick sign-in…</string>
+    <string name="kick_sign_in_page_help">Sign in to Kick. This page closes by itself when you are signed in.</string>
+    <string name="kick_send_messages">Send messages typed in NexusIRL to Kick chat</string>
+    <string name="kick_channel_info">Kick stream title and category</string>
+    <string name="kick_update_channel">Update Kick channel</string>
+    <string name="kick_update_confirm">Change the title and category of %1$s on Kick now? Viewers will see it straight away.\n\nTitle: %2$s\nCategory: %3$s</string>
+    <string name="kick_channel_updated">Kick channel updated</string>
     <string name="youtube_handle">YouTube handle (for example @name)</string>
     <string name="youtube_video_ids">YouTube video ID (found from the handle when you go live)</string>
     <string name="show_chat">Show chat</string>
@@ -216,6 +227,8 @@
     <string name="twitch_open_activate">Open on this phone</string>
     <string name="twitch_viewers">Twitch viewers: %1$d</string>
     <string name="twitch_send_message">Message to Twitch chat</string>
+    <string name="send_message_kick">Message to Kick chat</string>
+    <string name="send_message_twitch_kick">Message to Twitch and Kick chat</string>
     <string name="send">Send</string>
     <string name="twitch_alerts_connected">Twitch alerts ✓</string>
     <string name="twitch_alerts_connecting">Twitch alerts …</string>

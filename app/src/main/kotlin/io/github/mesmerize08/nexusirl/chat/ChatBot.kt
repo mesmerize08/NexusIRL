@@ -138,10 +138,12 @@ object ChatBot {
         }
     }
 
-    /** Upstream `sendChatBotReply`: public, in Twitch chat when signed in (Kick sending is not ported). */
+    /** Upstream `sendChatBotReply`: public, in the chat the command came from, when signed in there. */
     private fun reply(message: ChatBotMessage, text: String) {
-        if (message.platform == ChatPlatform.TWITCH && ChatController.canSendToTwitch) {
-            ChatController.sendTwitchMessage(text) {}
+        when (message.platform) {
+            ChatPlatform.TWITCH -> if (ChatController.canSendToTwitch) ChatController.sendTwitchMessage(text) {}
+            ChatPlatform.KICK -> if (ChatController.canReplyOnKick) ChatController.sendKickMessage(text) {}
+            else -> {}
         }
     }
 

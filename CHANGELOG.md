@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- Kick sign-in, as in Moblin (Streams → edit → Sign in to Kick): you sign in on Kick's own page
+  inside the app, then messages typed in NexusIRL and chat bot answers go to Kick chat too, and the
+  stream title and category can be changed. Kick's session is kept encrypted and never exported;
+  the sign-in page's web data is deleted afterwards. (Kick's official login needs a secret an
+  open-source app cannot keep, so this uses Kick's website session, as Moblin does.)
+
 ### Changed
 - Releases have an APK for each processor type (`arm64-v8a`, `armeabi-v7a`, `x86_64`) besides the
   universal one, about a third of its size. Each has its own version code (10 × the release's plus

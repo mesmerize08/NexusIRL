@@ -32,6 +32,7 @@ Only when you use the feature, and only the service named:
 | Twitch sign-in | `id.twitch.tv`, `api.twitch.tv`, `eventsub.wss.twitch.tv` | Your Twitch sign-in, used to send chat, show alerts and viewer counts, and change your stream's title and category when you ask. Permissions requested: `user:write:chat`, `channel:manage:broadcast`, `moderator:read:followers`, `channel:read:subscriptions`, `bits:read`, `channel:read:redemptions`. Signing out revokes the sign-in at Twitch. |
 | Twitch badges | `static-cdn.jtvnw.net` | Requests for badge images |
 | Kick chat | `kick.com`, `files.kick.com`, `ws-us2.pusher.com` | The channel name you enter |
+| Kick sign-in | `kick.com`, `search.kick.com` | You sign in on Kick's own website inside the app; the app keeps Kick's session (encrypted) and uses it to send chat messages and chat bot answers, and to change your stream's title and category when you ask. Kick's website data is deleted from the app once you are signed in. Signing out deletes the session from the app; it stays valid at Kick until it expires or you sign out on kick.com. |
 | YouTube chat | `www.youtube.com` | The channel handle or video you enter |
 | Emotes (off by default) | `api.betterttv.net`, `cdn.betterttv.net`, `7tv.io` and their image servers | The Twitch channel whose emotes are shown |
 | Map widget | `tiles.openfreemap.org`, or the map style you set | Map tile requests, which reveal the area shown |

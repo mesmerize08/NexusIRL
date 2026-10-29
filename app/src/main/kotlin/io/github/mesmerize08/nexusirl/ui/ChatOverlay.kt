@@ -181,15 +181,21 @@ fun ChatControls(store: SettingsStore, onSettings: () -> Unit) {
     }
     val viewers by ChatController.twitchViewers.collectAsState()
     viewers?.let { Text(stringResource(R.string.twitch_viewers, it), style = MaterialTheme.typography.bodySmall) }
-    // Sending is public: only when the selected stream is signed in to Twitch.
-    if (database.chat.enabled && database.selectedStream?.twitchLoggedIn == true) {
-        TwitchSendField()
+    // Sending is public: only to the platforms the selected stream is signed in to.
+    val stream = database.selectedStream
+    val toTwitch = stream?.twitchLoggedIn == true
+    val toKick = stream?.kickLoggedIn == true && stream.kickSendMessagesTo
+    if (database.chat.enabled && (toTwitch || toKick)) {
+        ChatSendField(toTwitch, toKick)
     }
 }
 
-/** Upstream's chat send field (Twitch): posts as the signed-in user in their channel. */
+/**
+ * Upstream `sendChatMessage`: posts as the signed-in user in their channel, on Twitch and on Kick
+ * (when "send messages to Kick" is on).
+ */
 @Composable
-private fun TwitchSendField() {
+private fun ChatSendField(toTwitch: Boolean, toKick: Boolean) {
     val context = LocalContext.current
     var text by remember { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
@@ -197,20 +203,42 @@ private fun TwitchSendField() {
         OutlinedTextField(
             value = text,
             onValueChange = { text = it.take(500) },
-            label = { Text(stringResource(R.string.twitch_send_message)) },
+            label = {
+                Text(
+                    stringResource(
+                        when {
+                            toTwitch && toKick -> R.string.send_message_twitch_kick
+                            toKick -> R.string.send_message_kick
+                            else -> R.string.twitch_send_message
+                        },
+                    ),
+                )
+            },
             singleLine = true,
             modifier = Modifier.weight(1f),
         )
         TextButton(
             enabled = text.isNotBlank() && !sending,
             onClick = {
+                val senders = listOfNotNull(
+                    ChatController::sendTwitchMessage.takeIf { toTwitch },
+                    ChatController::sendKickMessage.takeIf { toKick },
+                )
+                var pending = senders.size
+                val errors = mutableListOf<String>()
                 sending = true
-                ChatController.sendTwitchMessage(text) { error ->
-                    sending = false
-                    if (error == null) {
-                        text = ""
-                    } else {
-                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                for (send in senders) {
+                    send(text) { error ->
+                        error?.let { errors += it }
+                        pending -= 1
+                        if (pending == 0) {
+                            sending = false
+                            if (errors.isEmpty()) {
+                                text = ""
+                            } else {
+                                Toast.makeText(context, errors.joinToString("\n"), Toast.LENGTH_LONG).show()
+                            }
+                        }
                     }
                 }
             },

@@ -80,6 +80,25 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun kickSessionIsSecretAndNeverExported() {
+        val file = File(directory, "settings.json")
+        val secrets = InMemorySecretStore()
+        val store = SettingsStore(file, secrets)
+        // As an iOS export with a Kick sign-in would have it (upstream moves it to the Keychain).
+        store.import("""{"streams":[{"name":"IRL","kickChannelName":"some_user","kickAccessToken":"$key","kickLoggedIn":true}]}""")
+        assertFalse(key in file.readText(), file.readText())
+        val stream = store.current.streams.single()
+        assertEquals(key, store.kickSecret(stream))
+        assertTrue(stream.kickLoggedIn)
+        // Not even an export with keys carries the sign-in: the other device signs in itself.
+        assertFalse(key in store.exportJson(includeSecrets = true))
+        assertFalse("\"kickLoggedIn\":true" in store.exportJson(includeSecrets = true))
+        store.update { it.updateStream(it.streams.single().copy(kickAccessToken = "", kickLoggedIn = false)) }
+        // Signing out deletes the session from the secret store.
+        assertFalse(key in secrets.values())
+    }
+
+    @Test
     fun multiStreamingKeysAreSecret() {
         val file = File(directory, "settings.json")
         val store = SettingsStore(file, InMemorySecretStore())

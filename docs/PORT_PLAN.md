@@ -236,7 +236,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 > (`twitchChatAlerts`, `twitchToastAlerts`, iOS-compatible) are done; the alert widget with images
 > and sounds stays post-v1 with the other alert effects.
 > Twitch title and category (read, category search, update after a confirmation) are done.
-> Still to do: Kick and YouTube sign-in.
+> Kick sign-in (2026-10-29), as upstream: Kick's website in a WebView in its own process
+> (`:kick`, own data directory, deleted after sign-in), the `session_token` cookie kept in the
+> secret store; sending chat, chat bot answers, title and category. Kick's official OAuth needs a
+> client secret, which an open-source app cannot keep. Still to do: YouTube sign-in, Kick alerts.
 >
 > **Phase 6 progress:** remote control, streamer side: an iOS Moblin assistant (or the web
 > remote through a compatible assistant) sees status and a preview and controls scenes, going

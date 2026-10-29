@@ -65,6 +65,13 @@
                 <data android:scheme="moblin" />
             </intent-filter>
         </activity>
+        <!-- Kick's sign-in page, in its own process so its WebView data (cookies) is kept apart
+             from the browser widgets' and deleted after signing in. Not exported. -->
+        <activity
+            android:name=".kick.KickLoginActivity"
+            android:exported="false"
+            android:process=":kick"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation" />
         <!-- Diagnostics reports (Settings: Share diagnostics), shared only from this folder. -->
         <provider
             android:name="androidx.core.content.FileProvider"

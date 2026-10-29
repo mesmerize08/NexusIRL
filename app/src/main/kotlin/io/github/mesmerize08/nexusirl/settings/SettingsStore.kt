@@ -67,11 +67,13 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
         val database = current
         fun exported(url: String) = if (includeSecrets) SecretRef.resolve(url, secrets) else StreamUrlSecrets.publicPart(url)
         val streams = database.streams.map { stream ->
-            // Twitch tokens are never exported; the other device signs in itself.
+            // Twitch and Kick sign-ins are never exported; the other device signs in itself.
             stream.copy(
                 url = exported(stream.url),
                 twitchAccessToken = "",
                 twitchLoggedIn = false,
+                kickAccessToken = "",
+                kickLoggedIn = false,
                 discordSnapshotWebhook = exported(stream.discordSnapshotWebhook),
                 discordChatBotSnapshotWebhook = exported(stream.discordChatBotSnapshotWebhook),
                 multiStreaming = stream.multiStreaming.copy(
@@ -113,6 +115,8 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
                 stream.copy(
                     url = protectUrl(stream.url),
                     twitchAccessToken = protect(stream.twitchAccessToken),
+                    // Kick's website session: full access to the account.
+                    kickAccessToken = protect(stream.kickAccessToken),
                     // A Discord webhook's path holds its token: anyone with it can post.
                     discordSnapshotWebhook = protectUrl(stream.discordSnapshotWebhook),
                     discordChatBotSnapshotWebhook = protectUrl(stream.discordChatBotSnapshotWebhook),
@@ -144,6 +148,9 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     /** The stream's stored Twitch secret (tokens), or empty. Keep it in memory only. */
     fun twitchSecret(stream: SettingsStream): String = SecretRef.resolve(stream.twitchAccessToken, secrets)
 
+    /** The stream's stored Kick session token, or empty. Keep it in memory only. */
+    fun kickSecret(stream: SettingsStream): String = SecretRef.resolve(stream.kickAccessToken, secrets)
+
     /** The web remote control access token, from the secret store. Keep it in memory only. */
     fun webControlToken(): String = SecretRef.resolve(current.remoteControl.web.token, secrets)
 
@@ -162,7 +169,13 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     private fun removeUnreferencedSecrets(database: Database) {
         val streamSecrets = database.streams.flatMap { stream ->
             (
-                listOf(stream.url, stream.twitchAccessToken, stream.discordSnapshotWebhook, stream.discordChatBotSnapshotWebhook) +
+                listOf(
+                    stream.url,
+                    stream.twitchAccessToken,
+                    stream.kickAccessToken,
+                    stream.discordSnapshotWebhook,
+                    stream.discordChatBotSnapshotWebhook,
+                ) +
                     stream.multiStreaming.destinations.map { it.url }
                 ).flatMap { SecretRef.findAll(it) }
         } + SecretRef.findAll(database.chat.botCommandSnapshot.webRemoteControlUrl)

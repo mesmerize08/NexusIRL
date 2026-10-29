@@ -30,14 +30,14 @@ settings and stream keys stay encrypted on your phone.
 | **Recording** | MP4 recording while streaming or on its own, and snapshots. |
 | **Camera** | All back and front lenses, zoom presets, tap to focus, manual focus, exposure, ISO and white balance, torch, stabilization, portrait and landscape streams. |
 | **Scenes and widgets** | Scenes with text (timers, location, speed), image, QR code, map, chat and browser widgets; LUTs and effects (grayscale, sepia and others). |
-| **Chat and alerts** | Twitch, Kick and YouTube chat with BTTV, FFZ and 7TV emotes. Signed in to Twitch: send messages, on-screen alerts for follows, subs, raids and cheers, and stream title and category. |
+| **Chat and alerts** | Twitch, Kick and YouTube chat with BTTV, FFZ and 7TV emotes. Signed in to Twitch: send messages, on-screen alerts for follows, subs, raids and cheers, and stream title and category. Signed in to Kick: send messages and change the stream title and category. |
 | **Remote control** | Control the phone from iOS Moblin, from another Android phone, or from a browser (protected by an access link), on the same Wi-Fi, over Tailscale or through [your own relay](server/relay/README.md). |
 | **Moblink** | Lend this phone's mobile data to a Moblin or NexusIRL streamer, or bond other phones' data into your stream. |
 | **Settings** | Import and export iOS Moblin `.moblinSettings` files and `moblin://` setup links, always with a confirmation. |
 | **Privacy and security** | Stream keys and tokens encrypted with a hardware-backed key, removed from logs and screenshots; local control servers off by default; **Share diagnostics** for bug reports without secrets. |
 
-Not ported yet: ingest servers (RTMP, SRT and RIST input), streaming to several destinations at
-once, WHIP, face and background effects, VTuber widgets, and Kick and YouTube sign-in. The
+Not ported yet: ingest servers (RTMP, SRT and RIST input), WHIP, face and background effects,
+VTuber widgets, Kick alerts and YouTube sign-in. The
 [port plan](docs/PORT_PLAN.md) lists everything with its status.
 
 ## Install
@@ -117,7 +117,7 @@ dependency is pinned by checksum in `gradle/verification-metadata.xml`.
 | `transport/abr/` | Adaptive bitrate algorithms |
 | `effects/` | Scene effects and widget rendering |
 | `settings/` | iOS-compatible settings document, import and export, setup links |
-| `chat/` | Twitch, Kick and YouTube chat, Twitch sign-in, alerts and API |
+| `chat/` | Twitch, Kick and YouTube chat, Twitch sign-in, alerts, and the Twitch and Kick APIs |
 | `remotecontrol/` | Moblin remote control protocol: streamer, assistant and web remote control |
 | `moblink/` | Moblink protocol: relay and streamer |
 | `net/` | Multi-network handling for bonding |

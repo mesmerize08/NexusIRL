@@ -249,6 +249,12 @@ data class SettingsStream(
     val kickChannelName: String = "",
     val kickChannelId: String? = null,
     val kickChatroomChannelId: String? = null,
+    val kickSlug: String? = null,
+    /** A `{secret:…}` reference to Kick's session token (upstream stores the token itself here). */
+    val kickAccessToken: String = "",
+    val kickLoggedIn: Boolean = false,
+    /** Upstream `kickSendMessagesTo`: messages typed in the app also go to Kick chat. */
+    val kickSendMessagesTo: Boolean = true,
     /** Comma separated, as upstream, whose key is singular although the property is plural. */
     @SerialName("youTubeVideoId")
     val youTubeVideoIds: String = "",

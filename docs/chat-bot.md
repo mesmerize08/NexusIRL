@@ -24,7 +24,7 @@ Turn it on under **Settings → Chat → Bot → Enabled**.
 | `!moblin stream start`, `!moblin stream stop` | Goes live or ends the stream. |
 | `!moblin stream title <title>` | Changes the Twitch title (needs Twitch sign-in on the stream). |
 | `!moblin stream category <category name>` | Changes the Twitch category; the name must match exactly. |
-| `!moblin help` | Answers in chat with a link to this page (when signed in to Twitch). |
+| `!moblin help` | Answers in chat with a link to this page (when signed in to Twitch or Kick). |
 
 Small typos in the command words are forgiven when only one command is close, for example
 `!moblin mut`.
@@ -43,7 +43,7 @@ Tap a command under **Commands** to choose who may use it:
 - **Others**: everyone else; off by default.
 - **Cooldown**: how long subscribers and others must wait between uses.
 - **Send chat responses**: the bot answers in chat when someone is not allowed or must wait. It
-  can only answer in Twitch chat, and only when the stream is signed in to Twitch.
+  answers in the chat the command came from, Twitch or Kick, when the stream is signed in there.
 
 ## Aliases
 

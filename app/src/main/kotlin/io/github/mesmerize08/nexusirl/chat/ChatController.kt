@@ -8,12 +8,15 @@ import android.os.Looper
 import io.github.mesmerize08.nexusirl.BuildConfig
 import io.github.mesmerize08.nexusirl.chat.kick.KickChat
 import io.github.mesmerize08.nexusirl.chat.kick.KickChatIds
+import io.github.mesmerize08.nexusirl.chat.kick.KickUnauthorizedException
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchApi
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChat
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchEventSub
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
+import io.github.mesmerize08.nexusirl.kick.KickAccount
 import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
 import io.github.mesmerize08.nexusirl.settings.SettingsTwitchAlerts
 import io.github.mesmerize08.nexusirl.stream.StreamController
@@ -305,6 +308,43 @@ object ChatController {
             }
             handler.post { onDone(error) }
         }, "twitch-send").apply { isDaemon = true }.start()
+    }
+
+    /** The selected stream when it is signed in to Kick. */
+    private val kickStream: SettingsStream?
+        get() = store?.current?.selectedStream?.takeIf { it.kickLoggedIn && it.kickChannelId != null }
+
+    /** Whether messages typed in the app go to Kick chat (signed in, upstream `kickSendMessagesTo` on). */
+    val canSendToKick: Boolean
+        get() = kickStream?.kickSendMessagesTo == true
+
+    /** Whether chat bot replies can go to Kick chat: upstream answers whenever signed in. */
+    val canReplyOnKick: Boolean
+        get() = kickStream != null
+
+    /**
+     * Upstream `sendKickChatMessage`: posts [text] publicly in the signed-in channel's Kick chat.
+     * [onDone] gets an error message, or null when sent (main thread).
+     */
+    fun sendKickMessage(text: String, onDone: (String?) -> Unit) {
+        val settings = store ?: return onDone("Not ready")
+        val context = appContext ?: return onDone("Not ready")
+        val stream = kickStream ?: return onDone("Sign in to Kick first")
+        val chatroomId = stream.kickChannelId ?: return onDone("Sign in to Kick first")
+        val message = text.trim().take(500).ifEmpty { return onDone(null) }
+        Thread({
+            val error = try {
+                val api = KickAccount.api(settings, stream) ?: throw IllegalStateException("Sign in to Kick again")
+                api.sendMessage(chatroomId, message)
+                null
+            } catch (e: KickUnauthorizedException) {
+                KickAccount.unauthorized(context, stream.id)
+                e.message
+            } catch (e: Exception) {
+                e.message ?: "Sending failed"
+            }
+            handler.post { onDone(error) }
+        }, "kick-send").apply { isDaemon = true }.start()
     }
 
     fun fetchYouTubeVideoId() {

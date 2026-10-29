@@ -94,7 +94,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             Button(
                 enabled = stream.name.isNotBlank() && urlValid,
                 onClick = {
-                    // The Twitch account is saved by sign-in and sign-out directly; keep it.
+                    // The Twitch and Kick accounts are saved by sign-in and sign-out directly; keep them.
                     val account = store.current.streams.firstOrNull { it.id == stream.id }
                     val edited = stream.copy(
                         name = stream.name.trim(),
@@ -104,6 +104,8 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                         multiStreaming = stream.multiStreaming.copy(destinations = destinations),
                         twitchAccessToken = account?.twitchAccessToken.orEmpty(),
                         twitchLoggedIn = account?.twitchLoggedIn ?: false,
+                        kickAccessToken = account?.kickAccessToken.orEmpty(),
+                        kickLoggedIn = account?.kickLoggedIn ?: false,
                     )
                     store.update { if (original == null) it.addStream(edited) else it.updateStream(edited) }
                     onDone()
@@ -207,6 +209,21 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         // Upstream forgets the looked-up Kick ids when the channel changes.
         ChatTextField(stringResource(R.string.kick_channel_name), stream.kickChannelName) {
             stream = stream.copy(kickChannelName = it, kickChannelId = null, kickChatroomChannelId = null)
+        }
+        KickSignInSection(store, original?.id) { saved ->
+            stream = stream.copy(
+                kickChannelName = saved.kickChannelName,
+                kickChannelId = saved.kickChannelId,
+                kickChatroomChannelId = saved.kickChatroomChannelId,
+                kickSlug = saved.kickSlug,
+            )
+        }
+        val savedKick = original?.let { saved -> savedStreams.firstOrNull { it.id == saved.id } }?.takeIf { it.kickLoggedIn }
+        if (savedKick != null) {
+            SwitchRow(stringResource(R.string.kick_send_messages), stream.kickSendMessagesTo) {
+                stream = stream.copy(kickSendMessagesTo = it)
+            }
+            KickChannelSection(savedKick)
         }
         ChatTextField(stringResource(R.string.youtube_handle), stream.youTubeHandle) {
             stream = stream.copy(youTubeHandle = it)

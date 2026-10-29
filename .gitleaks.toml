@@ -8,4 +8,7 @@ description = "Public identifiers"
 regexes = [
   # The project's Twitch client ID: public by design (Device Code flow, no client secret).
   '''l5cynm5xv41vde5txw6d2w3dl3kp60''',
+  # Kick's website category-search key (Typesense, search only): public, served in kick.com's own
+  # pages and used by upstream Moblin.
+  '''nXIMW0iEN6sMujFYjFuhdrSwVow3pDQu''',
 ]
