@@ -1,3 +1,8 @@
+// The last digit of each APK's version code: 10 × versionCode, plus this (0 for universal), so every
+// APK of a release has its own code, as F-Droid needs, and a phone gets the most specific one.
+val ABI_VERSION_CODES = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+val apkAbi = findProperty("abi") as String?
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -59,16 +64,12 @@ android {
         }
     }
 
-    // Release APKs: arm64-v8a (every current phone, smaller download) plus a universal APK for the
-    // rest. Debug builds stay a single APK so emulators (x86_64) and local scripts are unaffected.
-    // `-PnoAbiSplits` builds a single release APK (F-Droid's recipe uses it).
-    splits {
-        abi {
-            isEnable = gradle.startParameter.taskNames.any { it.contains("Release") } && !project.hasProperty("noAbiSplits")
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
-        }
+    // One APK per ABI (smaller downloads) or a universal one, built the same way by the release
+    // workflow and F-Droid so F-Droid's builds reproduce ours: `-Pabi=<abi>` keeps only that ABI's
+    // native code; without it the APK is universal. Version codes: see androidComponents below.
+    apkAbi?.let { abi ->
+        require(abi in ABI_VERSION_CODES) { "abi must be one of ${ABI_VERSION_CODES.keys}" }
+        defaultConfig.ndk.abiFilters += abi
     }
 
     compileOptions {
@@ -167,5 +168,11 @@ val copyNotices = tasks.register<CopyNotices>("copyNotices") {
     notices.from(rootProject.file("LICENSE"), rootProject.file("NOTICE"))
 }
 androidComponents {
-    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(copyNotices, CopyNotices::outputDirectory) }
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyNotices, CopyNotices::outputDirectory)
+        val abiDigit = apkAbi?.let(ABI_VERSION_CODES::getValue) ?: 0
+        for (output in variant.outputs) {
+            output.versionCode.set(output.versionCode.get()?.let { it * 10 + abiDigit })
+        }
+    }
 }
