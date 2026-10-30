@@ -87,7 +87,10 @@ class KickChatTest {
         )
         chat.handleMessage("""{"event":"pusher:connection_established","data":"{}"}""")
         chat.handleMessage("not json")
-        assertEquals(2, posts.size)
+        // The ban also shows in chat (an alert, which goes to chat by default).
+        assertEquals(3, posts.size)
+        assertEquals("User banned", posts[2].highlight?.title)
+        assertEquals("was banned from chat!", posts[2].text())
         assertEquals("viewer", posts[0].displayName)
         assertEquals("42", posts[0].userId)
         assertEquals(RgbColor(255, 0, 0), posts[0].userColor)
@@ -96,5 +99,83 @@ class KickChatTest {
         assertEquals("Replying to viewer:", posts[1].highlight?.title)
         assertEquals(listOf("m1"), deletedMessages)
         assertEquals(listOf("42"), deletedUsers)
+    }
+
+    // Payloads as upstream's KickPusher.swift decodes them; texts as ModelKick.swift.
+    @Test
+    fun alerts() {
+        val alerts = mutableListOf<KickAlert>()
+        val chat = KickChat(
+            "someone",
+            object : ChatListener {
+                override fun onPost(post: ChatPost) {}
+
+                override fun onKickAlert(alert: KickAlert) {
+                    alerts += alert
+                }
+            },
+            KickChatIds("1", "2"),
+        )
+
+        fun event(type: String, data: String) =
+            """{"event":"${type.replace("\\", "\\\\")}","data":${kotlinx.serialization.json.JsonPrimitive(data)}}"""
+        chat.handleMessage(event("App\\Events\\SubscriptionEvent", """{"chatroom_id":1,"username":"sub","months":3}"""))
+        chat.handleMessage(
+            event(
+                "GiftedSubscriptionsEvent",
+                """{"chatroom_id":1,"gifted_usernames":["a","b"],"gifter_username":"gifter","gifter_total":7}""",
+            ),
+        )
+        chat.handleMessage(
+            event(
+                "RewardRedeemedEvent",
+                """{"reward_title":"Hydrate","username":"fan","user_input":"now","reward_background_color":"#fff"}""",
+            ),
+        )
+        chat.handleMessage(event("RewardRedeemedEvent", """{"reward_title":"Wave","username":"fan","user_input":""}"""))
+        chat.handleMessage(
+            event("App\\Events\\StreamHostEvent", """{"chatroom_id":1,"optional_message":"","number_viewers":12,"host_username":"host"}"""),
+        )
+        chat.handleMessage(
+            event(
+                "KicksGifted",
+                """{"message":"nice","sender":{"id":5,"username":"big","username_color":"#fff"},"gift":{"gift_id":"x","name":"Rage Quit","amount":100}}""",
+            ),
+        )
+        chat.handleMessage(
+            event(
+                "App\\Events\\UserBannedEvent",
+                """{"id":"x","user":{"id":9,"slug":"t","username":"troll"},"banned_by":{"id":1,"slug":"m","username":"m"},"permanent":false}""",
+            ),
+        )
+        assertEquals(
+            listOf(
+                KickAlertType.SUBSCRIPTION,
+                KickAlertType.GIFTED_SUBSCRIPTIONS,
+                KickAlertType.REWARD,
+                KickAlertType.REWARD,
+                KickAlertType.HOST,
+                KickAlertType.KICKS,
+                KickAlertType.BAN,
+            ),
+            alerts.map { it.type },
+        )
+        assertEquals(
+            listOf(
+                "🎉 sub just subscribed! They've been subscribed for 3 months!",
+                "🎁 gifter just gifted 2 subscription(s)! They've gifted 7 in total!",
+                "🎁 fan redeemed Hydrate: now",
+                "🎁 fan redeemed Wave",
+                "📺 host is now hosting with 12 viewers!",
+                "big sent Rage Quit 💎 100 nice",
+                null,
+            ),
+            alerts.map { it.toast },
+        )
+        assertEquals(100, alerts[5].kicks)
+        assertEquals("New subscriber", alerts[0].post.highlight?.title)
+        assertEquals(ChatPlatform.KICK, alerts[0].post.platform)
+        assertEquals("User timed out", alerts[6].post.highlight?.title)
+        assertEquals("was timed out from chat!", alerts[6].post.text())
     }
 }

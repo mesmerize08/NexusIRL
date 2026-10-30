@@ -15,6 +15,7 @@ import io.github.mesmerize08.nexusirl.chat.twitch.TwitchEventSub
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
 import io.github.mesmerize08.nexusirl.kick.KickAccount
 import io.github.mesmerize08.nexusirl.settings.Database
+import io.github.mesmerize08.nexusirl.settings.SettingsKickAlerts
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
@@ -237,7 +238,21 @@ object ChatController {
         if (config.kickChannelName.isNotEmpty()) {
             connected[ChatPlatform.KICK] = false
             val set = EmoteSet()
-            kick = KickChat(config.kickChannelName, listener, config.kickIds, set, onIds = { ids ->
+            // Upstream: each alert kind goes to chat and/or a toast, per the stream's settings (read
+            // when the alert arrives, so a change needs no reconnect). Bans never toast.
+            val kickListener = object : ChatListener by listener {
+                override fun onKickAlert(alert: KickAlert) {
+                    val stream = store?.current?.selectedStream
+                    if ((stream?.kickChatAlerts ?: SettingsKickAlerts()).allows(alert)) {
+                        listener.onPost(alert.post)
+                    }
+                    val toast = alert.toast
+                    if (toast != null && (stream?.kickToastAlerts ?: SettingsKickAlerts()).allows(alert)) {
+                        mutableToasts.tryEmit(toast)
+                    }
+                }
+            }
+            kick = KickChat(config.kickChannelName, kickListener, config.kickIds, set, onIds = { ids ->
                 // Upstream passes the chatroom id ("kickChannelId") to the emote APIs.
                 onMain(current) { emotes(EmotesPlatform.KICK, ids.chatroomId, set) }
             }).also { it.start() }

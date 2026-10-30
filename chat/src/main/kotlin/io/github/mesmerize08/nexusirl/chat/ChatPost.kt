@@ -87,8 +87,20 @@ enum class TwitchAlertType { FOLLOW, SUBSCRIPTION, RESUBSCRIPTION, GIFT_SUBSCRIP
  */
 data class TwitchAlert(val type: TwitchAlertType, val user: String, val text: String, val bits: Int?, val post: ChatPost)
 
+/** Kick alert kinds, as upstream's per-kind alert settings (`SettingsKickAlerts`). */
+enum class KickAlertType { SUBSCRIPTION, GIFTED_SUBSCRIPTIONS, REWARD, HOST, BAN, KICKS }
+
+/**
+ * A Kick alert (Pusher): its kind, the Kicks amount of a gift, upstream's toast text (none for
+ * bans), and the highlighted chat post for it.
+ */
+data class KickAlert(val type: KickAlertType, val kicks: Int?, val toast: String?, val post: ChatPost)
+
 interface ChatListener {
     fun onPost(post: ChatPost)
+
+    /** A Kick alert; by default it goes to chat. Listeners with settings filter it. */
+    fun onKickAlert(alert: KickAlert) = onPost(alert.post)
 
     /** A Twitch alert; by default it goes to chat. Listeners with settings filter it. */
     fun onTwitchAlert(alert: TwitchAlert) = onPost(alert.post)

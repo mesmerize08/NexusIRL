@@ -150,6 +150,11 @@
     <string name="kick_update_channel">Update Kick channel</string>
     <string name="kick_update_confirm">Change the title and category of %1$s on Kick now? Viewers will see it straight away.\n\nTitle: %2$s\nCategory: %3$s</string>
     <string name="kick_channel_updated">Kick channel updated</string>
+    <string name="kick_alerts">Kick alerts</string>
+    <string name="alerts_hosts">Hosts</string>
+    <string name="alerts_bans">Bans and timeouts</string>
+    <string name="alerts_kicks">Kicks</string>
+    <string name="alerts_minimum_kicks">Minimum Kicks</string>
     <string name="youtube_handle">YouTube handle (for example @name)</string>
     <string name="youtube_video_ids">YouTube video ID (found from the handle when you go live)</string>
     <string name="show_chat">Show chat</string>

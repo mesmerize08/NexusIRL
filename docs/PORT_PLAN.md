@@ -239,7 +239,9 @@ It must reproduce Swift `JSONEncoder` defaults:
 > Kick sign-in (2026-10-29), as upstream: Kick's website in a WebView in its own process
 > (`:kick`, own data directory, deleted after sign-in), the `session_token` cookie kept in the
 > secret store; sending chat, chat bot answers, title and category. Kick's official OAuth needs a
-> client secret, which an open-source app cannot keep. Still to do: YouTube sign-in, Kick alerts.
+> client secret, which an open-source app cannot keep. Kick alerts (subscriptions, gifts, rewards,
+> hosts, bans, Kicks; `kickChatAlerts`/`kickToastAlerts`, iOS-compatible) are done.
+> Still to do: YouTube sign-in.
 >
 > **Phase 6 progress:** remote control, streamer side: an iOS Moblin assistant (or the web
 > remote through a compatible assistant) sees status and a preview and controls scenes, going

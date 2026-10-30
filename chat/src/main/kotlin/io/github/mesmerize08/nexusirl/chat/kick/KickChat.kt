@@ -1,5 +1,5 @@
-// Port of Moblin/StreamingPlatforms/Kick/KickPusher.swift and the channel lookup in KickApi.swift
-// @97e26d2 (chat only; alerts such as subscriptions come later).
+// Port of Moblin/StreamingPlatforms/Kick/KickPusher.swift (chat and alerts) and the channel lookup in
+// KickApi.swift @97e26d2; the alert texts are upstream's from Moblin/Various/Model/ModelKick.swift.
 package io.github.mesmerize08.nexusirl.chat.kick
 
 import io.github.mesmerize08.nexusirl.chat.ChatEmote
@@ -10,8 +10,12 @@ import io.github.mesmerize08.nexusirl.chat.ChatPlatform
 import io.github.mesmerize08.nexusirl.chat.ChatPost
 import io.github.mesmerize08.nexusirl.chat.ChatPostSegment
 import io.github.mesmerize08.nexusirl.chat.EmoteSet
+import io.github.mesmerize08.nexusirl.chat.KickAlert
+import io.github.mesmerize08.nexusirl.chat.KickAlertType
+import io.github.mesmerize08.nexusirl.chat.makeChatPostTextSegments
 import io.github.mesmerize08.nexusirl.chat.rgbColorFromHex
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.settings.RgbColor
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -55,10 +59,34 @@ private data class KickMessageId(val id: String)
 private data class KickMessageDeletedEvent(val message: KickMessageId)
 
 @Serializable
-private data class KickUser(val id: Long)
+private data class KickUser(val id: Long, val username: String = "")
 
 @Serializable
-private data class KickUserBannedEvent(val user: KickUser)
+private data class KickUserBannedEvent(val user: KickUser, val permanent: Boolean = false)
+
+@Serializable
+private data class KickSubscriptionEvent(val username: String, val months: Int)
+
+@Serializable
+private data class KickGiftedSubscriptionsEvent(val gifted_usernames: List<String>, val gifter_username: String, val gifter_total: Int)
+
+@Serializable
+private data class KickRewardRedeemedEvent(val reward_title: String, val username: String, val user_input: String = "")
+
+@Serializable
+private data class KickStreamHostEvent(val host_username: String, val number_viewers: Int)
+
+@Serializable
+private data class KickKicksSender(val username: String)
+
+@Serializable
+private data class KickKicksGift(val name: String, val amount: Int)
+
+@Serializable
+private data class KickKicksGiftedEvent(val message: String = "", val sender: KickKicksSender, val gift: KickKicksGift)
+
+private val CYAN = RgbColor(50, 173, 230)
+private val RED = RgbColor(255, 59, 48)
 
 @Serializable
 private data class KickChatroom(val id: Long, val channel_id: Long)
@@ -191,12 +219,95 @@ class KickChat(
                 "App\\Events\\ChatMessageEvent" -> handleChatMessage(json.decodeFromString(KickChatMessageEvent.serializer(), data))
                 "App\\Events\\MessageDeletedEvent" ->
                     listener.onDeleteMessage(json.decodeFromString(KickMessageDeletedEvent.serializer(), data).message.id)
-                "App\\Events\\UserBannedEvent" ->
-                    listener.onDeleteUser(json.decodeFromString(KickUserBannedEvent.serializer(), data).user.id.toString())
+                "App\\Events\\UserBannedEvent" -> handleUserBanned(json.decodeFromString(KickUserBannedEvent.serializer(), data))
+                "App\\Events\\SubscriptionEvent" -> json.decodeFromString(KickSubscriptionEvent.serializer(), data).let {
+                    val text = "just subscribed! They've been subscribed for ${it.months} months!"
+                    alert(KickAlertType.SUBSCRIPTION, it.username, text, "New subscriber", CYAN, toast = "🎉 ${it.username} $text")
+                }
+                "GiftedSubscriptionsEvent" -> json.decodeFromString(KickGiftedSubscriptionsEvent.serializer(), data).let {
+                    val text = "just gifted ${it.gifted_usernames.size} subscription(s)! They've gifted ${it.gifter_total} in total!"
+                    alert(
+                        KickAlertType.GIFTED_SUBSCRIPTIONS,
+                        it.gifter_username,
+                        text,
+                        "Gift subscriptions",
+                        CYAN,
+                        toast = "🎁 ${it.gifter_username} $text",
+                    )
+                }
+                "RewardRedeemedEvent" -> json.decodeFromString(KickRewardRedeemedEvent.serializer(), data).let {
+                    val base = "redeemed ${it.reward_title}"
+                    val text = if (it.user_input.isEmpty()) base else "$base: ${it.user_input}"
+                    alert(
+                        KickAlertType.REWARD,
+                        it.username,
+                        text,
+                        "Reward Redeemed",
+                        ChatHighlight.Colors.GREEN,
+                        toast = "🎁 ${it.username} $text",
+                    )
+                }
+                "App\\Events\\StreamHostEvent" -> json.decodeFromString(KickStreamHostEvent.serializer(), data).let {
+                    val text = "is now hosting with ${it.number_viewers} viewers!"
+                    alert(
+                        KickAlertType.HOST,
+                        it.host_username,
+                        text,
+                        "Host",
+                        ChatHighlight.Colors.ORANGE,
+                        toast = "📺 ${it.host_username} $text",
+                    )
+                }
+                "KicksGifted" -> json.decodeFromString(KickKicksGiftedEvent.serializer(), data).let {
+                    val text = "sent ${it.gift.name} 💎 ${it.gift.amount}"
+                    val message = if (it.message.isEmpty()) text else "$text ${it.message}"
+                    alert(
+                        KickAlertType.KICKS,
+                        it.sender.username,
+                        message,
+                        "Kicks",
+                        ChatHighlight.Colors.GREEN,
+                        toast = "${it.sender.username} $message",
+                        kicks = it.gift.amount,
+                    )
+                }
             }
         } catch (e: Exception) {
             // Malformed or unexpected message; upstream logs and ignores it.
         }
+    }
+
+    /** Upstream: the user's messages go, and chat shows who was banned or timed out (no toast). */
+    private fun handleUserBanned(event: KickUserBannedEvent) {
+        listener.onDeleteUser(event.user.id.toString())
+        if (event.user.username.isNotEmpty()) {
+            val (text, title) = if (event.permanent) {
+                "was banned from chat!" to "User banned"
+            } else {
+                "was timed out from chat!" to "User timed out"
+            }
+            alert(KickAlertType.BAN, event.user.username, text, title, RED, toast = null)
+        }
+    }
+
+    /** Upstream `appendKickChatAlertMessage`, with the toast text for the listener to filter. */
+    private fun alert(type: KickAlertType, user: String, text: String, title: String, color: RgbColor, toast: String?, kicks: Int? = null) {
+        val post = ChatPost(
+            platform = ChatPlatform.KICK,
+            messageId = null,
+            displayName = user,
+            user = user,
+            userId = null,
+            userColor = null,
+            userBadges = emptyList(),
+            segments = makeChatPostTextSegments(text),
+            isAction = false,
+            isSubscriber = false,
+            isModerator = false,
+            bits = null,
+            highlight = ChatHighlight(ChatHighlightKind.OTHER, title, barColor = color),
+        )
+        listener.onKickAlert(KickAlert(type, kicks, toast, post))
     }
 
     private fun handleChatMessage(event: KickChatMessageEvent) {

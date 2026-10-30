@@ -11,6 +11,10 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   stream title and category can be changed. Kick's session is kept encrypted and never exported;
   the sign-in page's web data is deleted afterwards. (Kick's official login needs a secret an
   open-source app cannot keep, so this uses Kick's website session, as Moblin does.)
+- Kick alerts, as in Moblin: subscriptions, gifted subscriptions, rewards, hosts and Kicks pop up
+  on screen and show in chat, and bans and timeouts show in chat, each switchable per stream
+  (Streams → edit → Kick alerts), with a minimum for Kicks. Read from Kick's public chat
+  connection, no sign-in needed. Moblin's Kick alert settings import from iOS.
 
 ### Changed
 - Releases have an APK for each processor type (`arm64-v8a`, `armeabi-v7a`, `x86_64`) besides the

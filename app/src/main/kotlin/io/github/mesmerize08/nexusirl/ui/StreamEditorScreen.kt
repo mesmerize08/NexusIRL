@@ -23,6 +23,7 @@ import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
 import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.settings.STREAM_FPS_CHOICES
+import io.github.mesmerize08.nexusirl.settings.SettingsKickAlerts
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamMultiStreamingDestination
@@ -246,6 +247,15 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             stream = stream.copy(twitchChatAlerts = it)
         }
         HorizontalDivider()
+        // Upstream's Kick alert settings; read from Kick's public chat, no sign-in needed.
+        Text(stringResource(R.string.kick_alerts), style = MaterialTheme.typography.titleMedium)
+        KickAlertSwitches(stringResource(R.string.twitch_alerts_toasts), stream.kickToastAlerts, toasts = true) {
+            stream = stream.copy(kickToastAlerts = it)
+        }
+        KickAlertSwitches(stringResource(R.string.twitch_alerts_chat), stream.kickChatAlerts, toasts = false) {
+            stream = stream.copy(kickChatAlerts = it)
+        }
+        HorizontalDivider()
         // Upstream's snapshot settings: Discord uploads.
         Text("Discord", style = MaterialTheme.typography.titleMedium)
         SecretTextField(stringResource(R.string.webhook_url), snapshotWebhook, { snapshotWebhook = it.trim() })
@@ -327,6 +337,33 @@ private fun TwitchAlertSwitches(title: String, alerts: SettingsTwitchAlerts, onC
 }
 
 private val MINIMUM_BITS_CHOICES = listOf(0, 100, 500, 1000, 5000, 10000)
+
+/** Upstream's Kick alert switches; bans only show in chat, as upstream. */
+@Composable
+private fun KickAlertSwitches(title: String, alerts: SettingsKickAlerts, toasts: Boolean, onChange: (SettingsKickAlerts) -> Unit) {
+    Text(title, style = MaterialTheme.typography.titleSmall)
+    SwitchRow(stringResource(R.string.alerts_subscriptions), alerts.subscriptions) { onChange(alerts.copy(subscriptions = it)) }
+    SwitchRow(stringResource(R.string.alerts_gift_subscriptions), alerts.giftedSubscriptions) {
+        onChange(alerts.copy(giftedSubscriptions = it))
+    }
+    SwitchRow(stringResource(R.string.alerts_rewards), alerts.rewards) { onChange(alerts.copy(rewards = it)) }
+    SwitchRow(stringResource(R.string.alerts_hosts), alerts.hosts) { onChange(alerts.copy(hosts = it)) }
+    if (!toasts) {
+        SwitchRow(stringResource(R.string.alerts_bans), alerts.bans) { onChange(alerts.copy(bans = it)) }
+    }
+    SwitchRow(stringResource(R.string.alerts_kicks), alerts.kicks) { onChange(alerts.copy(kicks = it)) }
+    if (alerts.kicks) {
+        ChoiceField(
+            stringResource(R.string.alerts_minimum_kicks),
+            alerts.minimumKicks,
+            (MINIMUM_KICKS_CHOICES + alerts.minimumKicks).distinct().sorted(),
+            { "$it" },
+            { onChange(alerts.copy(minimumKicks = it)) },
+        )
+    }
+}
+
+private val MINIMUM_KICKS_CHOICES = listOf(0, 100, 500, 1000, 5000, 10000)
 
 @Composable
 private fun EmoteSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {

@@ -262,6 +262,8 @@ data class SettingsStream(
     val chat: SettingsStreamChat = SettingsStreamChat(),
     val twitchChatAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
     val twitchToastAlerts: SettingsTwitchAlerts = SettingsTwitchAlerts(),
+    val kickChatAlerts: SettingsKickAlerts = SettingsKickAlerts(),
+    val kickToastAlerts: SettingsKickAlerts = SettingsKickAlerts(),
     /** Discord webhooks for snapshots (secret: the path holds the webhook's token). */
     val discordSnapshotWebhook: String = "",
     val discordChatBotSnapshotWebhook: String = "",
