@@ -64,7 +64,11 @@ allowed permissive licence (Apache-2.0, MIT, BSD). See docs/PORT_PLAN.md §8.4.
 
 Monthly, and before each release:
 
-1. GitHub Actions: merge Dependabot's grouped pull request once CI passes on it.
+1. GitHub Actions: Dependabot's grouped pull request moves each action to a new commit, with the
+   version in a comment. Check that each commit is that version's tag
+   (`gh api repos/<owner>/<action>/commits/<tag> --jq .sha`), read the release notes of major
+   versions, and merge once CI passes. The pull request's CI does not run `release.yml`, so start a
+   release dry run (below) after merging.
 2. Gradle: check for newer versions of the entries in `gradle/libs.versions.toml` (AGP, Kotlin,
    Compose BOM, OkHttp, kotlinx, MapLibre, Tink, test libraries). Prefer releases that are a few
    weeks old. Update, regenerate the verification metadata (below), review that the new
@@ -97,6 +101,11 @@ on. Keep the Linux, macOS and Windows `aapt2-<version>-<os>.jar` entries in sync
 (download each from Google Maven and run `sha256sum`).
 
 ## F-Droid
+
+**Status:** the first submission (fdroiddata merge request !54816, v0.4.0) was closed by F-Droid's
+reviewer until the project is three months old, as F-Droid's inclusion policy requires. Reopen it
+(or open a new one) on or after 2027-01-19, with the recipe updated to the latest release and its
+per-ABI builds (below).
 
 `fdroid/io.github.mesmerize08.nexusirl.yml` is the build recipe in fdroiddata format, exactly as
 `fdroid rewritemeta` writes it (fdroiddata's CI rejects any other layout, so it has no comments).

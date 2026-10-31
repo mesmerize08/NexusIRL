@@ -45,9 +45,11 @@ MediaMTX or ffmpeg. Because NexusIRL speaks the same protocol, the same tests ru
    and `adb reverse tcp:2345 tcp:2345` and `adb reverse tcp:1935 tcp:1935` (RTMP to MediaMTX).
    SRT and SRTLA tests need UDP from the phone to the computer instead: set `tester-ip-address`
    to the computer's Wi-Fi address and allow Python, MediaMTX and ffmpeg in its firewall.
-5. For the chat suite, `adb reverse tcp:6967 tcp:6967` (the emote images it serves). For the web
-   remote control over USB, `adb forward tcp:1180 tcp:1180` and `adb forward tcp:1181 tcp:1181`
-   and the `phoneusb` device in the example config; its browser test needs
+5. For the chat suite, `adb reverse tcp:6967 tcp:6967` (the emote images it serves). The web
+   remote control tests, and the **record** suite (it downloads recordings through the web remote
+   control), reach the phone on ports 1180 and 1181: over USB, `adb forward tcp:1180 tcp:1180`
+   and `adb forward tcp:1181 tcp:1181` with the `phoneusb` device in the example config (the
+   `phone` device needs the phone's current Wi-Fi address). The browser test needs
    `venv/bin/python -m playwright install --only-shell chromium`.
 
 ## Run
@@ -58,14 +60,14 @@ XDG_CONFIG_HOME=$PWD/config PATH=/path/to/mediamtx:$PATH \
     venv/bin/python run_android.py --device phone --suites stream,record "Rtmp|Record"
 ```
 
-## Results (2026-10-26, Galaxy S26 Ultra and the emulator)
+## Results (2026-10-26 to 2026-10-31, Galaxy S26 Ultra and the emulator)
 
 | Test | Result |
 |---|---|
 | SettingsImportWithoutSettingsFile, SceneSwitchMultipleTimes | Pass (scene switching also on the S26) |
 | StreamRtmpToMediaMtx (5 Mbps, at least 10 MB, checked at MediaMTX) | Pass |
 | StreamMultiRtmpToMediaMtx (2026-10-28: three RTMP destinations, each at least 10 MB at MediaMTX, status "x3") | Pass |
-| Record (H.264 and H.265, 1080p30 to 4K, and 1080p60) | Pass, including the strict timing, B-frame and audio checks |
+| Record (H.264 and H.265, 1080p30 to 4K, and 1080p60) | Pass, including the strict timing, B-frame and audio checks; again on 2026-10-31 with the settings, scene and RTMP tests (9/9) |
 | Scene widget tests (2026-10-27): map, image with cube and PNG LUT | Pass; VTuber and PNGTuber widgets are not ported |
 | MicDelay | Assumes iOS microphone IDs and a mic delay setting |
 | SRT and SRTLA tests | Not run yet (need the firewall setup above) |

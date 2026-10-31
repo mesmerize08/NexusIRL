@@ -15,7 +15,7 @@ its first sections before larger changes.
 
 ## Development setup
 
-- JDK 17, the Android SDK (platform 36) and Git; Android Studio is optional.
+- JDK 17, the Android SDK (platform 37) and Git; Android Studio is optional.
 - Clone with submodules: `git clone --recurse-submodules https://github.com/mesmerize08/NexusIRL.git`.
   `upstream/` is Moblin's source, pinned for reference; do not edit it.
 - `./gradlew installDebug` installs a debug build on a connected phone. Debug and release builds
@@ -26,12 +26,13 @@ its first sections before larger changes.
 
 | Level | Command | Notes |
 |---|---|---|
-| Unit and golden tests | `./gradlew test` | Includes vectors from Moblin's own tests. Interoperability tests against libsrt and an RTMP server run when `ffmpeg` is on the `PATH`. |
+| Unit and golden tests | `./gradlew test` | Includes vectors from Moblin's own tests. Interoperability tests against libsrt and an RTMP server run when `ffmpeg` (with libsrt) is on the `PATH`, and are skipped otherwise; with `NEXUSIRL_REQUIRE_FFMPEG=1`, as in CI, they fail instead. |
 | Lint, style, licences | `./gradlew ktlintCheck lint :app:licensee` and `sh tools/check-independence.sh` | The last one fails on any reference to services run by the Moblin author. |
+| Device checks | [tools/device-checks](tools/device-checks/README.md) | Every main-screen control and a camera stress test on a real phone, with its own settings. |
 | UI tests | `ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest` | Always set `ANDROID_SERIAL`: without it Gradle also runs them on connected phones, where they change the app's settings. |
 | System tests | [tools/moblin-harness](tools/moblin-harness/README.md) | Moblin's Python harness against a phone or the emulator. |
 
-CI runs everything except the system tests on every push and pull request; all of it must pass.
+CI runs everything except the system tests and device checks on every push and pull request, and also builds the release variant; all of it must pass. Its GitHub Actions are pinned to commits (Dependabot proposes updates).
 
 ## Code guidelines
 

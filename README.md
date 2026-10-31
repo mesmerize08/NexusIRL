@@ -15,9 +15,10 @@ control and Moblink relays.
 No accounts, ads, analytics or tracking. It needs no server run by its developers, and its
 settings and stream keys stay encrypted on your phone.
 
-> **Status: early test releases (0.x).** Streaming, scenes, chat and remote control are tested on
-> real phones, live on Twitch and alongside iOS Moblin. Bonding over real mobile networks and
-> Moblink between phones are still being field tested. See [what has been tested](#tested-devices).
+> **Status: early test releases (0.x).** Streaming, scenes, recording, chat, the chat bot and
+> remote control are tested on real phones, live on Twitch and Kick, and alongside iOS Moblin.
+> Bonding over real mobile networks, Moblink between phones and sessions longer than an hour are
+> still being field tested. See [what has been tested](#tested-devices).
 >
 > Not affiliated with or endorsed by the Moblin project.
 
@@ -25,12 +26,13 @@ settings and stream keys stay encrypted on your phone.
 
 | Area | What works today |
 |---|---|
-| **Streaming** | SRT with AES encryption, SRTLA bonding (mobile data + Wi-Fi + Ethernet), RTMP and RTMPS including enhanced RTMP for HEVC. H.264 or H.265 video up to 4K, AAC audio. |
+| **Streaming** | SRT with AES encryption, SRTLA bonding (mobile data + Wi-Fi + Ethernet), RTMP and RTMPS including enhanced RTMP for HEVC. H.264 or H.265 video up to 4K, AAC audio. Multi streaming: one RTMP stream to several servers at once (for example Twitch and YouTube). |
 | **Adaptive bitrate** | Moblin's IRL algorithms (fast and slow) and BELABOX's, driven by the network. |
-| **Recording** | MP4 recording while streaming or on its own, and snapshots. |
-| **Camera** | All back and front lenses, zoom presets, tap to focus, manual focus, exposure, ISO and white balance, torch, stabilization, portrait and landscape streams. |
+| **Recording** | MP4 recording while streaming or on its own, and snapshots, saved on the phone or uploaded to Discord. |
+| **Camera** | All back and front lenses, zoom presets, tap to focus, manual focus, exposure, ISO and white balance, torch, stabilization, portrait and landscape streams. Comes back by itself when another app has taken the camera. |
 | **Scenes and widgets** | Scenes with text (timers, location, speed), image, QR code, map, chat and browser widgets; LUTs and effects (grayscale, sepia and others). |
-| **Chat and alerts** | Twitch, Kick and YouTube chat with BTTV, FFZ and 7TV emotes. Signed in to Twitch: send messages, on-screen alerts for follows, subs, raids and cheers, and stream title and category. Kick alerts for subscriptions, gifts, rewards, hosts and Kicks. Signed in to Kick: send messages and change the stream title and category. |
+| **Chat and alerts** | Twitch, Kick and YouTube chat with BTTV, FFZ and 7TV emotes. Twitch alerts (follows, subs, raids, cheers, rewards) and Kick alerts (subs, gifts, rewards, hosts, Kicks) on screen and in chat. Signed in to Twitch or Kick: send messages and change the stream title and category. |
+| **Chat bot** | Moblin's `!moblin` commands from Twitch and Kick chat: scenes, mute, zoom, torch, effects, snapshots, start and stop, title and category, with Moblin's permissions, cooldowns and aliases. See the [chat bot guide](docs/chat-bot.md). |
 | **Remote control** | Control the phone from iOS Moblin, from another Android phone, or from a browser (protected by an access link), on the same Wi-Fi, over Tailscale or through [your own relay](server/relay/README.md). |
 | **Moblink** | Lend this phone's mobile data to a Moblin or NexusIRL streamer, or bond other phones' data into your stream. |
 | **Settings** | Import and export iOS Moblin `.moblinSettings` files and `moblin://` setup links, always with a confirmation. |
@@ -56,6 +58,11 @@ lost (the stream itself is not affected). Crash-safe recording is planned.
 Android 10 or newer is needed. Updates install over the previous version and keep your settings.
 [Obtainium](https://github.com/ImranR98/Obtainium) can follow the releases for you.
 
+**F-Droid:** planned. The submission waits until the project is three months old (January 2027),
+as F-Droid requires. F-Droid's builds have been checked to match these APKs byte for byte, so
+F-Droid will publish them with the same signature and you can switch between the two without
+reinstalling.
+
 Release APKs are signed with this certificate (SHA-256), which `apksigner verify --print-certs`
 shows:
 
@@ -67,7 +74,7 @@ shows:
 
 | Phone | Android | Tested |
 |---|---|---|
-| Samsung Galaxy S26 Ultra (Snapdragon) | 17 | Live on Twitch over RTMPS; 60-minute SRTLA soak without drift or gaps; both orientations; remote control from iOS Moblin |
+| Samsung Galaxy S26 Ultra (Snapdragon) | 17 | Live on Twitch over RTMPS; Twitch and Kick chat, sign-in, chat bot and title changes; 60-minute SRTLA soak (over Wi-Fi) without drift or gaps; Moblin's recording tests in six formats up to 4K and 1080p60; recovery when another app takes the camera; both orientations; remote control from iOS Moblin |
 | Huawei P30 Pro (Kirin 980) | 10 | Install and update from the published APKs; settings import from iOS Moblin; 1080p30 H.265 stream |
 | Android emulator | 14 and 16 | UI tests on every change; Moblin's system-test harness |
 
@@ -79,6 +86,7 @@ Moblin's own system-test harness runs against NexusIRL too; see
 | For | Document |
 |---|---|
 | Remote control (browser, Tailscale, relay) | [docs/remote-control.md](docs/remote-control.md) |
+| Chat bot (`!moblin` commands) | [docs/chat-bot.md](docs/chat-bot.md) |
 | Field testing bonding away from home | [docs/testing/field-test.md](docs/testing/field-test.md) |
 | Privacy | [docs/privacy-policy.md](docs/privacy-policy.md) |
 | Security design and reporting | [docs/threat-model.md](docs/threat-model.md), [SECURITY.md](SECURITY.md) |
@@ -89,7 +97,7 @@ Moblin's own system-test harness runs against NexusIRL too; see
 
 ## Build from source
 
-Requirements: JDK 17, the Android SDK (platform 36) and Git.
+Requirements: JDK 17, the Android SDK (platform 37) and Git.
 
 ```sh
 git clone --recurse-submodules https://github.com/mesmerize08/NexusIRL.git
@@ -101,13 +109,14 @@ cd NexusIRL
 The full check that CI runs on every change:
 
 ```sh
-./gradlew ktlintCheck test lint :app:licensee assembleDebug
+./gradlew ktlintCheck test lint :app:licensee assembleDebug assembleRelease
 sh tools/check-independence.sh
 ```
 
 Unit tests include interoperability tests against reference implementations (libsrt and an RTMP
-server through ffmpeg); they run when `ffmpeg` is on the `PATH` and are skipped otherwise. Every
-dependency is pinned by checksum in `gradle/verification-metadata.xml`.
+server through ffmpeg); they run when `ffmpeg` is on the `PATH` and are skipped otherwise. CI
+installs ffmpeg and sets `NEXUSIRL_REQUIRE_FFMPEG=1`, so there they always run. Every dependency
+is pinned by checksum in `gradle/verification-metadata.xml`, and every GitHub Action by commit.
 
 ## Project structure
 
@@ -127,7 +136,7 @@ dependency is pinned by checksum in `gradle/verification-metadata.xml`.
 | `net/` | Multi-network handling for bonding |
 | `core/` | Swift-compatible JSON, clocks, secret storage and redaction, WebSockets |
 | `server/` | Self-hosted remote control relay and an SRTLA test receiver |
-| `tools/` | Desktop streaming CLI (`push`), SRTLA test receiver, Moblin harness runner |
+| `tools/` | Desktop streaming CLI (`push`), SRTLA test receiver, Moblin harness runner, device checks |
 | `upstream/` | Moblin's source as a pinned submodule: reference, test vectors and system tests |
 
 ## Contributing and support

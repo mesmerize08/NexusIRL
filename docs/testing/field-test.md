@@ -46,6 +46,8 @@ streaming phone and note the **upload** speed; streaming needs at least about 3 
 | **B. Mobile only, moving** (5 min, optional) | As A, while walking or as a passenger in a car or bus. | Adaptive bitrate through changing coverage and cell handovers. |
 | **C. Bonding** (3 min) | Turn on the streaming phone's **hotspot**. Connect the relay phone to it. On the streaming phone, the **Moblink** screen should list the relay. Go live, wait 3 minutes, End stream. | Both SIMs carry the stream. |
 | **D. Failover** (4 min) | As C. After 1 minute turn on **aeroplane mode on the relay phone**; after another minute turn it off again. After 1 more minute, End stream. | Losing one network does not stop the stream, and the path comes back. |
+| **E. Camera taken away** (2 min) | During any test: open the phone's own **Camera app** for about 10 seconds, then go back to NexusIRL. | The stream keeps running with the last picture while the Camera app has the camera, and the live picture comes back by itself as soon as it is closed. |
+| **F. Heat** (during the longest test) | Every 10 minutes, note the **thermal** state in the status line and the battery percentage. | Whether the phone gets hot enough to slow down at this bitrate. |
 
 During each test, watch the status line at the top of the controls: it should stay **LIVE** (red).
 Note the time of any "Reconnecting". Under the bitrate, a line shows each network's share of the

@@ -22,6 +22,17 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - Releases have an APK for each processor type (`arm64-v8a`, `armeabi-v7a`, `x86_64`) besides the
   universal one, about a third of its size. Each has its own version code (10 × the release's plus
   1, 2 or 3; 0 for universal), so F-Droid can offer the same, signed by us.
+- When the selected stream is signed in to neither Twitch nor Kick, the chat panel says where to
+  sign in to send messages, instead of showing no message field.
+- When the chat bot cannot change the stream title or category, a toast says why (Moblin fails
+  silently).
+
+### Fixed
+- When another app took the camera while live (for example the phone's Camera app), the stream
+  showed a frozen picture until the camera was switched by hand. The camera now comes back by
+  itself as soon as it is free, even with NexusIRL in the background.
+- A possible crash when starting or stopping a recording or stream while the video was held up
+  for several seconds.
 
 ## [0.4.0] - 2026-10-29
 

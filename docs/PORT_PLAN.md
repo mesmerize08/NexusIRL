@@ -300,10 +300,17 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   27 without dropped frames.
 > - 2026-10-26: Moblin's system-test harness runs against NexusIRL (`tools/moblin-harness`):
 >   settings import, scene switching and RTMP streaming pass; it found and fixed settings key
->   mismatches, status formats, request ordering and a web remote control crash. Open: B-frames and
->   timestamp regularity in recordings (60 fps), the SRT and SRTLA suites.
+>   mismatches, status formats, request ordering and a web remote control crash. B-frames in
+>   recordings (v0.3.0) and 60 fps timestamp regularity (2026-10-29: codecs started and released
+>   off the GL thread) are fixed; the record suite passes in all six formats. Open: the SRT and
+>   SRTLA suites (they need the computer's firewall opened for Python and MediaMTX).
+> - 2026-10-30/31 on the Galaxy S26 Ultra: Kick sign-in (session in the secret store, sign-in
+>   page's cookies verified deleted), Twitch and Kick chat sending, `!moblin help` and
+>   `!moblin stream title` answered on both, Kick title and category read. A camera taken by the
+>   Samsung Camera app now comes back by itself (before: frozen until switched by hand).
 > - Still to do on a phone: bonding over a real mobile network and Moblink (between two phones
->   and with iOS); both need mobile coverage.
+>   and with iOS); both need mobile coverage. The first field test is on 2026-11-01
+>   ([docs/testing/field-test.md](testing/field-test.md)).
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.
