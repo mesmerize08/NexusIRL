@@ -10,6 +10,7 @@ package io.github.mesmerize08.nexusirl.media.pipeline
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraManager
 import android.opengl.EGLSurface
 import android.opengl.GLES20
 import android.opengl.GLUtils
@@ -183,6 +184,7 @@ class VideoPipeline(
         const val TAG = "VideoPipeline"
         const val BLACK_FRAME_LAG_NANOS = 250_000_000L
         const val GL_HANDOFF_TIMEOUT_NANOS = 3_000_000_000L
+        const val CAMERA_RECOVERY_INTERVAL_NANOS = 2_000_000_000L
     }
 
     /** Camera in use, for the UI's camera controls. */
@@ -417,6 +419,8 @@ class VideoPipeline(
      */
     fun switchCamera(cameraId: String, force: Boolean = false) {
         glHandler.post {
+            // The user chose a camera: stop waiting for a lost one.
+            stopCameraRecovery()
             val texture = surfaceTexture ?: return@post
             val currentId = if (cameraClosing) nextCameraId else cameraSource?.current?.id
             if (currentId == cameraId && !force) {
@@ -565,6 +569,58 @@ class VideoPipeline(
     /** Set when a camera starts, cleared on its first image (GL thread only). */
     private var cameraStarting = false
 
+    /**
+     * The camera taken away while in use, to reopen when the system reports it free again (upstream
+     * resumes capture after an interruption; Camera2 only says the device is gone). GL thread only.
+     */
+    private var lostCameraId: String? = null
+    private var nextRecoveryNanos = 0L
+    private var availabilityRegistered = false
+    private val cameraManager by lazy { context.getSystemService(CameraManager::class.java) }
+    private val availability = object : CameraManager.AvailabilityCallback() {
+        override fun onCameraAvailable(cameraId: String) {
+            glHandler.post { if (cameraId == lostCameraId) recoverCamera() }
+        }
+    }
+
+    private fun onCameraLost(cameraId: String) {
+        if (!running) {
+            return
+        }
+        android.util.Log.i(TAG, "Camera $cameraId lost, reopening when it is free again")
+        lostCameraId = cameraId
+        if (!availabilityRegistered) {
+            // Reports the cameras that are free at once, then each change.
+            cameraManager.registerAvailabilityCallback(availability, glHandler)
+            availabilityRegistered = true
+        }
+    }
+
+    /** Reopens the lost camera, at most every [CAMERA_RECOVERY_INTERVAL_NANOS] (GL thread only). */
+    private fun recoverCamera() {
+        val cameraId = lostCameraId ?: return
+        val texture = surfaceTexture ?: return
+        if (!running) {
+            return
+        }
+        val now = System.nanoTime()
+        if (now < nextRecoveryNanos) {
+            glHandler.postDelayed({ recoverCamera() }, (nextRecoveryNanos - now) / 1_000_000 + 1)
+            return
+        }
+        nextRecoveryNanos = now + CAMERA_RECOVERY_INTERVAL_NANOS
+        android.util.Log.i(TAG, "Reopening camera $cameraId")
+        replaceCamera(texture, cameraId)
+    }
+
+    private fun stopCameraRecovery() {
+        lostCameraId = null
+        if (availabilityRegistered) {
+            cameraManager.unregisterAvailabilityCallback(availability)
+            availabilityRegistered = false
+        }
+    }
+
     private fun startCamera(texture: SurfaceTexture, requestedId: String?) {
         cameraStarting = true
         val camera = CameraSource(context)
@@ -590,6 +646,15 @@ class VideoPipeline(
             settings.fps,
             object : CameraSource.Listener {
                 override fun onError(message: String) = this@VideoPipeline.onError(message)
+
+                override fun onLost(cameraId: String) {
+                    glHandler.post {
+                        // Only the camera in use; a replaced one closing late does not count.
+                        if (cameraSource === camera) {
+                            onCameraLost(cameraId)
+                        }
+                    }
+                }
             },
         )
     }
@@ -655,6 +720,10 @@ class VideoPipeline(
         transitionStartNanos = null
         if (cameraStarting) {
             cameraStarting = false
+            if (lostCameraId != null) {
+                android.util.Log.i(TAG, "Camera recovered")
+                stopCameraRecovery()
+            }
             onCameraRunning()
         }
         if (!hasFrame) {
@@ -896,6 +965,7 @@ class VideoPipeline(
         val done = java.util.concurrent.CountDownLatch(1)
         glHandler.post {
             running = false
+            stopCameraRecovery()
             // Wait (briefly) for the camera to close, so a new pipeline can open it straight away.
             val closed = java.util.concurrent.CountDownLatch(1)
             cameraSource?.release { closed.countDown() } ?: closed.countDown()

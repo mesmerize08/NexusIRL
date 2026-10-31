@@ -77,6 +77,13 @@ data class CameraInfo(
 class CameraSource(private val context: Context) {
     interface Listener {
         fun onError(message: String)
+
+        /**
+         * The open camera was taken away (another app, the system or a device error), as opposed to
+         * failing to start. Upstream's capture session resumes after an interruption; here the
+         * owner reopens the camera when it is free again.
+         */
+        fun onLost(cameraId: String) {}
     }
 
     private val manager = context.getSystemService(CameraManager::class.java)
@@ -313,6 +320,7 @@ class CameraSource(private val context: Context) {
                         device = null
                         if (pendingRelease == null) {
                             listener.onError("Camera disconnected")
+                            listener.onLost(cameraId)
                         }
                     }
 
@@ -322,6 +330,7 @@ class CameraSource(private val context: Context) {
                         device = null
                         if (pendingRelease == null) {
                             listener.onError("Camera error $error")
+                            listener.onLost(cameraId)
                         }
                     }
 
