@@ -40,6 +40,10 @@ Not ported yet: ingest servers (RTMP, SRT and RIST input), WHIP, face and backgr
 VTuber widgets and YouTube sign-in. The
 [port plan](docs/PORT_PLAN.md) lists everything with its status.
 
+**Known limitation:** recordings on the phone become playable only when recording stops normally.
+If the app is closed by force, crashes or the battery runs out while recording, that recording is
+lost (the stream itself is not affected). Crash-safe recording is planned.
+
 ## Install
 
 1. Download the APK from [Releases](https://github.com/mesmerize08/NexusIRL/releases):

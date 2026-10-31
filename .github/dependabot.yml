@@ -1,4 +1,5 @@
-# Monthly update proposals for the GitHub Actions used in CI and releases.
+# Monthly update proposals for the GitHub Actions used in CI and releases. The workflows pin
+# each action to a commit (with its version as a comment); Dependabot updates both.
 # Gradle dependencies are updated by hand (docs/RELEASING.md, "Dependency updates"): every update
 # must add reviewed checksums to gradle/verification-metadata.xml, which a bot should not do.
 version: 2

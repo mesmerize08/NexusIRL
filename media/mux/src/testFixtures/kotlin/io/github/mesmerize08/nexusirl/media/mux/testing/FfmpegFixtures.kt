@@ -29,12 +29,19 @@ object Ffmpeg {
         return BackgroundProcess(process, logFile)
     }
 
+    /**
+     * Whether ffmpeg and ffprobe are installed; interop tests skip without them. With
+     * NEXUSIRL_REQUIRE_FFMPEG=1 (set in CI) a missing ffmpeg fails the tests instead, so they can
+     * never be skipped silently there.
+     */
     val available: Boolean by lazy {
-        try {
+        val found = try {
             run("ffmpeg", "-version").first == 0 && run("ffprobe", "-version").first == 0
         } catch (e: Exception) {
             false
         }
+        check(found || System.getenv("NEXUSIRL_REQUIRE_FFMPEG") != "1") { "ffmpeg/ffprobe are required (NEXUSIRL_REQUIRE_FFMPEG=1)" }
+        found
     }
 
     /** Encodes [seconds] of a 640x360@30 H.264 test pattern and a stereo 48 kHz AAC tone. */
