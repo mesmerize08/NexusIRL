@@ -109,7 +109,13 @@ object SettingsArchive {
                 while (true) {
                     val entry = zip.nextEntry ?: break
                     val id = IMAGE_ENTRY.matchEntire(entry.name)?.groupValues?.get(1) ?: continue
-                    File(staging, id.uppercase()).outputStream().use { out ->
+                    val target = File(staging, id.uppercase())
+                    // The pattern only lets a UUID through; checked again ("Zip Slip"), so a change
+                    // to it can never write outside the staging folder.
+                    if (!target.canonicalPath.startsWith(staging.canonicalPath + File.separator)) {
+                        throw InvalidArchiveException("Invalid image name")
+                    }
+                    target.outputStream().use { out ->
                         total += copy(zip, out, MAX_IMAGE_BYTES, "An image is too large")
                     }
                     if (total > MAX_IMAGES_BYTES) {
