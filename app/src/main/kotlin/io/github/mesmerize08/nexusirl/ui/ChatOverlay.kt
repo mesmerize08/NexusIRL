@@ -187,6 +187,9 @@ fun ChatControls(store: SettingsStore, onSettings: () -> Unit) {
     val toKick = stream?.kickLoggedIn == true && stream.kickSendMessagesTo
     if (database.chat.enabled && (toTwitch || toKick)) {
         ChatSendField(toTwitch, toKick)
+    } else if (database.chat.enabled && stream != null) {
+        // Found in testing: with another stream selected, the field just isn't there.
+        Text(stringResource(R.string.chat_send_needs_sign_in, stream.name), style = MaterialTheme.typography.bodySmall)
     }
 }
 

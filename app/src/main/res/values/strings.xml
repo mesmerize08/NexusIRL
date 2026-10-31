@@ -233,6 +233,7 @@
     <string name="twitch_viewers">Twitch viewers: %1$d</string>
     <string name="twitch_send_message">Message to Twitch chat</string>
     <string name="send_message_kick">Message to Kick chat</string>
+    <string name="chat_send_needs_sign_in">To send messages, sign in to Twitch or Kick in the settings of the selected stream (%1$s).</string>
     <string name="send_message_twitch_kick">Message to Twitch and Kick chat</string>
     <string name="send">Send</string>
     <string name="twitch_alerts_connected">Twitch alerts ✓</string>
