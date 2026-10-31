@@ -182,6 +182,7 @@ class VideoPipeline(
     private companion object {
         const val TAG = "VideoPipeline"
         const val BLACK_FRAME_LAG_NANOS = 250_000_000L
+        const val GL_HANDOFF_TIMEOUT_NANOS = 3_000_000_000L
     }
 
     /** Camera in use, for the UI's camera controls. */
@@ -236,12 +237,13 @@ class VideoPipeline(
             return null
         }
         var attached = false
-        runOnGlThread {
+        val ran = runOnGlThread {
             val egl = egl ?: return@runOnGlThread
             encoders += encoder to egl.createWindowSurface(encoder.inputSurface)
             attached = true
         }
-        if (!attached) {
+        // Not run (the GL thread was stalled or gone) means never attached: safe to release.
+        if (!ran || !attached) {
             encoder.release()
             return null
         }
@@ -253,13 +255,28 @@ class VideoPipeline(
      * released on the calling thread, as stopping it waits for its output.
      */
     fun stopEncoder(encoder: VideoEncoder) {
-        runOnGlThread {
-            val entry = encoders.firstOrNull { it.first === encoder } ?: return@runOnGlThread
-            encoders.remove(entry)
-            egl?.makeNothingCurrent()
-            egl?.releaseSurface(entry.second)
+        val detach: () -> Unit = {
+            encoders.firstOrNull { it.first === encoder }?.let { entry ->
+                encoders.remove(entry)
+                egl?.makeNothingCurrent()
+                egl?.releaseSurface(entry.second)
+            }
         }
-        encoder.release()
+        if (runOnGlThread(detach)) {
+            encoder.release()
+            return
+        }
+        // The GL thread is stalled: detach when it runs again, and only then release the codec
+        // (off that thread, as releasing waits for the output). Released while still attached,
+        // the GL thread would keep drawing into a dead surface.
+        val posted = glHandler.post {
+            detach()
+            Thread({ encoder.release() }, "video-encoder-release").start()
+        }
+        if (!posted) {
+            // The GL thread has ended: nothing draws into the encoder any more.
+            encoder.release()
+        }
     }
 
     /**
@@ -525,20 +542,16 @@ class VideoPipeline(
         cameraSource?.focusAt(sensorX, sensorY)
     }
 
-    private fun runOnGlThread(block: () -> Unit) {
+    /**
+     * Runs [block] on the GL thread and waits for it. False when the GL thread did not start it
+     * within 3 s (or has ended): [block] then never runs, so callers know which state they are in.
+     */
+    private fun runOnGlThread(block: () -> Unit): Boolean {
         if (Thread.currentThread() === glThread) {
             block()
-            return
+            return true
         }
-        val done = java.util.concurrent.CountDownLatch(1)
-        glHandler.post {
-            try {
-                block()
-            } finally {
-                done.countDown()
-            }
-        }
-        done.await(3, java.util.concurrent.TimeUnit.SECONDS)
+        return Handoff.run({ glHandler.post(it) }, GL_HANDOFF_TIMEOUT_NANOS, block)
     }
 
     /** Opens the current camera again, e.g. after the camera permission was granted. */
