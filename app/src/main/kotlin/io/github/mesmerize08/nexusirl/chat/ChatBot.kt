@@ -15,6 +15,7 @@ import io.github.mesmerize08.nexusirl.chat.bot.ChatBotOnOffArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotPermissionCheck
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotStreamArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotTorchArgument
+import io.github.mesmerize08.nexusirl.kick.KickChannel
 import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotSource
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsChatBotPermissionsCommand
@@ -248,18 +249,39 @@ object ChatBot {
                 StreamController.goLive(context)?.let(::toast)
             }
             ChatBotStreamArgument.STOP -> StreamController.stop(context)
-            ChatBotStreamArgument.TITLE -> twitchChannel(context) { streamId, channelId ->
-                TwitchChannel.update(context, streamId, channelId, title = command.rest(), categoryId = null) {}
+            // Upstream changes Twitch only; here Kick too, when the stream is signed in to it.
+            ChatBotStreamArgument.TITLE -> {
+                val title = command.rest()
+                twitchChannel(context) { streamId, channelId ->
+                    TwitchChannel.update(context, streamId, channelId, title = title, categoryId = null) {}
+                }
+                kickChannel(context) { streamId -> KickChannel.update(context, streamId, title = title, category = null) {} }
             }
-            ChatBotStreamArgument.CATEGORY -> twitchChannel(context) { streamId, channelId ->
+            ChatBotStreamArgument.CATEGORY -> {
                 val name = command.rest()
                 // Upstream looks the game up by its exact name.
-                TwitchChannel.searchCategories(context, streamId, name) { categories, _ ->
-                    val category = categories?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return@searchCategories
-                    TwitchChannel.update(context, streamId, channelId, title = null, categoryId = category.id) {}
+                twitchChannel(context) { streamId, channelId ->
+                    TwitchChannel.searchCategories(context, streamId, name) { categories, _ ->
+                        val category = categories?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return@searchCategories
+                        TwitchChannel.update(context, streamId, channelId, title = null, categoryId = category.id) {}
+                    }
+                }
+                kickChannel(context) { streamId ->
+                    KickChannel.searchCategories(context, streamId, name) { categories, _ ->
+                        val category = categories?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return@searchCategories
+                        KickChannel.update(context, streamId, title = null, category = category) {}
+                    }
                 }
             }
             null -> Unit
+        }
+    }
+
+    /** Runs [block] with the selected stream, if it is signed in to Kick. */
+    private fun kickChannel(context: Context, block: (java.util.UUID) -> Unit) {
+        val stream = StreamController.settings(context).current.selectedStream ?: return
+        if (stream.kickLoggedIn && stream.kickSlug != null) {
+            block(stream.id)
         }
     }
 

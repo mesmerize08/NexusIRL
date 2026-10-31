@@ -46,10 +46,10 @@ object KickChannel {
     fun searchCategories(context: Context, streamId: UUID, query: String, onDone: (List<KickCategory>?, Failure?) -> Unit) =
         run(context, streamId, { api, _ -> api.searchCategories(query) }, onDone)
 
-    /** Upstream `setKickStreamTitle` and `setKickStreamCategory`: public at once. */
-    fun update(context: Context, streamId: UUID, title: String, category: KickCategory?, onDone: (Failure?) -> Unit) =
+    /** Upstream `setKickStreamTitle` and `setKickStreamCategory` (each when given): public at once. */
+    fun update(context: Context, streamId: UUID, title: String?, category: KickCategory?, onDone: (Failure?) -> Unit) =
         run(context, streamId, { api, slug ->
-            api.setTitle(slug, title)
+            title?.let { api.setTitle(slug, it) }
             category?.let { api.setCategory(slug, it.id) }
         }) { _, failure -> onDone(failure) }
 }

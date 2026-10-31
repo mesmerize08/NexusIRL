@@ -22,8 +22,8 @@ Turn it on under **Settings → Chat → Bot → Enabled**.
 | `!moblin filter <filter> <on or off>` | Turns an effect on or off: `grayscale`, `sepia`, `pixellate`, `4:3`, `whirlpool` or `pinch`. |
 | `!moblin snapshot` | Saves a picture of the stream to the phone (Pictures/NexusIRL) and, if the stream has a chat bot Discord webhook, posts it there with "Snapshot taken by <user>." The picture can come from another phone's web remote control instead (tap the command to choose); for another NexusIRL phone, paste its whole web remote control link, including `?t=`. |
 | `!moblin stream start`, `!moblin stream stop` | Goes live or ends the stream. |
-| `!moblin stream title <title>` | Changes the Twitch title (needs Twitch sign-in on the stream). |
-| `!moblin stream category <category name>` | Changes the Twitch category; the name must match exactly. |
+| `!moblin stream title <title>` | Changes the title on Twitch and Kick, wherever the selected stream is signed in (Moblin changes Twitch only). |
+| `!moblin stream category <category name>` | Changes the category the same way; the name must match exactly. |
 | `!moblin help` | Answers in chat with a link to this page (when signed in to Twitch or Kick). |
 
 Small typos in the command words are forgiven when only one command is close, for example
