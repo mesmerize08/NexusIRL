@@ -69,7 +69,9 @@ class KickApi(
             throw KickUnauthorizedException()
         }
         if (!response.isSuccessful) {
-            throw IOException("Kick HTTP ${response.code}")
+            // Kick's own message (never the session, which only travels in the request) says why.
+            val reason = response.body?.string().orEmpty().take(200).replace(Regex("\\s+"), " ").trim()
+            throw IOException("Kick HTTP ${response.code}${if (reason.isEmpty()) "" else ": $reason"}")
         }
         response.body?.string().orEmpty()
     }

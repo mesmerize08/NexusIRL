@@ -253,9 +253,11 @@ object ChatBot {
             ChatBotStreamArgument.TITLE -> {
                 val title = command.rest()
                 twitchChannel(context) { streamId, channelId ->
-                    TwitchChannel.update(context, streamId, channelId, title = title, categoryId = null) {}
+                    TwitchChannel.update(context, streamId, channelId, title = title, categoryId = null) { failed("Twitch", it?.message) }
                 }
-                kickChannel(context) { streamId -> KickChannel.update(context, streamId, title = title, category = null) {} }
+                kickChannel(context) { streamId ->
+                    KickChannel.update(context, streamId, title = title, category = null) { failed("Kick", it?.message) }
+                }
             }
             ChatBotStreamArgument.CATEGORY -> {
                 val name = command.rest()
@@ -263,17 +265,27 @@ object ChatBot {
                 twitchChannel(context) { streamId, channelId ->
                     TwitchChannel.searchCategories(context, streamId, name) { categories, _ ->
                         val category = categories?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return@searchCategories
-                        TwitchChannel.update(context, streamId, channelId, title = null, categoryId = category.id) {}
+                        TwitchChannel.update(context, streamId, channelId, title = null, categoryId = category.id) {
+                            failed("Twitch", it?.message)
+                        }
                     }
                 }
                 kickChannel(context) { streamId ->
                     KickChannel.searchCategories(context, streamId, name) { categories, _ ->
                         val category = categories?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return@searchCategories
-                        KickChannel.update(context, streamId, title = null, category = category) {}
+                        KickChannel.update(context, streamId, title = null, category = category) { failed("Kick", it?.message) }
                     }
                 }
             }
             null -> Unit
+        }
+    }
+
+    /** Upstream ignores these failures; a toast says why the channel did not change. */
+    private fun failed(platform: String, message: String?) {
+        if (message != null) {
+            android.util.Log.w("ChatBot", "$platform channel not changed: $message")
+            toast("$platform channel not changed: $message")
         }
     }
 
