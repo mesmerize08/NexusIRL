@@ -62,8 +62,9 @@ class AudioPipeline(
     var levelDbfs = -160f
         private set
 
+    /** A recorder on the preferred microphone, or null when it cannot be opened (no permission, busy). */
     @SuppressLint("MissingPermission")
-    fun start() {
+    private fun openMicrophone(): AudioRecord? {
         val minimum = AudioRecord.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
         val record = AudioRecord(
             MediaRecorder.AudioSource.CAMCORDER,
@@ -72,14 +73,19 @@ class AudioPipeline(
             AudioFormat.ENCODING_PCM_16BIT,
             max(minimum, sampleRate * channels * 2 / 10),
         )
-        // No permission, or the microphone is busy: send silence so the stream stays valid (MPEG-TS
-        // output needs an audio track, and many RTMP ingests reject video-only streams).
         val microphone = record.takeIf { it.state == AudioRecord.STATE_INITIALIZED } ?: run {
             record.release()
-            null
+            return null
         }
+        preferredDevice?.let { microphone.setPreferredDevice(it) }
+        return microphone
+    }
+
+    fun start() {
+        // No permission, or the microphone is busy: send silence so the stream stays valid (MPEG-TS
+        // output needs an audio track, and many RTMP ingests reject video-only streams).
+        val microphone = openMicrophone()
         microphoneAvailable = microphone != null
-        microphone?.let { mic -> preferredDevice?.let { mic.setPreferredDevice(it) } }
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channels).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
@@ -121,7 +127,9 @@ class AudioPipeline(
         codec = null
     }
 
-    private fun capture(record: AudioRecord, codec: MediaCodec) {
+    private fun capture(initialRecord: AudioRecord, codec: MediaCodec) {
+        var record = initialRecord
+        var failedReads = 0
         val bytesPerFrame = channels * 2
         val chunkFrames = 1024 // One AAC frame worth of samples per encoder input.
         val pcm = ShortArray(chunkFrames * channels)
@@ -137,10 +145,25 @@ class AudioPipeline(
         while (running) {
             val read = record.read(pcm, 0, pcm.size)
             if (read < 0) {
-                // E.g. ERROR_DEAD_OBJECT after the audio device went away: don't spin.
-                Thread.sleep(20)
+                // E.g. ERROR_DEAD_OBJECT after the audio device went away: don't spin, and after
+                // half a second open a new recorder (this one never recovers; audit F-02).
+                failedReads += 1
+                if (failedReads % REOPEN_AFTER_FAILED_READS != 0) {
+                    Thread.sleep(20)
+                    continue
+                }
+                android.util.Log.w("AudioPipeline", "Microphone read failed ($read), reopening it")
+                reopenMicrophone(record)?.let {
+                    record = it
+                    failedReads = 0
+                    // The new recorder's frame positions start at 0: count from there and
+                    // re-anchor on the clock, so times continue forward from the gap.
+                    framesRead = 0
+                    anchorNanos = null
+                } ?: Thread.sleep(REOPEN_RETRY_MILLIS)
                 continue
             }
+            failedReads = 0
             if (read == 0) {
                 continue
             }
@@ -188,9 +211,36 @@ class AudioPipeline(
         }
     }
 
+    /**
+     * Replaces the failed [old] recorder with a new one on the same preferred microphone; null when
+     * none can be opened yet (the caller retries). Capture thread only.
+     */
+    private fun reopenMicrophone(old: AudioRecord): AudioRecord? {
+        try {
+            old.stop()
+        } catch (e: IllegalStateException) {
+            // Already stopped.
+        }
+        old.release()
+        val microphone = openMicrophone() ?: return null
+        return try {
+            microphone.startRecording()
+            record = microphone
+            android.util.Log.i("AudioPipeline", "Microphone reopened")
+            microphone
+        } catch (e: IllegalStateException) {
+            microphone.release()
+            null
+        }
+    }
+
     private companion object {
         /** Re-anchor sample-counted times when they are this far from the measured clock. */
         const val RESYNC_NANOS = 20_000_000L
+
+        /** Failed reads (20 ms apart) before the recorder is replaced: half a second. */
+        const val REOPEN_AFTER_FAILED_READS = 25
+        const val REOPEN_RETRY_MILLIS = 1_000L
     }
 
     /** Silent AAC frames in real time on the host clock, for when there is no microphone. */
