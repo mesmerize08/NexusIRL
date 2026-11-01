@@ -9,6 +9,9 @@ import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.media.mux.nal.getNalUnits
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 
+/** How the encoder spends its bitrate (upstream `SettingsStreamRateControl`, minus ABR; see [VideoEncoderSettings.rateControl]). */
+enum class VideoRateControl { CBR, VBR }
+
 /** Video encoder settings (subset of upstream `VideoEncoderSettings`). */
 data class VideoEncoderSettings(
     val width: Int,
@@ -23,6 +26,14 @@ data class VideoEncoderSettings(
      * little later. Upstream streams without them by default; its recordings (AVAssetWriter) use them.
      */
     val bFrames: Boolean = false,
+    /**
+     * Upstream's default ABR is an average bitrate with a hard 1.2x-per-second limit. MediaCodec's
+     * VBR has no limit and bursts to twice its target on some phones, so ABR streams use CBR and
+     * [limitDataRate]. Falls back to VBR when the encoder has no CBR.
+     */
+    val rateControl: VideoRateControl = VideoRateControl.VBR,
+    /** Holds frames back while the output is over 1.2x the bitrate ([DataRateLimiter]). */
+    val limitDataRate: Boolean = false,
 )
 
 /**
@@ -49,13 +60,36 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     var encodedFrames = 0L
         private set
 
+    /** Frames not encoded because the output was over its limit ([VideoEncoderSettings.limitDataRate]). */
+    @Volatile
+    var limitedFrames = 0L
+        private set
+
+    private val dataRateLimiter = if (settings.limitDataRate) DataRateLimiter() else null
+
+    /** The bitrate mode in use, which may differ from the one asked for when it is unsupported. */
+    val rateControl = if (settings.rateControl == VideoRateControl.CBR &&
+        info?.supportsCbr != false
+    ) {
+        VideoRateControl.CBR
+    } else {
+        VideoRateControl.VBR
+    }
+
     init {
         val format = MediaFormat.createVideoFormat(mimeType, settings.width, settings.height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, settings.bitrate.toInt())
             setInteger(MediaFormat.KEY_FRAME_RATE, settings.fps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, settings.keyFrameIntervalSeconds)
-            setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+            setInteger(
+                MediaFormat.KEY_BITRATE_MODE,
+                if (rateControl == VideoRateControl.CBR) {
+                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+                } else {
+                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
+                },
+            )
             // 0 = real-time priority (the old spec had this inverted).
             setInteger(MediaFormat.KEY_PRIORITY, 0)
             setInteger(MediaFormat.KEY_OPERATING_RATE, settings.fps)
@@ -85,6 +119,19 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
         } catch (e: IllegalStateException) {
             // Encoder released concurrently.
         }
+    }
+
+    /**
+     * Whether the next frame should be handed to the encoder; false (and counted) while its output
+     * over the last second is above the data rate limit. Called by the pipeline for each frame.
+     */
+    fun wantsFrame(): Boolean {
+        val limiter = dataRateLimiter ?: return true
+        if (limiter.allows(System.nanoTime(), currentBitrate)) {
+            return true
+        }
+        limitedFrames++
+        return false
     }
 
     /** Requests an IDR frame as soon as possible (e.g. when a new destination connects). */
@@ -119,6 +166,7 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
                     sink.setVideoConfig(parseConfig(data))
                 } else {
                     encodedFrames++
+                    dataRateLimiter?.add(System.nanoTime(), currentBitrate, info.size)
                     sink.writeVideo(
                         data,
                         MediaTime(info.presentationTimeUs, 1_000_000),

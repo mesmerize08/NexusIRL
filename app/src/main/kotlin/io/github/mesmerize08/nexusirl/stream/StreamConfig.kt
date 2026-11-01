@@ -1,9 +1,11 @@
 package io.github.mesmerize08.nexusirl.stream
 
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
+import io.github.mesmerize08.nexusirl.media.pipeline.VideoRateControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
+import io.github.mesmerize08.nexusirl.settings.StreamRateControl
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
 
 /** Which SRT adaptive bitrate algorithm to run, with its tunables (upstream Media/Model). */
@@ -24,6 +26,11 @@ data class StreamConfig(
     val srtAdaptiveBitrate: SrtAdaptiveBitrateChoice? = SrtAdaptiveBitrateChoice(false, AdaptiveBitrateSettings.FAST),
     /** More RTMP servers fed by the same encoders (only when [url] is RTMP, as upstream). */
     val rtmpDestinations: List<RtmpDestination> = emptyList(),
+    /**
+     * Upstream `limitAdaptiveBitrateByTransportBitrate` (off for CBR): adaptive bitrate may not go
+     * far above what the link has recently carried.
+     */
+    val limitAdaptiveBitrateByTransportBitrate: Boolean = true,
 ) {
     override fun toString(): String =
         "StreamConfig(url=***, video=$video, srtLatency=$srtLatency, rtmpDestinations=${rtmpDestinations.size})"
@@ -78,10 +85,15 @@ data class StreamConfig(
                     hevc = stream.codec == StreamCodec.H265_HEVC,
                     // 0 is "Auto" (upstream), which is 2 seconds like recordings.
                     keyFrameIntervalSeconds = stream.maxKeyFrameInterval.takeIf { it > 0 }?.coerceAtMost(10) ?: 2,
+                    // ABR (the default) is CBR plus upstream's 1.2x limit, which CBR also gets, as
+                    // some encoders overshoot even in CBR. VBR is unlimited, as upstream.
+                    rateControl = if (stream.rateControl == StreamRateControl.VBR) VideoRateControl.VBR else VideoRateControl.CBR,
+                    limitDataRate = stream.rateControl != StreamRateControl.VBR,
                 ),
                 srtLatency = srt.latency,
                 srtAdaptiveBitrate = choice,
                 rtmpDestinations = rtmpDestinations,
+                limitAdaptiveBitrateByTransportBitrate = stream.rateControl != StreamRateControl.CBR,
             )
         }
     }

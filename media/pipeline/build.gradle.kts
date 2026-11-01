@@ -32,4 +32,7 @@ dependencies {
     testImplementation(kotlin("test-junit5"))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+    // Encoder measurements on a phone (src/androidTest); its own test package, so the app stays.
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

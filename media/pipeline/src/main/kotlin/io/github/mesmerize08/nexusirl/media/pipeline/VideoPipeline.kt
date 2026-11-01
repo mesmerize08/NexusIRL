@@ -904,7 +904,10 @@ class VideoPipeline(
         val canvas = composed ?: return
         val textureRenderer = textureRenderer ?: return
         val canvasAspect = canvas.width.toFloat() / canvas.height
-        for ((_, encoderSurface) in encoders) {
+        for ((encoder, encoderSurface) in encoders) {
+            if (!encoder.wantsFrame()) {
+                continue
+            }
             egl.makeCurrent(encoderSurface)
             textureRenderer.drawFill(canvas.textureId, settings.width, settings.height, canvasAspect)
             egl.setPresentationTime(encoderSurface, presentationNanos)

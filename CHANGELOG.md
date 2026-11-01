@@ -33,6 +33,20 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   itself as soon as it is free, even with NexusIRL in the background.
 - A possible crash when starting or stopping a recording or stream while the video was held up
   for several seconds.
+- The video sent much more than its bitrate on some phones: in the 1 November field test the
+  Galaxy S26 Ultra sent 7-14 Mbps for a 5 Mbps stream while driving, and kept doing so when
+  adaptive bitrate lowered it for poor coverage, which overloaded the connection (round trips of
+  up to 14 seconds and dropped video). As in Moblin, the video now stays within 1.2 times its
+  bitrate in any second: streams use the encoder's constant bitrate mode, and when an encoder
+  still sends too much, frames are skipped until it is back within the limit (the preview is not
+  affected). The stream's rate control setting (ABR, CBR, VBR, from Moblin's settings) is now
+  used: VBR keeps the encoder's own variable bitrate without a limit, as in Moblin, and CBR also
+  stops adaptive bitrate following the connection's recent throughput, as in Moblin.
+- Moblink relays and remote control could not connect over IPv6, which iPhones use when the
+  phones share a hotspot or Wi-Fi: the iPhone found NexusIRL but stayed on "Connecting". IPv6
+  link-local and unique local addresses now count as the local network, and so do public IPv6
+  addresses of devices on the same network link (never other internet hosts, and still never
+  over mobile data).
 
 ## [0.4.0] - 2026-10-29
 

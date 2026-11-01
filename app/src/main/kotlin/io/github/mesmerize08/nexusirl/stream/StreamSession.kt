@@ -126,6 +126,7 @@ class StreamSession(
     private var liveSince: Long? = null
     private var reconnects = 0
     private var lastEncodedFrames = 0L
+    private var lastLimitedFrames = 0L
     private val sentBytes = java.util.concurrent.atomic.AtomicLong()
     private var lastSentBytes = 0L
     private var encoder: VideoEncoder? = null
@@ -318,7 +319,13 @@ class StreamSession(
                 AdaptiveBitrateSrtFight(targetBitrate, setBitrate, clock)
             }
             adaptiveBitrate.setSettings(choice.settings)
-            SrtAdaptiveBitrateDriver(stream, adaptiveBitrate, executor, targetBitrate)
+            SrtAdaptiveBitrateDriver(
+                stream,
+                adaptiveBitrate,
+                executor,
+                targetBitrate,
+                limitByTransportBitrate = config.limitAdaptiveBitrateByTransportBitrate,
+            )
         }
         // SRTLA bonds every available network (cellular, Wi-Fi, Ethernet) at once.
         val networks = if (url.startsWith("srtla", ignoreCase = true)) MultiNetworkManager(context) else null
@@ -527,12 +534,17 @@ class StreamSession(
         // Read once: each read returns the data since the previous one.
         val bonding = destination?.bonding().orEmpty()
         val encoded = encoder?.encodedFrames ?: 0
-        val line = "Encoded ${encoded - lastEncodedFrames} frames/s state=${status.state} encoder=${status.encoder} " +
-            "bitrate=${(encoder?.currentBitrate ?: 0) / 1000}kbps rtt=${destination?.rttMs()?.toInt() ?: 0}ms " +
-            "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats(bonding) ?: ""}"
+        val limited = encoder?.limitedFrames ?: 0
+        // "limited": frames held back because the encoder was over its data rate limit.
+        val line =
+            "Encoded ${encoded - lastEncodedFrames} frames/s limited=${limited - lastLimitedFrames} " +
+                "state=${status.state} encoder=${status.encoder} " +
+                "bitrate=${(encoder?.currentBitrate ?: 0) / 1000}kbps rtt=${destination?.rttMs()?.toInt() ?: 0}ms " +
+                "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats(bonding) ?: ""}"
         android.util.Log.d("StreamSession", line)
         log.line(line)
         lastEncodedFrames = encoded
+        lastLimitedFrames = limited
         val sent = sentBytes.get()
         val sentBitsPerSecond = (sent - lastSentBytes) * 8
         lastSentBytes = sent
