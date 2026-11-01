@@ -3,14 +3,17 @@ package io.github.mesmerize08.nexusirl.core.websocket
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
+import java.net.Inet6Address
 import java.net.InetAddress
+import java.net.NetworkInterface
 
 /**
  * Where unencrypted HTTP and WebSocket traffic may go (docs/PORT_PLAN.md §9.5). Android's network
  * security config can only list host names, not address ranges, so the rule lives in the HTTP
  * clients instead: loopback always; the local network (private, link-local and Tailscale
- * addresses, `.local` and `.ts.net` names) only for clients that opt in, such as remote control
- * to an assistant on the same Wi-Fi. Everything else must use TLS.
+ * addresses, IPv6 link-local and unique local addresses, `.local` and `.ts.net` names) only for
+ * clients that opt in, such as remote control to an assistant on the same Wi-Fi. Everything else
+ * must use TLS.
  */
 object CleartextPolicy {
     fun isLoopback(host: String): Boolean {
@@ -25,11 +28,17 @@ object CleartextPolicy {
         }
     }
 
-    /** Private IPv4 ranges, link-local, Tailscale's 100.64.0.0/10, and mDNS/MagicDNS names. */
+    /**
+     * Private IPv4 ranges, link-local, Tailscale's 100.64.0.0/10, IPv6 link-local (fe80::/10) and
+     * unique local (fc00::/7, which includes Tailscale's) addresses, and mDNS/MagicDNS names.
+     */
     fun isLocalNetwork(host: String): Boolean {
         val name = host.lowercase().trimEnd('.')
         if (name.endsWith(".local") || name.endsWith(".ts.net")) {
             return true
+        }
+        if (':' in name) {
+            return isLocalIpv6(name)
         }
         val parts = name.split('.')
         if (parts.size != 4) {
@@ -41,6 +50,73 @@ object CleartextPolicy {
         }
         val (a, b) = octets
         return a == 10 || (a == 172 && b in 16..31) || (a == 192 && b == 168) || (a == 169 && b == 254) || (a == 100 && b in 64..127)
+    }
+
+    private fun isLocalIpv6(host: String): Boolean {
+        val literal = host.removePrefix("[").removeSuffix("]").substringBefore('%')
+        // Only ever parse a literal, so this can never become a DNS lookup.
+        if (!IPV6_LITERAL.matches(literal)) {
+            return false
+        }
+        val address = try {
+            InetAddress.getByName(literal)
+        } catch (e: Exception) {
+            return false
+        }
+        if (address !is Inet6Address) {
+            // An IPv4-mapped address (::ffff:a.b.c.d), which Java turns into IPv4.
+            return isLocalNetwork(address.hostAddress.orEmpty())
+        }
+        val first = address.address[0].toInt() and 0xFF
+        return address.isLinkLocalAddress || (first and 0xFE) == 0xFC
+    }
+
+    /**
+     * Whether [remote] is on the same network link as [local], this device's address the
+     * connection arrived on: within the prefix of that address's interface. This is what lets
+     * peers on a hotspot or LAN with public IPv6 addresses in (phone hotspots often give them out,
+     * and iOS Moblin connects to those first) while refusing the rest of the internet, which is
+     * never within the prefix.
+     * Off-link hosts cannot fake an on-link address, as the TCP handshake would not reach them.
+     */
+    fun isOnLink(local: InetAddress, remote: InetAddress): Boolean {
+        val prefixLength = try {
+            NetworkInterface.getByInetAddress(local)?.interfaceAddresses?.firstOrNull { it.address == local }?.networkPrefixLength
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        return isSamePrefix(local, remote, prefixLength.toInt())
+    }
+
+    /**
+     * Whether [a] and [b] share their first [prefixLength] bits. Prefixes shorter than a normal
+     * link's (/16 for IPv4, /48 for IPv6) are refused, so an odd interface can never open up a
+     * large part of the internet.
+     */
+    fun isSamePrefix(a: InetAddress, b: InetAddress, prefixLength: Int): Boolean {
+        val x = a.address
+        val y = b.address
+        val minimum = if (x.size == 4) 16 else 48
+        if (x.size != y.size || prefixLength < minimum || prefixLength > x.size * 8) {
+            return false
+        }
+        for (bit in 0 until prefixLength) {
+            val mask = 0x80 ushr (bit % 8)
+            if ((x[bit / 8].toInt() and mask) != (y[bit / 8].toInt() and mask)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * For the local servers (remote control, Moblink): a connection that arrived on [local] from
+     * [remote] is from the local network if [local] is a loopback or local-network address, or if
+     * [remote] is on the same link.
+     */
+    fun isLocalConnection(local: InetAddress, remote: InetAddress?): Boolean {
+        val host = local.hostAddress.orEmpty()
+        return isLoopback(host) || isLocalNetwork(host) || (remote != null && isOnLink(local, remote))
     }
 
     fun isAllowed(host: String, allowLocalNetwork: Boolean): Boolean = isLoopback(host) || (allowLocalNetwork && isLocalNetwork(host))
@@ -55,4 +131,6 @@ object CleartextPolicy {
             return chain.proceed(chain.request())
         }
     }
+
+    private val IPV6_LITERAL = Regex("[0-9a-f:.]+")
 }

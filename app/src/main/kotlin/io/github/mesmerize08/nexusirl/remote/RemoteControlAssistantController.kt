@@ -101,12 +101,12 @@ object RemoteControlAssistantController {
     }
 
     /**
-     * docs/PORT_PLAN.md §9.6: never on mobile data. The address must be loopback, LAN, hotspot or
-     * Tailscale, and not on a cellular interface (carrier-grade NAT shares Tailscale's range).
+     * docs/PORT_PLAN.md §9.6: never on mobile data. The connection must be from loopback, LAN,
+     * hotspot or Tailscale (or another device on the same link), and not on a cellular interface
+     * (carrier-grade NAT shares Tailscale's range).
      */
-    fun isAllowedLocalAddress(address: InetAddress): Boolean {
-        val host = address.hostAddress.orEmpty()
-        if (!CleartextPolicy.isLoopback(host) && !CleartextPolicy.isLocalNetwork(host)) {
+    fun isAllowedLocalAddress(address: InetAddress, remote: InetAddress?): Boolean {
+        if (!CleartextPolicy.isLocalConnection(address, remote)) {
             return false
         }
         val name = try {

@@ -37,7 +37,7 @@ class RemoteControlWeb(
     private val token: String,
     private val delegate: RemoteControlStreamerDelegate,
     private val asset: (String) -> ByteArray?,
-    private val acceptLocalAddress: (InetAddress) -> Boolean,
+    private val acceptLocalAddress: (local: InetAddress, remote: InetAddress?) -> Boolean,
     /** A JPEG of the current frame for `/snapshot`, or null. Blocking. */
     private val snapshot: () -> ByteArray? = { null },
     /** Called with true when the first page asks for previews and false when the last one stops. */
@@ -133,7 +133,7 @@ class RemoteControlWeb(
         }
     }
 
-    private fun isAllowed(local: InetAddress?) = local != null && acceptLocalAddress(local)
+    private fun isAllowed(local: InetAddress?, remote: InetAddress?) = local != null && acceptLocalAddress(local, remote)
 
     private fun tokenMatches(value: String?) = value != null && MessageDigest.isEqual(value.toByteArray(), token.toByteArray())
 
@@ -144,7 +144,7 @@ class RemoteControlWeb(
 
     private fun handleHttp(socket: Socket) {
         socket.soTimeout = 10_000
-        if (!isAllowed(socket.localAddress)) {
+        if (!isAllowed(socket.localAddress, socket.inetAddress)) {
             return
         }
         val input = BufferedInputStream(socket.getInputStream())
@@ -318,7 +318,9 @@ class RemoteControlWeb(
 
         /** Pages without the cookie, or on a disallowed interface, are closed before anything is sent. */
         override fun onOpen(socket: WebSocket, handshake: ClientHandshake) {
-            if (!isAllowed(socket.localSocketAddress?.address) || !tokenMatches(cookieToken(handshake.getFieldValue("Cookie")))) {
+            if (!isAllowed(socket.localSocketAddress?.address, socket.remoteSocketAddress?.address) ||
+                !tokenMatches(cookieToken(handshake.getFieldValue("Cookie")))
+            ) {
                 socket.close(CloseFrame.POLICY_VALIDATION, "Unauthorized")
                 return
             }

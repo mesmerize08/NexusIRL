@@ -41,10 +41,7 @@ class MoblinkStreamer(
     private val port: Int,
     private val password: String,
     private val listener: MoblinkStreamerListener,
-    private val acceptLocalAddress: (InetAddress) -> Boolean = { address ->
-        val host = address.hostAddress.orEmpty()
-        CleartextPolicy.isLoopback(host) || CleartextPolicy.isLocalNetwork(host)
-    },
+    private val acceptLocalAddress: (local: InetAddress, remote: InetAddress?) -> Boolean = CleartextPolicy::isLocalConnection,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val lock = Any()
@@ -216,8 +213,9 @@ class MoblinkStreamer(
 
         override fun onOpen(socket: WebSocket, handshake: ClientHandshake) {
             val local = socket.localSocketAddress?.address
-            val host = socket.remoteSocketAddress?.address?.hostAddress.orEmpty()
-            if (local == null || !acceptLocalAddress(local) || isLockedOut(host)) {
+            val remote = socket.remoteSocketAddress?.address
+            val host = remote?.hostAddress.orEmpty()
+            if (local == null || !acceptLocalAddress(local, remote) || isLockedOut(host)) {
                 socket.close()
                 return
             }

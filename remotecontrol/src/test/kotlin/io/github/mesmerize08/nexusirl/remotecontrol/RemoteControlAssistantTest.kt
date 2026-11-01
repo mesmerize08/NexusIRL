@@ -152,7 +152,7 @@ class RemoteControlAssistantTest {
     @Test
     fun onlyAllowedInterfaces() {
         val port = freePort()
-        val assistant = RemoteControlAssistant(port, "secret", Events(), acceptLocalAddress = { false })
+        val assistant = RemoteControlAssistant(port, "secret", Events(), acceptLocalAddress = { _, _ -> false })
         try {
             assistant.start()
             Thread.sleep(300)

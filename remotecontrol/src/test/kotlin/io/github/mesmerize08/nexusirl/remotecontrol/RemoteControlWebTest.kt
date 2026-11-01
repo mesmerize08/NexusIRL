@@ -54,7 +54,7 @@ class RemoteControlWebTest {
         token,
         delegate,
         asset = { if (it == "index.html") "<html>remote</html>".toByteArray() else null },
-        acceptLocalAddress = { allow },
+        acceptLocalAddress = { _, _ -> allow },
         onPreviewWanted = { previews += it },
     )
 
@@ -71,7 +71,9 @@ class RemoteControlWebTest {
             override fun delete(name: String) = files.remove(name) != null
         }
         val port = freePorts()
-        val server = RemoteControlWeb(port, token, delegate, asset = { null }, acceptLocalAddress = { true }, recordings = recordings)
+        val server = RemoteControlWeb(port, token, delegate, asset = {
+            null
+        }, acceptLocalAddress = { _, _ -> true }, recordings = recordings)
             .also { it.start() }
         val cookie = "nexusirl_token=$token"
         val encoded = "NexusIRL%202026-10-26%2013-00-00.mp4"
@@ -111,7 +113,9 @@ class RemoteControlWebTest {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
         val port = freePorts()
-        val server = RemoteControlWeb(port, token, delegate, asset = { null }, acceptLocalAddress = { true }, recordings = recordings)
+        val server = RemoteControlWeb(port, token, delegate, asset = {
+            null
+        }, acceptLocalAddress = { _, _ -> true }, recordings = recordings)
             .also { it.start() }
         try {
             Socket("127.0.0.1", port).use { socket ->
