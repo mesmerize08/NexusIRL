@@ -23,12 +23,14 @@ object StreamUrlSecrets {
         if (schemeEnd < 0) {
             return url
         }
-        val authorityStart = schemeEnd + 3
+        val prefixEnd = schemeEnd + 3
+        // Protected user info is a placeholder right after the scheme (see [protect]).
+        val authorityStart = placeholder.matchAt(url, prefixEnd)?.let { it.range.last + 1 } ?: prefixEnd
         val authorityEnd = url.indexOfAny(charArrayOf('/', '?', '#', '{'), authorityStart).let { if (it < 0) url.length else it }
         val authority = url.substring(authorityStart, authorityEnd)
         // '{' starts a secret placeholder (never valid in a host). User info (user:password@) is secret too.
         val hostPort = authority.substringAfterLast('@')
-        return url.substring(0, authorityStart) + hostPort
+        return url.substring(0, prefixEnd) + hostPort
     }
 
     /** What to show for [url] in the UI and logs: `scheme://host[:port]` only. */
@@ -39,14 +41,29 @@ object StreamUrlSecrets {
     /**
      * Replaces the secret part of [url] with a placeholder produced by [store] (which saves the
      * secret and returns its placeholder text). URLs without a secret part, or already holding a
-     * placeholder, are returned unchanged.
+     * placeholder, are returned unchanged. User info (`user:password@`) gets a placeholder of its
+     * own in front of the host, so resolving gives back the exact URL.
      */
     fun protect(url: String, store: (secret: String) -> String): String {
         if (containsPlaceholder(url)) {
             return url
         }
-        val (public, secret) = split(url)
-        return if (secret.isEmpty()) url else public + store(secret)
+        val schemeEnd = url.indexOf("://")
+        if (schemeEnd < 0) {
+            return url
+        }
+        val authorityStart = schemeEnd + 3
+        val authorityEnd = url.indexOfAny(charArrayOf('/', '?', '#'), authorityStart).let { if (it < 0) url.length else it }
+        val hostStart = url.lastIndexOf('@', authorityEnd - 1).let { if (it < authorityStart) authorityStart else it + 1 }
+        val userInfo = url.substring(authorityStart, hostStart)
+        val rest = url.substring(authorityEnd)
+        if (userInfo.isEmpty() && rest.isEmpty()) {
+            return url
+        }
+        return url.substring(0, authorityStart) +
+            (if (userInfo.isEmpty()) "" else store(userInfo)) +
+            url.substring(hostStart, authorityEnd) +
+            (if (rest.isEmpty()) "" else store(rest))
     }
 
     /** True when [url] is a stream URL this app can use (see [StreamUrls.validate]). */

@@ -291,6 +291,22 @@ class SettingsTest {
     }
 
     @Test
+    fun streamUrlSecretsKeepUserInfoInPlace() {
+        val stored = mutableListOf<String>()
+        val protected = StreamUrlSecrets.protect("rtsp://user:pass@10.0.0.9:554/live?x=1") {
+            stored += it
+            "{secret:00000000-0000-0000-0000-00000000000${stored.size}}"
+        }
+        assertEquals(
+            "rtsp://{secret:00000000-0000-0000-0000-000000000001}10.0.0.9:554{secret:00000000-0000-0000-0000-000000000002}",
+            protected,
+        )
+        assertEquals(listOf("user:pass@", "/live?x=1"), stored)
+        assertEquals("rtsp://10.0.0.9:554", StreamUrlSecrets.display(protected))
+        assertEquals("ws://10.0.0.5:4455", StreamUrlSecrets.display(StreamUrlSecrets.protect("ws://obs:pw@10.0.0.5:4455") { it }))
+    }
+
+    @Test
     fun archiveRoundTripAndPlainJson() {
         val json = Database.fromJson(iosJson).toJson()
         assertEquals(json, SettingsArchive.readSettingsJson(SettingsArchive.write(json)))

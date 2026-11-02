@@ -1,20 +1,24 @@
 // Port of the storage parts of Moblin/Various/Settings/Settings.swift `Settings` @97e26d2.
 package io.github.mesmerize08.nexusirl.settings
 
+import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
+import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
 import io.github.mesmerize08.nexusirl.core.secrets.Redactor
 import io.github.mesmerize08.nexusirl.core.secrets.SecretRef
 import io.github.mesmerize08.nexusirl.core.secrets.SecretStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.JsonElement
 import java.io.File
 import java.io.IOException
 
 /**
  * Loads and saves the settings document (`settings.json` in the app's private files).
  *
- * Unlike upstream, which stores stream URLs in plain JSON, the secret part of every stream URL
- * lives in the [secrets] store and the file holds only a `{secret:<uuid>}` reference
- * (docs/PORT_PLAN.md §9.3). Secrets are resolved in memory only, when a stream starts.
+ * Unlike upstream, which stores credentials in plain JSON, every credential ([SettingsCredentials]:
+ * stream keys, passwords, tokens, the secret part of URLs), also in iOS-only settings, lives in the
+ * [secrets] store and the file holds only a `{secret:<uuid>}` reference (docs/PORT_PLAN.md §9.3).
+ * Secrets are resolved in memory only, when they are used.
  */
 class SettingsStore(private val file: File, private val secrets: SecretStore) {
     private val mutableDatabase = MutableStateFlow(load())
@@ -27,19 +31,19 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
         // Files written before a field became secret still hold it in plain text: move it now.
         val protected = protectSecrets(current)
         if (protected != current) {
-            save(protected)
+            val json = save(protected)
             mutableDatabase.value = protected
-            removeUnreferencedSecrets(protected)
+            removeUnreferencedSecrets(json)
         }
     }
 
-    /** Applies [transform], moves any new URL secrets into the secret store, and saves. */
+    /** Applies [transform], moves any new secrets into the secret store, and saves. */
     @Synchronized
     fun update(transform: (Database) -> Database) {
         val updated = protectSecrets(transform(current))
-        save(updated)
+        val json = save(updated)
         mutableDatabase.value = updated
-        removeUnreferencedSecrets(updated)
+        removeUnreferencedSecrets(json)
     }
 
     /** Masks URLs, credential patterns and every stored secret, e.g. for logs and diagnostics. */
@@ -60,89 +64,55 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
 
     /**
      * The settings document for export. Without [includeSecrets] (the default, docs/PORT_PLAN.md
-     * §9.7) every stream URL is cut down to `scheme://host[:port]`; the file is still a valid
-     * iOS Moblin settings file.
+     * §9.7) every credential is left out and every URL holding one is cut down to
+     * `scheme://host[:port]`; the file is still a valid iOS Moblin settings file.
      */
     fun exportJson(includeSecrets: Boolean = false): String {
-        val database = current
-        fun exported(url: String) = if (includeSecrets) SecretRef.resolve(url, secrets) else StreamUrlSecrets.publicPart(url)
-        val streams = database.streams.map { stream ->
-            // Twitch and Kick sign-ins are never exported; the other device signs in itself.
-            stream.copy(
-                url = exported(stream.url),
-                twitchAccessToken = "",
-                twitchLoggedIn = false,
-                kickAccessToken = "",
-                kickLoggedIn = false,
-                discordSnapshotWebhook = exported(stream.discordSnapshotWebhook),
-                discordChatBotSnapshotWebhook = exported(stream.discordChatBotSnapshotWebhook),
-                multiStreaming = stream.multiStreaming.copy(
-                    destinations = stream.multiStreaming.destinations.map { it.copy(url = exported(it.url)) },
-                ),
+        val database = current.let { database ->
+            database.copy(
+                // Twitch and Kick sign-ins are never exported; the other device signs in itself.
+                streams = database.streams.map {
+                    it.copy(twitchAccessToken = "", twitchLoggedIn = false, kickAccessToken = "", kickLoggedIn = false)
+                },
+                // The web access token stays on this device (it is not part of upstream's settings).
+                remoteControl = database.remoteControl.copy(web = database.remoteControl.web.copy(token = "")),
             )
         }
-        val snapshot = database.chat.botCommandSnapshot.let { it.copy(webRemoteControlUrl = exported(it.webRemoteControlUrl)) }
-        val password = if (includeSecrets) remoteControlPassword() else ""
-        val streamer = database.remoteControl.streamer.let { streamer ->
-            streamer.copy(url = if (includeSecrets) remoteControlUrl() else StreamUrlSecrets.publicPart(streamer.url))
+        val tree = SwiftJson.encodeToJsonElement(Database.Serializer, database)
+        val exported = SettingsCredentials.map(tree) { kind, value ->
+            when {
+                includeSecrets -> resolveOrPublicPart(value)
+                kind == CredentialKind.WHOLE -> ""
+                kind == CredentialKind.URL || SecretRef.findAll(value).isNotEmpty() -> withoutSecrets(value)
+                else -> value
+            }
         }
-        val moblinkPassword = if (includeSecrets) moblinkPassword() else ""
-        return database.copy(
-            streams = streams,
-            // The web access token stays on this device (it is not part of upstream's settings).
-            remoteControl = database.remoteControl.copy(
-                password = password,
-                streamer = streamer,
-                web = database.remoteControl.web.copy(token = ""),
-            ),
-            moblink = database.moblink.copy(password = moblinkPassword),
-            chat = database.chat.copy(botCommandSnapshot = snapshot),
-        ).toJson()
+        return SwiftJson.encodeToString(JsonElement.serializer(), exported)
     }
 
-    private fun protectUrl(url: String) = StreamUrlSecrets.protect(url) { secret -> secrets.put(secret).placeholder }
+    /** [value] without its secret parts: a URL's public part, else empty if it holds a secret. */
+    private fun withoutSecrets(value: String) = when {
+        "://" in value -> StreamUrlSecrets.publicPart(value)
+        SecretRef.findAll(value).isNotEmpty() -> ""
+        // Not a URL, such as the ID of a selected entry.
+        else -> value
+    }
 
+    /**
+     * Moves every credential in [database], wherever it is, into the secret store. Values that
+     * already hold a placeholder stay as they are.
+     */
     private fun protectSecrets(database: Database): Database {
-        // Remote control and Moblink passwords are secret as a whole (docs/PORT_PLAN.md §9.2).
-        fun protect(password: String) = if (password.isEmpty() || SecretRef.findAll(password).isNotEmpty()) {
-            password
-        } else {
-            secrets.put(password).placeholder
+        val tree = SwiftJson.encodeToJsonElement(Database.Serializer, database)
+        val protected = SettingsCredentials.map(tree) { kind, value ->
+            when {
+                value.isEmpty() || SecretRef.findAll(value).isNotEmpty() -> value
+                kind == CredentialKind.WHOLE -> secrets.put(value).placeholder
+                kind == CredentialKind.URL -> StreamUrlSecrets.protect(value) { secret -> secrets.put(secret).placeholder }
+                else -> value
+            }
         }
-        return database.copy(
-            moblink = database.moblink.copy(password = protect(database.moblink.password)),
-            streams = database.streams.map { stream ->
-                stream.copy(
-                    url = protectUrl(stream.url),
-                    twitchAccessToken = protect(stream.twitchAccessToken),
-                    // Kick's website session: full access to the account.
-                    kickAccessToken = protect(stream.kickAccessToken),
-                    // A Discord webhook's path holds its token: anyone with it can post.
-                    discordSnapshotWebhook = protectUrl(stream.discordSnapshotWebhook),
-                    discordChatBotSnapshotWebhook = protectUrl(stream.discordChatBotSnapshotWebhook),
-                    // Extra RTMP destinations hold stream keys like the stream's own URL.
-                    multiStreaming = stream.multiStreaming.copy(
-                        destinations = stream.multiStreaming.destinations.map { it.copy(url = protectUrl(it.url)) },
-                    ),
-                )
-            },
-            // May carry the other phone's web remote control token.
-            chat = database.chat.copy(
-                botCommandSnapshot = database.chat.botCommandSnapshot.let {
-                    it.copy(
-                        webRemoteControlUrl = protectUrl(it.webRemoteControlUrl),
-                    )
-                },
-            ),
-            remoteControl = database.remoteControl.copy(
-                password = protect(database.remoteControl.password),
-                // A relay URL's path holds the bridge ID, which lets anyone take the assistant's place.
-                streamer = database.remoteControl.streamer.copy(
-                    url = protectUrl(database.remoteControl.streamer.url),
-                ),
-                web = database.remoteControl.web.copy(token = protect(database.remoteControl.web.token)),
-            ),
-        )
+        return if (protected == tree) database else SwiftJson.decodeFromJsonElement(Database.Serializer, protected)
     }
 
     /** The stream's stored Twitch secret (tokens), or empty. Keep it in memory only. */
@@ -163,25 +133,22 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     /** A setting holding a secret reference (such as a Discord webhook), filled in. Keep it in memory only. */
     fun resolve(value: String): String = SecretRef.resolve(value, secrets)
 
+    /**
+     * As [resolve], but a secret missing from the store (e.g. after a restore to another phone)
+     * gives the URL's public part, or nothing, instead of failing.
+     */
+    fun resolveOrPublicPart(value: String): String = try {
+        resolve(value)
+    } catch (e: MissingSecretException) {
+        withoutSecrets(value)
+    }
+
     /** The remote control password, from the secret store. Keep it in memory only. */
     fun remoteControlPassword(): String = SecretRef.resolve(current.remoteControl.password, secrets)
 
-    private fun removeUnreferencedSecrets(database: Database) {
-        val streamSecrets = database.streams.flatMap { stream ->
-            (
-                listOf(
-                    stream.url,
-                    stream.twitchAccessToken,
-                    stream.kickAccessToken,
-                    stream.discordSnapshotWebhook,
-                    stream.discordChatBotSnapshotWebhook,
-                ) +
-                    stream.multiStreaming.destinations.map { it.url }
-                ).flatMap { SecretRef.findAll(it) }
-        } + SecretRef.findAll(database.chat.botCommandSnapshot.webRemoteControlUrl)
-        val passwords = SecretRef.findAll(database.remoteControl.password) + SecretRef.findAll(database.moblink.password) +
-            SecretRef.findAll(database.remoteControl.web.token) + SecretRef.findAll(database.remoteControl.streamer.url)
-        val referenced = (streamSecrets + passwords).toSet()
+    /** Deletes the secrets [json] (the saved document) no longer refers to. */
+    private fun removeUnreferencedSecrets(json: String) {
+        val referenced = SecretRef.findAll(json).toSet()
         for (ref in secrets.refs()) {
             if (ref !in referenced) {
                 secrets.remove(ref)
@@ -202,17 +169,20 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
         }
     }
 
-    private fun save(database: Database) {
+    /** Writes [database] and returns the JSON written. */
+    private fun save(database: Database): String {
+        val json = database.toJson()
         val parent = file.absoluteFile.parentFile
         parent?.mkdirs()
         val temporary = File(parent, "${file.name}.tmp")
-        temporary.writeText(database.toJson())
+        temporary.writeText(json)
         if (!temporary.renameTo(file)) {
             file.delete()
             if (!temporary.renameTo(file)) {
                 throw IOException("Failed to write ${file.name}")
             }
         }
+        return json
     }
 
     private companion object {

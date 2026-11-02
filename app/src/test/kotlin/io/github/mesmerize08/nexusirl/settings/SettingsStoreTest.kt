@@ -216,6 +216,153 @@ class SettingsStoreTest {
         assertEquals(listOf(password), secrets.values().toList())
     }
 
+    /** Every credential in upstream's settings, each with its own marker, in modelled fields and in `extra`. */
+    private val credentials = listOf(
+        "obs-pass", "obs-url-pass", "rtirl-push", "golive-hook", "osp-key", "chat-ai", "chat-tts", "alert-ai", "alert-tts",
+        "browser-token", "tesla-key", "cloud-key", "wifi-pass", "srtla-relay-pass", "dji-wifi", "dji-rtmp", "gopro-wifi",
+        "gopro-server", "gopro-custom", "rtmp-ingest", "whip-ingest", "srtla-ingest", "srt-ingest", "rist-ingest",
+        "rtsp-ingest", "whep-ingest", "deeplink-url", "deeplink-obs", "saved-url", "client-bridge", "streamer-bridge",
+        "map-style",
+    ).associateWith { "fake-$it-aaaa" }
+
+    private fun marker(name: String) = credentials.getValue(name)
+
+    // Shaped like an iOS Moblin export (upstream Various/Settings/*.swift keys).
+    private val iosSettings by lazy {
+        """{"streams":[{"name":"IRL","url":"rtmp://live.example.com/app/$key",
+             "obsWebSocketUrl":"ws://obs:${marker("obs-url-pass")}@10.0.0.5:4455","obsWebSocketPassword":"${marker("obs-pass")}",
+             "realtimeIrlBaseUrl":"https://rtirl.com/api","realtimeIrlPushKey":"${marker("rtirl-push")}",
+             "goLiveNotificationDiscordWebhookUrl":"https://discord.com/api/webhooks/1/${marker("golive-hook")}",
+             "openStreamingPlatformUrl":"rtmp://osp.example.com/live/${marker("osp-key")}",
+             "discordSnapshotWebhookOnlyWhenLive":true,"twitchChannelName":"benign_channel"}],
+           "chat":{"botCommandAi":{"baseUrl":"https://generativelanguage.googleapis.com/v1beta/openai","apiKey":"${marker("chat-ai")}"},
+             "ttsMonster":{"apiToken":"${marker("chat-tts")}"}},
+           "widgets":[
+             {"name":"Alerts","type":"Alerts","alerts":{"ai":{"apiKey":"${marker("alert-ai")}"},
+               "ttsMonster":{"apiToken":"${marker("alert-tts")}"}}},
+             {"name":"Overlay","type":"Browser",
+               "browser":{"url":"https://overlay.example.com/w?token=${marker("browser-token")}","width":500}},
+             {"name":"Map","type":"Map","map":{"styleUrl":"https://maps.example.com/style.json?key=${marker("map-style")}"}}],
+           "tesla":{"vin":"BENIGNVIN123","privateKey":"${marker("tesla-key")}"},
+           "moblinCloud":{"enabled":true,"key":"${marker("cloud-key")}"},
+           "keyboard":{"keys":[{"key":"F5","press":"benign"}]},
+           "savedWifiNetworks":[{"ssid":"BenignHome","password":"${marker("wifi-pass")}"}],
+           "srtlaRelay":{"password":"${marker("srtla-relay-pass")}"},
+           "djiDevices":{"devices":[{"wifiSsid":"BenignDji","wifiPassword":"${marker("dji-wifi")}",
+             "customRtmpUrl":"rtmp://192.168.1.2:1935/live/${marker("dji-rtmp")}"}]},
+           "goPro":{"wifiCredentials":[{"name":"Benign","ssid":"BenignGoPro","password":"${marker("gopro-wifi")}"}],
+             "rtmpUrls":[{"name":"Benign","serverUrl":"rtmp://1.2.3.4/live/${marker("gopro-server")}",
+               "customUrl":"rtmp://1.2.3.4/live/${marker("gopro-custom")}"}],
+             "selectedRtmpUrl":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A12"},
+           "rtmpServer":{"enabled":true,"port":1935,"streams":[{"name":"Cam","streamKey":"${marker("rtmp-ingest")}","latency":2000}]},
+           "whipServer":{"streams":[{"name":"Cam","streamKey":"${marker("whip-ingest")}"}]},
+           "srtlaServer":{"streams":[{"name":"Cam","streamId":"${marker("srtla-ingest")}"}]},
+           "srtClient":{"streams":[{"name":"Cam","url":"srt://10.0.0.9:4000?streamid=${marker("srt-ingest")}"}]},
+           "ristServer":{"streams":[{"name":"Cam","url":"rist://10.0.0.9:6000?secret=${marker("rist-ingest")}"}]},
+           "rtspClient":{"streams":[{"name":"Cam","url":"rtsp://user:${marker("rtsp-ingest")}@10.0.0.9:554/live"}]},
+           "whepClient":{"streams":[{"name":"Cam","url":"https://whep.example.com/play/${marker("whep-ingest")}"}]},
+           "deepLinkCreator":{"streams":[{"name":"Link","url":"srt://example.com:4000?streamid=${marker("deeplink-url")}",
+             "obs":{"webSocketUrl":"ws://10.0.0.5:4455","webSocketPassword":"${marker("deeplink-obs")}"}}]},
+           "remoteControl":{"password":"$key","server":{"enabled":true,"url":"ws://10.0.0.2:2345",
+               "savedUrls":[{"name":"Home","url":"wss://relay.example.org/streamer/${marker("saved-url")}"}]},
+             "client":{"relay":{"baseUrl":"wss://relay.example.net/remote-control-relay","bridgeId":"${marker("client-bridge")}"}},
+             "streamers":[{"name":"Phone","relay":{"bridgeId":"${marker("streamer-bridge")}"}}]},
+           "moblink":{"client":{"enabled":true,"url":"ws://10.0.0.3:7777/benign-path"}},
+           "alertsTokenCount":5,"benignNested":{"list":["one","two"],"flag":false}}"""
+    }
+
+    /** Values that look like credentials by name or shape but are not, and must stay exactly as they are. */
+    private val benign = listOf(
+        "\"twitchChannelName\":\"benign_channel\"",
+        "\"baseUrl\":\"https://generativelanguage.googleapis.com/v1beta/openai\"",
+        "\"realtimeIrlBaseUrl\":\"https://rtirl.com/api\"",
+        "\"baseUrl\":\"wss://relay.example.net/remote-control-relay\"",
+        "\"vin\":\"BENIGNVIN123\"",
+        "\"key\":\"F5\"",
+        "\"ssid\":\"BenignHome\"",
+        "\"selectedRtmpUrl\":\"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A12\"",
+        "\"discordSnapshotWebhookOnlyWhenLive\":true",
+        "\"alertsTokenCount\":5",
+        "\"benignNested\":{\"list\":[\"one\",\"two\"],\"flag\":false}",
+        "\"url\":\"ws://10.0.0.3:7777/benign-path\"",
+    )
+
+    @Test
+    fun everyUpstreamCredentialIsProtectedOnDiskAndInExports() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        store.import(iosSettings)
+
+        val onDisk = file.readText()
+        val withoutKeys = store.exportJson()
+        val withKeys = store.exportJson(includeSecrets = true)
+        for ((name, value) in credentials) {
+            assertFalse(value in onDisk, "$name is in settings.json")
+            assertFalse(value in withoutKeys, "$name is in the export without keys")
+            assertTrue(value in withKeys, "$name is missing from the export with keys")
+        }
+        assertFalse("{secret:" in withoutKeys, withoutKeys)
+        assertFalse("{secret:" in withKeys, withKeys)
+        for (value in benign) {
+            assertTrue(value in onDisk, "$value changed in settings.json: $onDisk")
+            assertTrue(value in withoutKeys, "$value changed in the export without keys: $withoutKeys")
+            assertTrue(value in withKeys, "$value changed in the export with keys")
+        }
+        // URLs keep their public part, as stream URLs do.
+        assertTrue("\"customRtmpUrl\":\"rtmp://192.168.1.2:1935\"" in withoutKeys, withoutKeys)
+        assertTrue("\"obsWebSocketUrl\":\"ws://10.0.0.5:4455\"" in withoutKeys, withoutKeys)
+        assertTrue("\"obsWebSocketUrl\":\"ws://obs:${marker("obs-url-pass")}@10.0.0.5:4455\"" in withKeys, withKeys)
+        assertTrue("\"url\":\"rtsp://user:${marker("rtsp-ingest")}@10.0.0.9:554/live\"" in withKeys, withKeys)
+        // Diagnostics mask every stored secret, so these too, even outside a URL or JSON.
+        val whole = listOf(
+            "obs-pass", "rtirl-push", "chat-ai", "chat-tts", "alert-ai", "alert-tts", "tesla-key", "cloud-key", "wifi-pass",
+            "srtla-relay-pass", "dji-wifi", "gopro-wifi", "rtmp-ingest", "whip-ingest", "srtla-ingest", "deeplink-obs",
+            "client-bridge", "streamer-bridge",
+        )
+        val log = store.redactor().redact(whole.joinToString(" ") { marker(it) })
+        for (name in whole) {
+            assertFalse(marker(name) in log, "$name is not redacted")
+        }
+    }
+
+    @Test
+    fun protectedWidgetUrlsResolveForUse() {
+        val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())
+        store.import(iosSettings)
+        val browser = store.current.widgets.single { it.type == WidgetType.BROWSER }.browser
+        assertEquals("https://overlay.example.com/w?token=${marker("browser-token")}", store.resolveOrPublicPart(browser.url))
+        val map = store.current.widgets.single { it.type == WidgetType.MAP }.map
+        assertEquals("https://maps.example.com/style.json?key=${marker("map-style")}", store.resolveOrPublicPart(map.styleUrl))
+        assertEquals("ws://10.0.0.3:7777/benign-path", store.current.moblink.relay.url, "the Moblink relay URL is used as is")
+    }
+
+    @Test
+    fun secretsReferencedFromExtraAreKept() {
+        val secrets = InMemorySecretStore()
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, secrets)
+        store.import(iosSettings)
+        store.update { it.copy(tapToFocus = !it.tapToFocus) }
+        val withKeys = SettingsStore(file, secrets).exportJson(includeSecrets = true)
+        for ((name, value) in credentials) {
+            assertTrue(value in withKeys, "$name was lost")
+        }
+    }
+
+    @Test
+    fun plainCredentialsFromOlderVersionsAreProtectedOnLoad() {
+        val file = File(directory, "settings.json").apply { writeText(iosSettings) }
+        val store = SettingsStore(file, InMemorySecretStore())
+        val onDisk = file.readText()
+        for ((name, value) in credentials) {
+            assertFalse(value in onDisk, "$name is still in settings.json")
+        }
+        val withKeys = store.exportJson(includeSecrets = true)
+        for ((name, value) in credentials) {
+            assertTrue(value in withKeys, "$name was lost")
+        }
+    }
+
     @Test
     fun brokenFileFallsBackToDefaultsAndIsKept() {
         val file = File(directory, "settings.json").apply { writeText("{not json") }

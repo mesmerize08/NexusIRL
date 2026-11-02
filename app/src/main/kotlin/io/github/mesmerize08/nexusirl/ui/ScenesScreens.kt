@@ -440,7 +440,8 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
             WidgetType.BROWSER -> {
                 val browser = widget.browser
                 OutlinedTextField(
-                    value = browser.url,
+                    // The page's address may hold an access token: secret on disk, shown in full here.
+                    value = store.resolveOrPublicPart(browser.url),
                     onValueChange = { url -> update { it.copy(browser = it.browser.copy(url = url.trim())) } },
                     label = { Text(stringResource(R.string.browser_url)) },
                     supportingText = { Text(stringResource(R.string.browser_url_help)) },
@@ -498,7 +499,7 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
                 }
             }
             WidgetType.CHAT -> ChatWidgetEditor(widget.chat) { chat -> update { it.copy(chat = chat) } }
-            WidgetType.MAP -> MapWidgetEditor(widget.map) { map -> update { it.copy(map = map) } }
+            WidgetType.MAP -> MapWidgetEditor(widget.map, store::resolveOrPublicPart) { map -> update { it.copy(map = map) } }
             else -> Text(stringResource(R.string.not_shown_on_android))
         }
     }
@@ -548,7 +549,7 @@ private fun ChatWidgetEditor(chat: SettingsWidgetChat, onChange: (SettingsWidget
 
 /** Upstream `WidgetMapSettingsView`, plus Android's map style. */
 @Composable
-private fun MapWidgetEditor(map: SettingsWidgetMap, onChange: (SettingsWidgetMap) -> Unit) {
+private fun MapWidgetEditor(map: SettingsWidgetMap, resolve: (String) -> String, onChange: (SettingsWidgetMap) -> Unit) {
     Text(stringResource(R.string.map_needs_location), style = MaterialTheme.typography.bodySmall)
     SwitchRow(stringResource(R.string.north_up), map.northUp) { onChange(map.copy(northUp = it)) }
     Text(stringResource(R.string.north_up_help), style = MaterialTheme.typography.bodySmall)
@@ -560,7 +561,8 @@ private fun MapWidgetEditor(map: SettingsWidgetMap, onChange: (SettingsWidgetMap
     }
     Text(stringResource(R.string.map_delay_help), style = MaterialTheme.typography.bodySmall)
     OutlinedTextField(
-        value = map.styleUrl,
+        // A provider's key may be in the URL: secret on disk, shown in full here.
+        value = resolve(map.styleUrl),
         onValueChange = { url -> onChange(map.copy(styleUrl = url.trim())) },
         label = { Text(stringResource(R.string.map_style_url)) },
         supportingText = { Text(stringResource(R.string.map_style_url_help)) },

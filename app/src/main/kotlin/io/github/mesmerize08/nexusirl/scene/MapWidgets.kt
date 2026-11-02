@@ -26,9 +26,10 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Renders map widgets as square images around the current position, once a second while the
  * position changes. Inside a privacy region, or without location, no map is shown (upstream shows
- * an empty position there). Main thread, except [bitmap].
+ * an empty position there). Main thread, except [bitmap]. [resolve] fills in a style URL's secret
+ * part (a map provider's key).
  */
-class MapWidgets(context: Context) {
+class MapWidgets(context: Context, private val resolve: (String) -> String) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
 
@@ -111,7 +112,7 @@ class MapWidgets(context: Context) {
         }
         val key = Triple(location.latitude, location.longitude, location.speed)
         // https only (docs/PORT_PLAN.md §9.5); anything else falls back to the default style.
-        val styleUrl = entry.settings.styleUrl.takeIf { it.startsWith("https://", ignoreCase = true) }
+        val styleUrl = resolve(entry.settings.styleUrl).takeIf { it.startsWith("https://", ignoreCase = true) }
             ?: SettingsWidgetMap.DEFAULT_STYLE_URL
         if (entry.inProgress || (key == entry.rendered && entry.renderedSide == entry.side && styleUrl == entry.styleUrl)) {
             return

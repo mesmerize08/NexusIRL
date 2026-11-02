@@ -132,17 +132,21 @@ object StreamController {
     @SuppressLint("StaticFieldLeak") // Holds only the application context.
     private var browserWidgets: BrowserWidgets? = null
 
-    private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: BrowserWidgets(context).also { widgets ->
-        browserWidgets = widgets
-        ChatController.addPostListener(widgets::sendChat)
+    private fun browsers(context: Context): BrowserWidgets = browserWidgets ?: run {
+        BrowserWidgets(context, settings(context)::resolveOrPublicPart).also { widgets ->
+            browserWidgets = widgets
+            ChatController.addPostListener(widgets::sendChat)
+        }
     }
 
     @SuppressLint("StaticFieldLeak") // Holds only the application context.
     private var mapWidgets: MapWidgets? = null
 
-    private fun maps(context: Context): MapWidgets = mapWidgets ?: MapWidgets(context).also { maps ->
-        mapWidgets = maps
-        scenes(context).setMapBitmaps(maps::bitmap)
+    private fun maps(context: Context): MapWidgets = mapWidgets ?: run {
+        MapWidgets(context, settings(context)::resolveOrPublicPart).also { maps ->
+            mapWidgets = maps
+            scenes(context).setMapBitmaps(maps::bitmap)
+        }
     }
     private val mutableSelectedSceneId = MutableStateFlow<UUID?>(null)
 

@@ -36,9 +36,9 @@ import java.util.UUID
  * file or content access, and the
  * `moblin` JavaScript object only when the widget allows it. It exposes no settings or secrets.
  *
- * Call from the main thread.
+ * Call from the main thread. [resolve] fills in a URL's secret part (a page's access token).
  */
-class BrowserWidgets(context: Context) {
+class BrowserWidgets(context: Context, private val resolve: (String) -> String) {
     private val context = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
     private val displayManager = this.context.getSystemService(DisplayManager::class.java)
@@ -106,7 +106,7 @@ class BrowserWidgets(context: Context) {
                     setContentView(webView)
                     show()
                 }
-                webView.loadUrl(settings.url)
+                webView.loadUrl(resolve(settings.url))
             }
         }
     }
