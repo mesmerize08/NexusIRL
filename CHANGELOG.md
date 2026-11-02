@@ -44,7 +44,37 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 - When the chat bot cannot change the stream title or category, a toast says why (Moblin fails
   silently).
 
+### Security
+From an independent pre-release audit (`docs/audit/`).
+- Passwords, keys and tokens anywhere in the settings are kept in encrypted storage instead of the
+  plain settings file, also those from iOS settings NexusIRL does not use itself (OBS, AI and TTS
+  keys, Wi-Fi, DJI and GoPro, ingest stream keys, browser widget links and more). "Export without
+  keys" leaves all of them out (it only covered stream keys, tokens and a few passwords before);
+  exports with keys still include them. Settings saved by earlier versions are protected the next
+  time the app starts.
+- Web remote control can no longer be overwhelmed by slow or broken connections, which could
+  crash the app mid-stream: it handles a limited number of requests at once and drops requests
+  that stall.
+- Remote control, web remote control and Moblink refuse oversized messages instead of holding them
+  in memory.
+- Remote control and Moblink check that the connecting device is on the local network, not only
+  this phone's address, so port forwarding or a VPN cannot let internet hosts in. Devices on this
+  phone's hotspot still connect.
+- Unencrypted connections count as "this device" only for `localhost` and loopback addresses,
+  never for look-alike names such as `127.example.com`.
+- Releases are published only from commits on main that passed CI, with every APK's signature,
+  signing certificate and version checked before upload.
+
 ### Fixed
+- When writing a recording fails (for example with storage full), NexusIRL no longer says
+  "Recording saved" for a broken file: a file that could still be finished is kept and the message
+  says it stops early; one that could not be finished is deleted and the message says so.
+- A very large or malformed colour LUT (for example in an imported settings file) is refused or
+  skipped with a message, instead of running out of memory and crashing the app, on every start
+  when the LUT was on.
+- An RTMPS server that accepts the connection but never answers no longer hangs a stream attempt:
+  connecting gives up after 10 seconds, and stopping ends the attempt at once.
+- A link with a user name and password (`ws://user:pass@host`) came back broken after being stored.
 - When another app took the camera while live (for example the phone's Camera app), the stream
   showed a frozen picture until the camera was switched by hand. The camera now comes back by
   itself as soon as it is free, even with NexusIRL in the background.
