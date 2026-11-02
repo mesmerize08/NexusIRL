@@ -18,7 +18,7 @@ class TwitchAuthTest {
         val server = MockWebServer()
         server.start()
         try {
-            block(server, TwitchAuth("clientid123", baseUrl = server.url("").toString().removeSuffix("/")))
+            block(server, TwitchAuth("clientid123", baseUrl = server.loopbackUrl("").toString().removeSuffix("/")))
         } finally {
             server.shutdown()
         }

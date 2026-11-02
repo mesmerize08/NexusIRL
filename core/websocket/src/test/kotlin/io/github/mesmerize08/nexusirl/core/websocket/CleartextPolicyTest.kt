@@ -72,6 +72,30 @@ class CleartextPolicyTest {
     }
 
     @Test
+    fun loopback() {
+        for (host in listOf("localhost", "LOCALHOST", "127.0.0.1", "127.1.2.3", "::1", "[::1]", "0:0:0:0:0:0:0:1")) {
+            assertTrue(CleartextPolicy.isLoopback(host), host)
+        }
+        // Names that only look like loopback, or would need a DNS lookup, never count.
+        for (host in listOf(
+            "127.evil.example",
+            "127.0.0.1.evil.example",
+            "127.0.0.256",
+            "127.0.1",
+            "localhost.evil.example",
+            "evil-localhost",
+            "example.com",
+            "10.0.0.1",
+            "::2",
+            "[::1",
+            "",
+        )) {
+            assertFalse(CleartextPolicy.isLoopback(host), host)
+        }
+        assertFalse(CleartextPolicy.isAllowed("127.evil.example", allowLocalNetwork = true))
+    }
+
+    @Test
     fun localConnection() {
         val loopback = InetAddress.getLoopbackAddress()
         assertTrue(CleartextPolicy.isLocalConnection(loopback, loopback))
@@ -96,7 +120,9 @@ class CleartextPolicyTest {
         server.enqueue(MockResponse().setBody("ok"))
         server.start()
         try {
-            ReconnectingWebSocket.SHARED_CLIENT.newCall(Request.Builder().url(server.url("/")).build()).execute().use {
+            // MockWebServer names itself by reverse DNS, which the policy rightly ignores.
+            val url = server.url("/").newBuilder().host("127.0.0.1").build()
+            ReconnectingWebSocket.SHARED_CLIENT.newCall(Request.Builder().url(url).build()).execute().use {
                 assertEquals("ok", it.body!!.string())
             }
         } finally {

@@ -233,7 +233,7 @@ class TwitchChatTest {
                     posts += post
                 }
             },
-            url = server.url("/").toString().replace("http", "ws"),
+            url = server.loopbackUrl("/").toString().replace("http", "ws"),
         )
         try {
             chat.start()

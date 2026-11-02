@@ -201,7 +201,7 @@ class YouTubeLiveChatTest {
         server.enqueue(MockResponse().setBody("""<html><link rel="shortlinkUrl" href="https://youtu.be/abc123XYZ"></html>"""))
         server.start()
         try {
-            assertEquals("abc123XYZ", YouTubeLiveChat.fetchVideoId("@someone", baseUrl = server.url("").toString().removeSuffix("/")))
+            assertEquals("abc123XYZ", YouTubeLiveChat.fetchVideoId("@someone", baseUrl = server.loopbackUrl("").toString().removeSuffix("/")))
             assertEquals("/@someone/live", server.takeRequest().path)
         } finally {
             server.shutdown()

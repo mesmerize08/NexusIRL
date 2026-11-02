@@ -211,8 +211,8 @@ class TwitchEventSubTest {
                     connected += isConnected
                 }
             },
-            api = { TwitchApi("clientid123", "token", baseUrl = helix.url("/helix").toString().removeSuffix("/")) },
-            url = eventSubServer.url("/ws").toString().replace("http", "ws"),
+            api = { TwitchApi("clientid123", "token", baseUrl = helix.loopbackUrl("/helix").toString().removeSuffix("/")) },
+            url = eventSubServer.loopbackUrl("/ws").toString().replace("http", "ws"),
         )
         try {
             eventSub.start()
@@ -246,7 +246,7 @@ class TwitchEventSubTest {
         val server = MockWebServer()
         server.start()
         try {
-            val api = TwitchApi("clientid123", "token", baseUrl = server.url("/helix").toString().removeSuffix("/"))
+            val api = TwitchApi("clientid123", "token", baseUrl = server.loopbackUrl("/helix").toString().removeSuffix("/"))
             server.enqueue(
                 MockResponse().setBody(
                     """{"data":[{"id":"1","user_id":"1337","type":"live","title":"Hello","game_name":"IRL","viewer_count":78365}],"pagination":{}}""",

@@ -16,13 +16,29 @@ import java.net.NetworkInterface
  * must use TLS.
  */
 object CleartextPolicy {
+    /**
+     * "localhost" or a loopback IP literal (127.0.0.0/8, ::1). Never a DNS lookup: a name such as
+     * "127.evil.example" can resolve to anything, and the answer may change between this check
+     * and the connection.
+     */
     fun isLoopback(host: String): Boolean {
-        if (host == "localhost" || host == "::1" || host == "[::1]" || host.startsWith("127.")) {
+        val name = host.lowercase()
+        if (name == "localhost") {
             return true
         }
-        // Test servers and some systems use the machine's own name for loopback.
+        val literal = name.removePrefix("[").removeSuffix("]")
+        if (literal.length != name.length && (!name.startsWith("[") || !name.endsWith("]"))) {
+            return false
+        }
+        if (IPV4_LITERAL.matches(literal)) {
+            val octets = literal.split('.').map { it.toInt() }
+            return octets.all { it in 0..255 } && octets[0] == 127
+        }
+        if (':' !in literal || !IPV6_LITERAL.matches(literal)) {
+            return false
+        }
         return try {
-            InetAddress.getByName(host).isLoopbackAddress
+            InetAddress.getByName(literal).isLoopbackAddress
         } catch (e: Exception) {
             false
         }
@@ -132,5 +148,6 @@ object CleartextPolicy {
         }
     }
 
+    private val IPV4_LITERAL = Regex("[0-9]{1,3}(\\.[0-9]{1,3}){3}")
     private val IPV6_LITERAL = Regex("[0-9a-f:.]+")
 }

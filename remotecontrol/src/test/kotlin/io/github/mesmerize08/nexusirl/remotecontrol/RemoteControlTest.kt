@@ -195,7 +195,7 @@ class RemoteControlTest {
         server.start()
         val events = LinkedBlockingQueue<String>()
         val streamer = RemoteControlStreamer(
-            server.url("/").toString().replace("http", "ws"),
+            server.loopbackUrl("/").toString().replace("http", "ws"),
             "password",
             "streamer-1",
             object : RemoteControlStreamerDelegate {

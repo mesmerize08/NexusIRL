@@ -47,8 +47,8 @@ class ThirdPartyEmotesTest {
         channelId,
         settings,
         set,
-        bttvBaseUrl = server.url("").toString().removeSuffix("/"),
-        seventvBaseUrl = server.url("").toString().removeSuffix("/"),
+        bttvBaseUrl = server.loopbackUrl("").toString().removeSuffix("/"),
+        seventvBaseUrl = server.loopbackUrl("").toString().removeSuffix("/"),
     )
 
     private fun emote(set: EmoteSet, word: String) = set.createSegments(word, intArrayOf(0)).first().url

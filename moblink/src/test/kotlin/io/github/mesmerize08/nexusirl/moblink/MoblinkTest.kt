@@ -94,7 +94,7 @@ class MoblinkTest {
         val relay = MoblinkRelay(
             relayId,
             "Relay",
-            server.url("/").toString().replace("http", "ws"),
+            server.loopbackUrl("/").toString().replace("http", "ws"),
             "1234",
             { MoblinkResponse.Status(55, MoblinkThermalState.YELLOW) },
             ReconnectingWebSocket.LOCAL_NETWORK_CLIENT,
