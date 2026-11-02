@@ -2,7 +2,7 @@ name: Release
 
 # Builds signed APKs (one per ABI and a universal one) when a version tag (v*) is pushed and attaches them, with
 # their SHA-256, to a GitHub Release. Each APK is a separate `-Pabi` build, as F-Droid builds them, so F-Droid's
-# builds reproduce these. See docs/RELEASING.md for the signing secrets.
+# builds reproduce these. See docs/RELEASING.md for the signing secrets and the checks below.
 on:
   push:
     tags: ["v*"]
@@ -11,14 +11,59 @@ on:
 
 permissions:
   contents: write
+  # Reading CI's runs for the tagged commit.
+  actions: read
+  checks: read
+
+env:
+  # SHA-256 of the release signing certificate; the same value as AllowedAPKSigningKeys in
+  # fdroid/io.github.mesmerize08.nexusirl.yml. Every APK must be signed with exactly this certificate.
+  EXPECTED_CERT_SHA256: 00179e11f876bea2cf2189b9c04c91190cb58c6e17f56c7792e989a0038e6329
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # GitHub runs this as `bash -eo pipefail`, so a failing command anywhere in a pipe fails the step.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
+          # The whole history, to check that the tagged commit is on main.
+          fetch-depth: 0
+      - name: Require a tagged commit on main that passed CI
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse "$GITHUB_SHA^{commit}")
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error title=Not on main::$GITHUB_REF_NAME ($sha) is not a commit on main"
+            exit 1
+          fi
+          # CI may still be running (or about to start) when the tag is pushed together with main: wait up to an
+          # hour for a run in progress, five minutes for one to appear.
+          for minute in $(seq 60); do
+            runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$sha" --event push \
+              --json status,conclusion --jq '.[] | "\(.status) \(.conclusion)"')
+            if grep -qx "completed success" <<<"$runs"; then
+              echo "CI passed for $sha"
+              exit 0
+            fi
+            if [ -z "$runs" ] && [ "$minute" -gt 5 ]; then
+              break
+            fi
+            if [ -n "$runs" ] && ! grep -qv "^completed " <<<"$runs"; then
+              break
+            fi
+            echo "CI has not finished for $sha, waiting"
+            sleep 60
+          done
+          echo "::error title=CI has not passed::No successful CI run (ci.yml, push to main) for $sha. Tag a commit CI passed on."
+          exit 1
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
@@ -26,7 +71,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - name: Independence check
         run: sh tools/check-independence.sh
+      - name: Install ffmpeg (with libsrt) for the interop tests
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
       - name: Tests and lint
+        env:
+          # The RTMP, SRT and SRTLA interop tests fail instead of skipping without ffmpeg.
+          NEXUSIRL_REQUIRE_FFMPEG: "1"
         run: ./gradlew ktlintCheck test lint :app:licensee --console=plain
       - name: Signed release build
         env:
@@ -35,6 +85,7 @@ jobs:
           NEXUSIRL_KEY_ALIAS: ${{ secrets.NEXUSIRL_KEY_ALIAS }}
           NEXUSIRL_KEY_PASSWORD: ${{ secrets.NEXUSIRL_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           test -n "$KEYSTORE_BASE64" || { echo "NEXUSIRL_KEYSTORE_BASE64 secret is not set"; exit 1; }
           export NEXUSIRL_KEYSTORE="$RUNNER_TEMP/release.jks"
           echo "$KEYSTORE_BASE64" | base64 -d > "$NEXUSIRL_KEYSTORE"
@@ -46,12 +97,42 @@ jobs:
           done
           rm -f "$NEXUSIRL_KEYSTORE"
           cd dist && sha256sum *.apk > SHA256SUMS
-      - name: Show the signing certificate
+      - name: Verify each APK's signature, certificate and version
         run: |
-          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          for apk in dist/*.apk; do "$apksigner" verify --verbose --print-certs "$apk"; done | tee certs.txt
-          cert=$(grep -E "certificate (DN|SHA-256 digest)" certs.txt | sort -u)
-          echo "::notice title=Signing certificate::${cert//$'\n'/'%0A'}"
+          set -euo pipefail
+          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          # Expected versions, from app/build.gradle.kts: 10 × versionCode plus the ABI's digit.
+          version_code=$(sed -nE 's/^ *versionCode = ([0-9]+)$/\1/p' app/build.gradle.kts)
+          version_name=$(sed -nE 's/^ *versionName = "([^"]+)"$/\1/p' app/build.gradle.kts)
+          test -n "$version_code" && test -n "$version_name" || { echo "::error::versionCode/versionName not found"; exit 1; }
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [ "$GITHUB_REF_NAME" != "v$version_name" ]; then
+            echo "::error title=Tag mismatch::tag $GITHUB_REF_NAME, but versionName is $version_name"
+            exit 1
+          fi
+          declare -A abi_digit=([universal]=0 [armeabi-v7a]=1 [arm64-v8a]=2 [x86_64]=3)
+          for abi in universal armeabi-v7a arm64-v8a x86_64; do
+            apk="dist/NexusIRL-${GITHUB_REF_NAME}-$abi.apk"
+            certs=$("$build_tools/apksigner" verify --verbose --print-certs "$apk") \
+              || { echo "::error title=Signature::apksigner rejected $apk"; exit 1; }
+            echo "$certs"
+            digests=$(sed -nE 's/^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-f]+)$/\1/p' <<<"$certs" | sort -u)
+            if [ "$digests" != "$EXPECTED_CERT_SHA256" ]; then
+              echo "::error title=Signing certificate::$apk is signed by '${digests//$'\n'/ }', expected $EXPECTED_CERT_SHA256"
+              exit 1
+            fi
+            badging=$("$build_tools/aapt2" dump badging "$apk")
+            package=$(grep -m1 "^package:" <<<"$badging")
+            code=$(sed -nE "s/.* versionCode='([0-9]+)'.*/\1/p" <<<"$package")
+            name=$(sed -nE "s/.* versionName='([^']*)'.*/\1/p" <<<"$package")
+            expected_code=$((version_code * 10 + abi_digit[$abi]))
+            if [ "$code" != "$expected_code" ] || [ "$name" != "$version_name" ]; then
+              echo "::error title=Version::$apk is $name ($code), expected $version_name ($expected_code)"
+              exit 1
+            fi
+            echo "$apk: $name ($code), signed by $EXPECTED_CERT_SHA256"
+          done
+          cert=$(grep -E "certificate DN" <<<"$certs" | sort -u)
+          echo "::notice title=Signing certificate::${cert//$'\n'/'%0A'}%0ASHA-256 digest: $EXPECTED_CERT_SHA256"
       - name: Upload dry-run APK
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

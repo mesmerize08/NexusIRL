@@ -5,6 +5,17 @@ The workflow runs the tests and lint, builds signed APKs (one each for `arm64-v8
 and `x86_64`, plus a universal one), and attaches them to a GitHub Release together with
 `SHA256SUMS`. Releases are marked as pre-releases until v1.
 
+Before publishing, the workflow checks that:
+
+- the tagged commit is on `main` and CI (`ci.yml`) passed on it; it waits up to an hour for a CI
+  run still in progress, so tag a commit that CI ran on (the last one of a push);
+- the tests run with ffmpeg installed (`NEXUSIRL_REQUIRE_FFMPEG=1`), so the interop tests cannot
+  be skipped;
+- `apksigner` verifies every APK, each signed only by the release certificate
+  (`EXPECTED_CERT_SHA256` in the workflow, the same value as `AllowedAPKSigningKeys` in the
+  F-Droid recipe; change both if the key ever changes);
+- each APK's version name is the tag without its `v`, and its version code is the one below.
+
 ## One-time setup: the signing key
 
 The signing key never goes in the repository. Create it once, on your own machine:
