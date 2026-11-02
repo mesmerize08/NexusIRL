@@ -2,6 +2,7 @@
 // `lutEffectConvertLut`, `interpolate3d`), plus a `.cube` parser in place of the SC3DLut package.
 package io.github.mesmerize08.nexusirl.effects
 
+import java.io.Reader
 import kotlin.math.cbrt
 import kotlin.math.floor
 import kotlin.math.min
@@ -23,15 +24,26 @@ object Luts {
     const val MAX_DIMENSION = 64
 
     /**
-     * Parses an Adobe/Resolve `.cube` file (`LUT_3D_SIZE N` then N^3 lines of "r g b", red
-     * fastest). DOMAIN_MIN/DOMAIN_MAX are applied; 1D LUTs are rejected.
+     * The largest LUT read before [limit] resamples it. Upstream has no cap, but a bigger one only
+     * costs memory: 129 is the largest common `.cube` size (about 54 MB of text, under the
+     * import's 64 MiB) and as an image is 2.1 million pixels.
      */
-    fun parseCube(text: String): LutCube {
+    const val MAX_SOURCE_DIMENSION = 129
+
+    fun parseCube(text: String): LutCube = parseCube(text.reader())
+
+    /**
+     * Parses an Adobe/Resolve `.cube` file (`LUT_3D_SIZE N` then N^3 lines of "r g b", red
+     * fastest). DOMAIN_MIN/DOMAIN_MAX are applied; 1D LUTs are rejected. The size must come
+     * before the data, so a bad file is rejected before more than N^3 entries are read.
+     */
+    fun parseCube(reader: Reader): LutCube {
         var size = 0
         var domainMin = floatArrayOf(0f, 0f, 0f)
         var domainMax = floatArrayOf(1f, 1f, 1f)
-        val values = ArrayList<Float>()
-        for (raw in text.lineSequence()) {
+        var values: FloatArray? = null
+        var count = 0
+        for (raw in reader.buffered().lineSequence()) {
             val line = raw.substringBefore('#').trim()
             if (line.isEmpty()) {
                 continue
@@ -39,30 +51,38 @@ object Luts {
             val parts = line.split(Regex("\\s+"))
             when (parts[0].uppercase()) {
                 "TITLE" -> Unit
-                "LUT_3D_SIZE" -> size = parts.getOrNull(1)?.toIntOrNull() ?: throw InvalidLutException("Bad LUT_3D_SIZE")
+                "LUT_3D_SIZE" -> {
+                    size = parts.getOrNull(1)?.toIntOrNull() ?: throw InvalidLutException("Bad LUT_3D_SIZE")
+                    if (values != null || size < 2 || size > MAX_SOURCE_DIMENSION) {
+                        throw InvalidLutException("Missing or unsupported LUT_3D_SIZE")
+                    }
+                    values = FloatArray(size * size * size * 3)
+                }
                 "LUT_1D_SIZE" -> throw InvalidLutException("1D LUTs are not supported")
                 "DOMAIN_MIN" -> domainMin = parseTriple(parts)
                 "DOMAIN_MAX" -> domainMax = parseTriple(parts)
                 "LUT_3D_INPUT_RANGE" -> Unit
                 else -> {
+                    val data = values ?: throw InvalidLutException("Missing or unsupported LUT_3D_SIZE")
                     if (parts.size < 3) {
                         throw InvalidLutException("Bad line: $line")
                     }
+                    if (count == data.size) {
+                        throw InvalidLutException("More than ${size * size * size} entries")
+                    }
                     for (index in 0 until 3) {
-                        values += parts[index].toFloatOrNull() ?: throw InvalidLutException("Bad value: $line")
+                        data[count++] = parts[index].toFloatOrNull() ?: throw InvalidLutException("Bad value: $line")
                     }
                 }
             }
         }
-        if (size < 2 || size > 256) {
-            throw InvalidLutException("Missing or unsupported LUT_3D_SIZE")
+        val rgb = values ?: throw InvalidLutException("Missing or unsupported LUT_3D_SIZE")
+        if (count != rgb.size) {
+            throw InvalidLutException("Expected ${size * size * size} entries, got ${count / 3}")
         }
-        if (values.size != size * size * size * 3) {
-            throw InvalidLutException("Expected ${size * size * size} entries, got ${values.size / 3}")
-        }
-        val rgb = FloatArray(values.size) { index ->
+        for (index in rgb.indices) {
             val channel = index % 3
-            ((values[index] - domainMin[channel]) / (domainMax[channel] - domainMin[channel])).coerceIn(0f, 1f)
+            rgb[index] = ((rgb[index] - domainMin[channel]) / (domainMax[channel] - domainMin[channel])).coerceIn(0f, 1f)
         }
         return LutCube(size, rgb)
     }
@@ -76,8 +96,8 @@ object Luts {
      * [pixels] are ARGB.
      */
     fun fromImage(width: Int, height: Int, pixels: IntArray): LutCube {
-        val dimension = cbrt((width.toDouble() * height)).roundToInt()
-        if (dimension < 2 || width % dimension != 0 || height % dimension != 0 || dimension * dimension * dimension != width * height) {
+        val dimension = imageDimension(width, height)
+        if (pixels.size < width * height) {
             throw InvalidLutException("LUT image is not a cube")
         }
         val columns = width / dimension
@@ -96,6 +116,22 @@ object Luts {
             }
         }
         return LutCube(dimension, rgb)
+    }
+
+    /**
+     * The cube size of a LUT image of [width] x [height] (upstream's checks in
+     * `lutEffectConvertLut`), from its header alone, so an oversized image is never decoded.
+     */
+    fun imageDimension(width: Int, height: Int): Int {
+        val pixels = width.toLong() * height
+        if (width <= 0 || height <= 0 || pixels > MAX_SOURCE_DIMENSION.toLong() * MAX_SOURCE_DIMENSION * MAX_SOURCE_DIMENSION) {
+            throw InvalidLutException("LUT image is not a cube of at most $MAX_SOURCE_DIMENSION per side")
+        }
+        val dimension = cbrt(pixels.toDouble()).roundToInt()
+        if (dimension < 2 || width % dimension != 0 || height % dimension != 0 || dimension.toLong() * dimension * dimension != pixels) {
+            throw InvalidLutException("LUT image is not a cube")
+        }
+        return dimension
     }
 
     /** Upstream `makeLutCube`: resamples to at most [MAX_DIMENSION] per side (trilinear). */

@@ -1,5 +1,6 @@
 package io.github.mesmerize08.nexusirl.effects
 
+import java.io.Reader
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -89,5 +90,52 @@ class LutTest {
         val offset = (1 * 4 + 3) * 4
         assertEquals(listOf(255, 255, 255, 255), (0 until 4).map { strip[offset + it].toInt() and 0xFF })
         assertEquals(listOf(0, 0, 0), (0 until 3).map { strip[it].toInt() and 0xFF })
+    }
+
+    @Test
+    fun cubeSizeIsCapped() {
+        assertFailsWith<InvalidLutException> { Luts.parseCube("LUT_3D_SIZE ${Luts.MAX_SOURCE_DIMENSION + 1}\n0 0 0") }
+        assertFailsWith<InvalidLutException> { Luts.parseCube("LUT_3D_SIZE 1000000\n0 0 0") }
+    }
+
+    @Test
+    fun cubeDataBeforeSizeIsRejected() {
+        val text = (0 until 8).joinToString("\n") { "0 0 0" } + "\nLUT_3D_SIZE 2"
+        assertFailsWith<InvalidLutException> { Luts.parseCube(text) }
+    }
+
+    @Test
+    fun excessCubeEntriesStopTheParse() {
+        // An endless file: the parser must give up at the first entry too many.
+        val endless = object : Reader() {
+            private val text = "LUT_3D_SIZE 2\n"
+            private var position = 0L
+
+            override fun read(buffer: CharArray, offset: Int, length: Int): Int {
+                for (index in 0 until length) {
+                    val line = (position - text.length).coerceAtLeast(0)
+                    buffer[offset + index] = if (position < text.length) text[position.toInt()] else "0 0 0\n"[(line % 6).toInt()]
+                    position++
+                }
+                return length
+            }
+
+            override fun close() = Unit
+        }
+        assertFailsWith<InvalidLutException> { Luts.parseCube(endless) }
+    }
+
+    @Test
+    fun imageShapeIsCheckedBeforeDecoding() {
+        assertEquals(64, Luts.imageDimension(512, 512))
+        assertEquals(4, Luts.imageDimension(8, 8))
+        assertEquals(128, Luts.imageDimension(2048, 1024))
+        assertFailsWith<InvalidLutException> { Luts.imageDimension(10, 10) }
+        assertFailsWith<InvalidLutException> { Luts.imageDimension(0, 0) }
+        assertFailsWith<InvalidLutException> { Luts.imageDimension(-1, 512) }
+        // A real cube, but bigger than the cap: 256^3 is 4096 x 4096.
+        assertFailsWith<InvalidLutException> { Luts.imageDimension(4096, 4096) }
+        // Width times height overflows an Int.
+        assertFailsWith<InvalidLutException> { Luts.imageDimension(65536, 65536) }
     }
 }
