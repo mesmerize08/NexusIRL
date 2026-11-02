@@ -106,9 +106,13 @@ object RemoteControlAssistantController {
      * (carrier-grade NAT shares Tailscale's range).
      */
     fun isAllowedLocalAddress(address: InetAddress, remote: InetAddress?): Boolean {
+        // The peer check comes first and always applies, so the fail-open interface lookup below
+        // can only ever let in a peer that is loopback, local-network or on-link anyway.
         if (!CleartextPolicy.isLocalConnection(address, remote)) {
             return false
         }
+        // Fails open: some devices refuse NetworkInterface lookups, and remote control must still
+        // work on Wi-Fi there.
         val name = try {
             NetworkInterface.getByInetAddress(address)?.name
         } catch (e: Exception) {

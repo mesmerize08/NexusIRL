@@ -97,12 +97,35 @@ class CleartextPolicyTest {
 
     @Test
     fun localConnection() {
+        fun address(text: String) = InetAddress.getByName(text)
         val loopback = InetAddress.getLoopbackAddress()
         assertTrue(CleartextPolicy.isLocalConnection(loopback, loopback))
-        assertTrue(CleartextPolicy.isLocalConnection(InetAddress.getByName("fd1e::5"), null))
+        assertTrue(CleartextPolicy.isLocalConnection(address("192.168.1.10"), address("192.168.1.20")))
+        assertTrue(CleartextPolicy.isLocalConnection(address("fd1e::5"), address("fd1e::6")))
+        assertTrue(CleartextPolicy.isLocalConnection(address("fe80::5"), address("fe80::6")))
+        assertTrue(CleartextPolicy.isLocalConnection(address("100.101.102.103"), address("100.64.0.9")))
+        // The peer must be known and local too: a local address alone is not enough, as port
+        // forwarding or a router's NAT would put the whole internet behind it.
+        assertFalse(CleartextPolicy.isLocalConnection(address("fd1e::5"), null))
+        assertFalse(CleartextPolicy.isLocalConnection(address("192.168.1.10"), address("8.8.8.8")))
+        assertFalse(CleartextPolicy.isLocalConnection(address("fd1e::5"), address("2606:4700::1")))
+        assertFalse(CleartextPolicy.isLocalConnection(address("10.0.0.2"), address("::ffff:8.8.8.8")))
+        assertFalse(CleartextPolicy.isLocalConnection(loopback, address("8.8.8.8")))
+        // A private peer reaching a public address of this device (a carrier's own network) is not local.
+        assertFalse(CleartextPolicy.isLocalConnection(address("8.8.8.8"), address("10.1.2.3")))
         // A public address that is not one of this machine's: no interface, so no link to be on.
-        assertFalse(CleartextPolicy.isLocalConnection(InetAddress.getByName("2606:4700::1111"), InetAddress.getByName("2606:4700::1")))
-        assertFalse(CleartextPolicy.isLocalConnection(InetAddress.getByName("8.8.8.8"), null))
+        assertFalse(CleartextPolicy.isLocalConnection(address("2606:4700::1111"), address("2606:4700::1")))
+        assertFalse(CleartextPolicy.isLocalConnection(address("8.8.8.8"), null))
+    }
+
+    @Test
+    fun hotspotPeerWithPublicIpv6IsLocal() {
+        // An iPhone on this phone's hotspot gets a public address within the hotspot's /64.
+        val local = InetAddress.getByName("2001:8004:1a23:e8bc:f954:4e0c:d28e:9f5b")
+        val onLink = { a: InetAddress, b: InetAddress -> CleartextPolicy.isSamePrefix(a, b, 64) }
+        assertTrue(CleartextPolicy.isLocalConnection(local, InetAddress.getByName("2001:8004:1a23:e8bc::42"), onLink))
+        assertFalse(CleartextPolicy.isLocalConnection(local, InetAddress.getByName("2001:8004:1a23:e8bd::42"), onLink))
+        assertFalse(CleartextPolicy.isLocalConnection(local, null, onLink))
     }
 
     @Test

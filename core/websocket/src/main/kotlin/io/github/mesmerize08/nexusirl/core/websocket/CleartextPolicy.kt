@@ -127,12 +127,26 @@ object CleartextPolicy {
 
     /**
      * For the local servers (remote control, Moblink): a connection that arrived on [local] from
-     * [remote] is from the local network if [local] is a loopback or local-network address, or if
-     * [remote] is on the same link.
+     * [remote] is from the local network if [remote] is loopback, on the same link as [local]
+     * (hotspot peers with public IPv6 addresses), or a local-network address reaching a loopback or
+     * local-network [local]. An unknown peer never is.
      */
-    fun isLocalConnection(local: InetAddress, remote: InetAddress?): Boolean {
-        val host = local.hostAddress.orEmpty()
-        return isLoopback(host) || isLocalNetwork(host) || (remote != null && isOnLink(local, remote))
+    fun isLocalConnection(
+        local: InetAddress,
+        remote: InetAddress?,
+        onLink: (local: InetAddress, remote: InetAddress) -> Boolean = ::isOnLink,
+    ): Boolean {
+        if (remote == null) {
+            return false
+        }
+        if (remote.isLoopbackAddress || onLink(local, remote)) {
+            return true
+        }
+        // A local address alone proves nothing about the peer: port forwarding, a VPN or a
+        // router's NAT can put any internet host behind it. And a private peer on a public
+        // address of ours is a carrier's network, not ours.
+        val localIsLocal = local.isLoopbackAddress || isLocalNetwork(local.hostAddress.orEmpty())
+        return localIsLocal && isLocalNetwork(remote.hostAddress.orEmpty())
     }
 
     fun isAllowed(host: String, allowLocalNetwork: Boolean): Boolean = isLoopback(host) || (allowLocalNetwork && isLocalNetwork(host))
