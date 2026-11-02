@@ -29,6 +29,9 @@ interface MoblinkStreamerListener {
     fun tunnelRemoved(tunnel: MoblinkTunnel)
 
     fun relaysChanged() {}
+
+    /** What happened with relays (not upstream), for the diagnostics. Contains no secrets. */
+    fun log(message: String) {}
 }
 
 /**
@@ -157,6 +160,7 @@ class MoblinkStreamer(
                 val tunnelPort = (data as? MoblinkResponse.StartTunnel)?.port
                 val host = relay.socket.remoteSocketAddress?.address?.hostAddress
                 if (result != MoblinkResult.OK || tunnelPort == null || host == null) {
+                    listener.log("Relay ${relay.name}: tunnel to $address:$destinationPort failed ($result)")
                     return@request
                 }
                 // The tunnel is at the relay's address, on the port it answered with.
@@ -164,6 +168,7 @@ class MoblinkStreamer(
                 val stillWanted = synchronized(lock) { relays[relay.socket] === relay && destination != null }
                 if (stillWanted) {
                     synchronized(lock) { relay.tunnel = tunnel }
+                    listener.log("Relay ${relay.name}: tunnel at ${tunnel.host}:${tunnel.port}")
                     listener.tunnelAdded(tunnel)
                 }
             }
@@ -186,6 +191,7 @@ class MoblinkStreamer(
         val expected = remoteControlHashPassword(relay.challenge, relay.salt, password)
         if (!MessageDigest.isEqual(expected.toByteArray(), message.authentication.toByteArray())) {
             recordFailure(host)
+            listener.log("Relay ${message.name.take(30)} at $host: wrong password")
             relay.send(MoblinkMessageToRelay.Identified(MoblinkResult.WRONG_PASSWORD))
             relay.socket.close()
             return
@@ -202,6 +208,7 @@ class MoblinkStreamer(
         }
         replaced?.tunnel?.let(listener::tunnelRemoved)
         replaced?.socket?.close()
+        listener.log("Relay ${relay.name} at $host: connected" + if (destination == null) ", tunnel when live with SRTLA" else "")
         relay.send(MoblinkMessageToRelay.Identified(MoblinkResult.OK))
         startTunnel(relay)
         updateStatus()
@@ -216,9 +223,12 @@ class MoblinkStreamer(
             val remote = socket.remoteSocketAddress?.address
             val host = remote?.hostAddress.orEmpty()
             if (local == null || !acceptLocalAddress(local, remote) || isLockedOut(host)) {
+                val reason = if (local != null && acceptLocalAddress(local, remote)) "too many wrong passwords" else "not the local network"
+                listener.log("Refused $host on ${local?.hostAddress}: $reason")
                 socket.close()
                 return
             }
+            listener.log("Connection from $host on ${local.hostAddress}")
             val relay = Relay(socket)
             synchronized(lock) { relays[socket] = relay }
             relay.send(MoblinkMessageToRelay.Hello(REMOTE_CONTROL_API_VERSION, MoblinkAuthentication(relay.challenge, relay.salt)))
@@ -226,6 +236,7 @@ class MoblinkStreamer(
 
         override fun onClose(socket: WebSocket, code: Int, reason: String?, remote: Boolean) {
             val relay = synchronized(lock) { relays.remove(socket) } ?: return
+            listener.log("Relay ${relay.name.ifEmpty { "(not identified)" }}: disconnected")
             relay.tunnel?.let(listener::tunnelRemoved)
             listener.relaysChanged()
         }

@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import androidx.core.content.edit
 import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
@@ -90,15 +91,21 @@ object MoblinkStreamerController {
                 override fun relaysChanged() {
                     handler.post { mutableRelays.value = streamer?.statuses() }
                 }
+
+                override fun log(message: String) {
+                    Log.i(TAG, message)
+                }
             },
             acceptLocalAddress = RemoteControlAssistantController::isAllowedLocalAddress,
         )
         try {
             newStreamer.start()
         } catch (e: Exception) {
+            Log.w(TAG, "Could not listen on port ${config.port}: $e")
             mutableRelays.value = null
             return
         }
+        Log.i(TAG, "Streamer listening on port ${config.port}")
         streamer = newStreamer
         mutableRelays.value = emptyList()
         advertise(context, config.port)
@@ -140,9 +147,13 @@ object MoblinkStreamerController {
             setAttribute("name", deviceName(context))
         }
         val listener = object : NsdManager.RegistrationListener {
-            override fun onServiceRegistered(serviceInfo: NsdServiceInfo) = Unit
+            override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
+                Log.i(TAG, "Advertised on the network")
+            }
 
-            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) = Unit
+            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                Log.w(TAG, "Could not advertise on the network (error $errorCode); relays can still use the address")
+            }
 
             override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) = Unit
 
@@ -175,4 +186,5 @@ object MoblinkStreamerController {
     }
 
     private const val STATUS_MILLIS = 10_000L
+    private const val TAG = "Moblink"
 }

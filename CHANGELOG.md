@@ -19,6 +19,14 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   connection, no sign-in needed. Moblin's Kick alert settings import from iOS.
 
 ### Changed
+- The Moblink page starts with how to add another phone's mobile data to this phone's stream,
+  the password shared by both parts, and then "Use other phones as relays" before the relay part
+  (which lends this phone's data to another phone's stream). It shows this phone's address for
+  relays that do not find it, and warns while this phone is a relay. In the field test the relay
+  part, which came first, was turned on instead, so the phones' roles were swapped.
+- The diagnostics report says what happened with Moblink relays (connected, refused and why,
+  wrong password, tunnels), and leaves out the video encoder's debug lines, which filled most of
+  its log.
 - Releases have an APK for each processor type (`arm64-v8a`, `armeabi-v7a`, `x86_64`) besides the
   universal one, about a third of its size. Each has its own version code (10 × the release's plus
   1, 2 or 3; 0 for universal), so F-Droid can offer the same, signed by us.
@@ -38,8 +46,10 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   adaptive bitrate lowered it for poor coverage, which overloaded the connection (round trips of
   up to 14 seconds and dropped video). As in Moblin, the video now stays within 1.2 times its
   bitrate in any second: streams use the encoder's constant bitrate mode, and when an encoder
-  still sends too much, frames are skipped until it is back within the limit (the preview is not
-  affected). The stream's rate control setting (ABR, CBR, VBR, from Moblin's settings) is now
+  still sends too much, frames are skipped until it is back within the limit, for at most about a
+  second at a time (the preview is not affected). In the 2 November field test the video stayed
+  at its 5 Mbps while driving and the server lost 16 late packets in 14 minutes, against 1,896 in 8
+  minutes before. The stream's rate control setting (ABR, CBR, VBR, from Moblin's settings) is now
   used: VBR keeps the encoder's own variable bitrate without a limit, as in Moblin, and CBR also
   stops adaptive bitrate following the connection's recent throughput, as in Moblin.
 - Moblink relays and remote control could not connect over IPv6, which iPhones use when the

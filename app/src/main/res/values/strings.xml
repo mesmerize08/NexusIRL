@@ -260,9 +260,13 @@
     <string name="web_remote_control_open">Open this link in a browser (or scan the QR code):</string>
     <string name="web_remote_control_new_link">New link (signs out all browsers)</string>
     <string name="moblink_streamer">Use other phones as relays</string>
-    <string name="moblink_streamer_help">While live with SRTLA, phones on the same Wi-Fi running a Moblink relay (Moblin, NexusIRL or the Moblink app) add their mobile data as extra paths. They use the password above. Never over mobile data; 5 wrong passwords block an address for a minute.</string>
+    <string name="moblink_streamer_help">While live with SRTLA, phones on the same Wi-Fi or hotspot running a Moblink relay (Moblin, NexusIRL or the Moblink app) add their mobile data as extra paths. They use the password above. Never over mobile data; 5 wrong passwords block an address for a minute.</string>
     <string name="moblink_streamer_password_needed">Set the password above first.</string>
     <string name="moblink_streamer_no_relays">No relays connected.</string>
+    <string name="moblink_intro">To add another phone\'s mobile data to this phone\'s stream: turn on \"Use other phones as relays\" here, and the relay in Moblin, NexusIRL or the Moblink app on the other phone, with the same password. Both phones must be on the same Wi-Fi or hotspot.</string>
+    <string name="moblink_shared_password_help">The same on every phone. Stored encrypted on this device.</string>
+    <string name="moblink_streamer_addresses">If a relay does not find this phone, enter this in it: %1$s</string>
+    <string name="moblink_relay_warning">This phone is lending its mobile data to another phone\'s stream. To add other phones to this phone\'s own stream, turn this off and turn on \"Use other phones as relays\" above.</string>
     <string name="portrait">Portrait</string>
     <string name="status_ready">Ready</string>
     <string name="status_connecting">Connecting…</string>

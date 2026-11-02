@@ -149,6 +149,13 @@ object Diagnostics {
             LOG_LINES.toString(),
             "--pid",
             android.os.Process.myPid().toString(),
+            // The hardware codec's debug lines (several per frame on Snapdragon) would push
+            // everything else out: on 2026-11-02 they were 2,800 of the 4,000 lines.
+            "PipelineWatcher:S",
+            "CCodecConfig:S",
+            "CCodec:S",
+            "CCodecBufferChannel:S",
+            "AidlBufferPool:S",
         ).redirectErrorStream(true).start()
         val lines = process.inputStream.bufferedReader().readLines()
         process.waitFor(5, TimeUnit.SECONDS)
