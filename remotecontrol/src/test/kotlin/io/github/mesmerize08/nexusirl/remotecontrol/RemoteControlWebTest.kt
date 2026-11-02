@@ -8,12 +8,16 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketException
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RemoteControlWebTest {
@@ -32,12 +36,35 @@ class RemoteControlWebTest {
         error("No free ports")
     }
 
-    private fun get(port: Int, target: String, cookie: String? = null, method: String = "GET"): String {
+    private val loopback = InetAddress.getLoopbackAddress()
+
+    private fun get(port: Int, target: String, cookie: String? = null, method: String = "GET", extraHeaders: String = ""): String {
         Socket("127.0.0.1", port).use { socket ->
-            val request = "$method $target HTTP/1.1\r\nHost: 127.0.0.1\r\n" + (cookie?.let { "Cookie: $it\r\n" } ?: "") + "\r\n"
-            socket.getOutputStream().write(request.toByteArray())
-            return socket.getInputStream().readBytes().toString(Charsets.UTF_8)
+            socket.soTimeout = 15_000
+            val cookieHeader = cookie?.let { "Cookie: $it\r\n" } ?: ""
+            val request = "$method $target HTTP/1.1\r\nHost: 127.0.0.1\r\n$cookieHeader$extraHeaders\r\n"
+            return try {
+                socket.getOutputStream().write(request.toByteArray())
+                socket.getInputStream().readBytes().toString(Charsets.UTF_8)
+            } catch (e: SocketException) {
+                // Refused by closing (reset).
+                ""
+            }
         }
+    }
+
+    /** Live HTTP worker and accept threads of [RemoteControlWeb]. */
+    private fun webThreads() = Thread.getAllStackTraces().keys.count { it.isAlive && it.name.startsWith("remote-control-web") }
+
+    private fun waitFor(timeoutMillis: Long, condition: () -> Boolean): Boolean {
+        val deadline = System.nanoTime() + timeoutMillis * 1_000_000
+        while (System.nanoTime() < deadline) {
+            if (condition()) {
+                return true
+            }
+            Thread.sleep(50)
+        }
+        return condition()
     }
 
     private val delegate = object : RemoteControlStreamerDelegate {
@@ -49,13 +76,20 @@ class RemoteControlWebTest {
         override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
     }
 
-    private fun web(port: Int, previews: LinkedBlockingQueue<Boolean> = LinkedBlockingQueue(), allow: Boolean = true) = RemoteControlWeb(
+    private fun web(
+        port: Int,
+        previews: LinkedBlockingQueue<Boolean> = LinkedBlockingQueue(),
+        allow: Boolean = true,
+        requestHeadTimeoutMillis: Long = 10_000,
+    ) = RemoteControlWeb(
         port,
         token,
         delegate,
         asset = { if (it == "index.html") "<html>remote</html>".toByteArray() else null },
         acceptLocalAddress = { _, _ -> allow },
         onPreviewWanted = { previews += it },
+        bindAddress = loopback,
+        requestHeadTimeoutMillis = requestHeadTimeoutMillis,
     )
 
     @Test
@@ -73,7 +107,7 @@ class RemoteControlWebTest {
         val port = freePorts()
         val server = RemoteControlWeb(port, token, delegate, asset = {
             null
-        }, acceptLocalAddress = { _, _ -> true }, recordings = recordings)
+        }, acceptLocalAddress = { _, _ -> true }, recordings = recordings, bindAddress = loopback)
             .also { it.start() }
         val cookie = "nexusirl_token=$token"
         val encoded = "NexusIRL%202026-10-26%2013-00-00.mp4"
@@ -115,7 +149,7 @@ class RemoteControlWebTest {
         val port = freePorts()
         val server = RemoteControlWeb(port, token, delegate, asset = {
             null
-        }, acceptLocalAddress = { _, _ -> true }, recordings = recordings)
+        }, acceptLocalAddress = { _, _ -> true }, recordings = recordings, bindAddress = loopback)
             .also { it.start() }
         try {
             Socket("127.0.0.1", port).use { socket ->
@@ -230,6 +264,87 @@ class RemoteControlWebTest {
         val server = web(port, allow = false).also { it.start() }
         try {
             assertEquals("", get(port, "/?t=$token"))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun refusedAddressesNeverGetAWorker() {
+        val before = webThreads()
+        val port = freePorts()
+        val server = web(port, allow = false).also { it.start() }
+        val sockets = mutableListOf<Socket>()
+        try {
+            repeat(40) { sockets += Socket("127.0.0.1", port) }
+            assertTrue(waitFor(5_000) { sockets.all { it.getInputStream().read() == -1 } }, "refused connections are closed")
+            // Only the accept thread: refusing happens before any worker is started.
+            assertTrue(webThreads() - before <= 1, "threads: ${webThreads() - before}")
+        } finally {
+            sockets.forEach { it.close() }
+            server.stop()
+        }
+    }
+
+    @Test
+    fun slowClientsCannotExhaustTheServer() {
+        val before = webThreads()
+        val port = freePorts()
+        val server = web(port, requestHeadTimeoutMillis = 1_000).also { it.start() }
+        val slow = (1..60).map { Socket("127.0.0.1", port) }
+        try {
+            // Drip-feed headers: every read is well within any per-read timeout.
+            val dripper = thread(isDaemon = true) {
+                repeat(40) { index ->
+                    slow.forEach { socket ->
+                        val line = if (index == 0) "GET / HTTP/1.1\r\n" else "X-A: b\r\n"
+                        runCatching { socket.getOutputStream().write(line.toByteArray()) }
+                    }
+                    Thread.sleep(100)
+                }
+            }
+            Thread.sleep(700)
+            val threads = webThreads() - before
+            assertTrue(threads <= 20, "worker threads are bounded: $threads")
+            // Once the slow clients' time is up, real requests are served again.
+            val cookie = "nexusirl_token=$token"
+            assertTrue(waitFor(5_000) { get(port, "/", cookie).endsWith("<html>remote</html>") }, "still serving")
+            dripper.join()
+        } finally {
+            slow.forEach { it.close() }
+            server.stop()
+        }
+    }
+
+    @Test
+    fun stopEndsAllWorkers() {
+        val before = webThreads()
+        val port = freePorts()
+        val server = web(port).also { it.start() }
+        val slow = (1..8).map { Socket("127.0.0.1", port).apply { getOutputStream().write("GET / HTTP/1.1\r\n".toByteArray()) } }
+        try {
+            Thread.sleep(300)
+            assertTrue(webThreads() > before)
+            server.stop()
+            assertTrue(waitFor(3_000) { webThreads() == before }, "threads left: ${webThreads() - before}")
+            assertTrue(slow.all { runCatching { it.getInputStream().read() }.getOrDefault(-1) == -1 }, "clients are closed")
+        } finally {
+            slow.forEach { it.close() }
+            server.stop()
+        }
+    }
+
+    @Test
+    fun oversizedRequestHeadsAreRefused() {
+        val port = freePorts()
+        val server = web(port).also { it.start() }
+        val cookie = "nexusirl_token=$token"
+        try {
+            assertTrue(get(port, "/", cookie).endsWith("<html>remote</html>"))
+            val many = (1..150).joinToString("") { "X-$it: a\r\n" }
+            assertFalse(get(port, "/", cookie, extraHeaders = many).startsWith("HTTP/1.1 200"), "more than 100 headers")
+            val large = (1..10).joinToString("") { "X-$it: ${"a".repeat(4000)}\r\n" }
+            assertFalse(get(port, "/", cookie, extraHeaders = large).startsWith("HTTP/1.1 200"), "a request head over the size limit")
         } finally {
             server.stop()
         }

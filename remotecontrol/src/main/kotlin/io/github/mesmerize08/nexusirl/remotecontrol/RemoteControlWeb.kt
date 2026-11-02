@@ -20,7 +20,10 @@ import java.net.Socket
 import java.net.URLDecoder
 import java.security.MessageDigest
 import java.util.Collections
-import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * The browser remote control: an HTTP server on [port] serving upstream's web frontend (static
@@ -30,7 +33,9 @@ import java.util.concurrent.Executors
  * Access needs [token]: the link `http://<address>:<port>/?t=<token>` sets an HttpOnly cookie,
  * which browsers also send to the WebSocket port (cookies are per host, not port), so upstream's
  * frontend works unchanged. Requests without it get 401, WebSocket pages are closed at once. Only
- * addresses [acceptLocalAddress] allows are served (LAN, hotspot, Tailscale; never mobile data).
+ * addresses [acceptLocalAddress] allows are served (LAN, hotspot, Tailscale; never mobile data),
+ * checked before a connection gets a worker. Workers are bounded and request heads are limited in
+ * size and time, so slow or hostile clients can delay the web page but never stop the stream.
  */
 class RemoteControlWeb(
     private val port: Int,
@@ -44,10 +49,25 @@ class RemoteControlWeb(
     private val onPreviewWanted: (Boolean) -> Unit = {},
     /** The Recordings page's files, or null when there are none to offer. */
     private val recordings: WebRecordings? = null,
+    /** The address to listen on; null for all (tests use loopback). */
+    private val bindAddress: InetAddress? = null,
+    /** How long a client has to send its whole request head. */
+    private val requestHeadTimeoutMillis: Long = 10_000,
 ) {
     private val pages: MutableSet<WebSocket> = Collections.synchronizedSet(LinkedHashSet())
     private val previewConnections: MutableSet<WebSocket> = Collections.synchronizedSet(HashSet())
-    private val pool = Executors.newCachedThreadPool { Thread(it, "remote-control-web").apply { isDaemon = true } }
+
+    // Bounded, with no queue: when every worker is busy a new connection is closed at once rather
+    // than letting clients that never finish their request start threads until the app dies.
+    private val pool = ThreadPoolExecutor(0, MAX_WORKERS, 30, TimeUnit.SECONDS, SynchronousQueue()) {
+        Thread(it, "remote-control-web").apply { isDaemon = true }
+    }
+
+    /** Closes connections that have not sent their whole request head in time. */
+    private val deadlines = ScheduledThreadPoolExecutor(1) {
+        Thread(it, "remote-control-web-deadline").apply { isDaemon = true }
+    }.apply { removeOnCancelPolicy = true }
+    private val clients: MutableSet<Socket> = Collections.synchronizedSet(HashSet())
     private var http: ServerSocket? = null
     private var websocketServer: WebServer? = null
 
@@ -65,10 +85,10 @@ class RemoteControlWeb(
         running = true
         val server = ServerSocket()
         server.reuseAddress = true
-        server.bind(InetSocketAddress(port))
+        server.bind(InetSocketAddress(bindAddress, port))
         http = server
-        pool.execute { acceptLoop(server) }
-        websocketServer = WebServer(InetSocketAddress(websocketPort)).apply {
+        Thread({ acceptLoop(server) }, "remote-control-web-accept").apply { isDaemon = true }.start()
+        websocketServer = WebServer(InetSocketAddress(bindAddress, websocketPort)).apply {
             isReuseAddr = true
             connectionLostTimeout = 30
             start()
@@ -84,6 +104,9 @@ class RemoteControlWeb(
             Thread.currentThread().interrupt()
         }
         pool.shutdownNow()
+        deadlines.shutdownNow()
+        // Workers blocked reading or writing do not notice interrupts; closing their sockets ends them.
+        synchronized(clients) { clients.toList() }.forEach { closeQuietly(it) }
         pages.clear()
         if (previewConnections.isNotEmpty()) {
             previewConnections.clear()
@@ -119,17 +142,47 @@ class RemoteControlWeb(
             val socket = try {
                 server.accept()
             } catch (e: Exception) {
-                return
-            }
-            pool.execute {
-                // A browser that goes away mid-response (or any bad request) must never take the
-                // app down: an uncaught exception here ended the whole process.
-                try {
-                    socket.use { handleHttp(it) }
-                } catch (e: Exception) {
-                    // The connection is closed; nothing to answer.
+                if (server.isClosed) {
+                    return
                 }
+                // Out of file descriptors, say: do not spin.
+                Thread.sleep(100)
+                continue
             }
+            // Nothing in here may end the loop: anything thrown from this thread ended the whole
+            // process. Throwable, as failing to start a thread is an OutOfMemoryError.
+            try {
+                if (!running || !isAllowed(socket.localAddress, socket.inetAddress)) {
+                    closeQuietly(socket)
+                    continue
+                }
+                clients += socket
+                pool.execute { serve(socket) }
+            } catch (e: Throwable) {
+                // Every worker busy (RejectedExecutionException), or no thread to be had.
+                clients -= socket
+                closeQuietly(socket)
+            }
+        }
+    }
+
+    private fun serve(socket: Socket) {
+        // A browser that goes away mid-response (or any bad request) must never take the app down:
+        // an uncaught exception here ended the whole process.
+        try {
+            socket.use { handleHttp(it) }
+        } catch (e: Throwable) {
+            // The connection is closed; nothing to answer.
+        } finally {
+            clients -= socket
+        }
+    }
+
+    private fun closeQuietly(socket: Socket) {
+        try {
+            socket.close()
+        } catch (e: Exception) {
+            // Already closed.
         }
     }
 
@@ -142,23 +195,38 @@ class RemoteControlWeb(
         ?.firstOrNull { it.startsWith("$COOKIE=") }
         ?.substringAfter('=')
 
-    private fun handleHttp(socket: Socket) {
-        socket.soTimeout = 10_000
-        if (!isAllowed(socket.localAddress, socket.inetAddress)) {
-            return
-        }
-        val input = BufferedInputStream(socket.getInputStream())
-        val requestLine = readLine(input) ?: return
-        val headers = HashMap<String, String>()
-        while (true) {
-            val line = readLine(input) ?: return
-            if (line.isEmpty()) {
-                break
-            }
-            if (headers.size < 100) {
+    /** The request line and headers, or null if the client sends too much or not enough in time. */
+    private fun readRequestHead(socket: Socket): Pair<String, Map<String, String>>? {
+        // soTimeout is per read, so a client sending a byte every few seconds would hold a worker
+        // forever; the whole head has to arrive before the deadline.
+        val deadline = deadlines.schedule({ closeQuietly(socket) }, requestHeadTimeoutMillis, TimeUnit.MILLISECONDS)
+        try {
+            val input = BufferedInputStream(socket.getInputStream())
+            var remaining = MAX_HEAD_BYTES
+            val requestLine = readLine(input, remaining) ?: return null
+            remaining -= requestLine.length + 2
+            val headers = HashMap<String, String>()
+            var count = 0
+            while (true) {
+                val line = readLine(input, remaining) ?: return null
+                if (line.isEmpty()) {
+                    return requestLine to headers
+                }
+                remaining -= line.length + 2
+                count += 1
+                if (count > MAX_HEADERS) {
+                    return null
+                }
                 headers[line.substringBefore(':').trim().lowercase()] = line.substringAfter(':', "").trim()
             }
+        } finally {
+            deadline.cancel(false)
         }
+    }
+
+    private fun handleHttp(socket: Socket) {
+        socket.soTimeout = 10_000
+        val (requestLine, headers) = readRequestHead(socket) ?: return
         val parts = requestLine.split(' ')
         val output = socket.getOutputStream()
         if (parts.size != 3) {
@@ -246,9 +314,9 @@ class RemoteControlWeb(
         }
     }
 
-    private fun readLine(input: BufferedInputStream): String? {
+    private fun readLine(input: BufferedInputStream, limit: Int): String? {
         val line = StringBuilder()
-        while (line.length < 8192) {
+        while (line.length < minOf(8192, limit)) {
             val byte = input.read()
             if (byte < 0) {
                 return null
@@ -375,6 +443,13 @@ class RemoteControlWeb(
 
     private companion object {
         const val COOKIE = "nexusirl_token"
+
+        /** Concurrent HTTP requests: a page load fetches about ten files, browsers six at a time. */
+        const val MAX_WORKERS = 16
+        const val MAX_HEADERS = 100
+
+        /** Request line and headers together; browsers send a few KB at most to this server. */
+        const val MAX_HEAD_BYTES = 16 * 1024
         private const val RECORDINGS_PREFIX = "/recordings/"
         private const val THUMBNAILS_PREFIX = "/thumbnails/"
 
