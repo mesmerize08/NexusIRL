@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,6 +78,14 @@ data class CameraUiState(
 
 /** A recording in progress (upstream `currentRecording`). */
 data class RecordingState(val fileName: String, val startedAtElapsedMillis: Long)
+
+enum class RecordingResult {
+    SAVED,
+    NOTHING_RECORDED,
+
+    /** Writing or finishing the file failed (e.g. storage full); the partial file was deleted. */
+    FAILED,
+}
 
 /**
  * Process-wide entry point the UI talks to (upstream: the Model's stream, recording and camera
@@ -512,24 +521,50 @@ object StreamController {
         return null
     }
 
-    /** Stops recording and publishes the file. Returns false when nothing playable was recorded. */
-    fun stopRecording(context: Context): Boolean {
-        val active = activeRecording ?: return false
+    /**
+     * Stops recording and publishes the file. A file that failed to write or finish is deleted
+     * rather than published, as it is likely unplayable.
+     */
+    fun stopRecording(context: Context): RecordingResult {
+        val active = activeRecording ?: return RecordingResult.NOTHING_RECORDED
         activeRecording = null
         mutableRecording.value = null
         // Encoder first (its release waits for the last frame), then audio, then finalise the file.
         pipeline?.stopEncoder(active.encoder)
         sharedAudio?.remove(active.recorder)
-        val playable = active.recorder.stop()
-        active.descriptor.close()
+        val playable = try {
+            active.recorder.stop()
+        } finally {
+            try {
+                active.descriptor.close()
+            } catch (e: IOException) {
+                // Storage trouble; the result below already says whether the file is good.
+            }
+        }
         val resolver = context.contentResolver
-        if (playable) {
-            resolver.update(active.uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
-        } else {
-            resolver.delete(active.uri, null, null)
+        val published = playable &&
+            try {
+                resolver.update(active.uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null) > 0
+            } catch (e: Exception) {
+                false
+            }
+        if (!published) {
+            try {
+                resolver.delete(active.uri, null, null)
+            } catch (e: Exception) {
+                // Left pending: MediaStore removes pending items after a while.
+            }
         }
         afterCaptureEnded(context)
-        return playable
+        val result = when {
+            published -> RecordingResult.SAVED
+            active.recorder.failed || playable -> RecordingResult.FAILED
+            else -> RecordingResult.NOTHING_RECORDED
+        }
+        if (result == RecordingResult.FAILED) {
+            session?.note("Recording failed: the file could not be finished")
+        }
+        return result
     }
 
     /**

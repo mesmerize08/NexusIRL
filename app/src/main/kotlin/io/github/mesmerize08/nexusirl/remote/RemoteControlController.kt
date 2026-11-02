@@ -10,6 +10,7 @@ import android.os.Looper
 import androidx.core.content.edit
 import androidx.core.graphics.scale
 import io.github.mesmerize08.nexusirl.BuildConfig
+import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAssistantStreamerState
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioInfo
@@ -40,6 +41,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.stream.Microphones
+import io.github.mesmerize08.nexusirl.stream.RecordingResult
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.ThermalState
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.formatBondingStatistics
@@ -540,7 +542,12 @@ object RemoteControlController {
         }
 
         override fun setRecord(on: Boolean) = main { context ->
-            if (on) StreamController.startRecording(context) else StreamController.stopRecording(context)
+            if (on) {
+                StreamController.startRecording(context)
+            } else if (StreamController.stopRecording(context) == RecordingResult.FAILED) {
+                // The remote only sees recording stop; say on the phone why there is no file.
+                ChatController.showToast(context.getString(R.string.recording_not_finished))
+            }
         }
 
         override fun setLive(on: Boolean) = main { context ->

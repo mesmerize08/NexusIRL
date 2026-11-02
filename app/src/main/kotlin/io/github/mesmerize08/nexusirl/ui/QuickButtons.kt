@@ -37,6 +37,7 @@ import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsQuickButton
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.stream.Microphones
+import io.github.mesmerize08.nexusirl.stream.RecordingResult
 import io.github.mesmerize08.nexusirl.stream.StreamController
 
 /** The quick buttons Android implements so far; the others stay in settings for iOS round trips. */
@@ -106,8 +107,12 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                         QuickButtonType.RECORD -> if (recording == null) {
                             StreamController.startRecording(context)?.let(::toast)
                         } else {
-                            val saved = StreamController.stopRecording(context)
-                            toast(resources.getString(if (saved) R.string.recording_saved else R.string.recording_failed))
+                            val message = when (StreamController.stopRecording(context)) {
+                                RecordingResult.SAVED -> R.string.recording_saved
+                                RecordingResult.NOTHING_RECORDED -> R.string.recording_failed
+                                RecordingResult.FAILED -> R.string.recording_not_finished
+                            }
+                            toast(resources.getString(message))
                         }
                         QuickButtonType.SNAPSHOT -> StreamController.takeSnapshot(context) { saved ->
                             Toast.makeText(
