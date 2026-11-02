@@ -168,7 +168,7 @@ fun QuickButtonsScreen(store: SettingsStore, onBack: () -> Unit) {
     }
 }
 
-/** Upstream mic picker: the connected microphones; picking one stops automatic switching. */
+/** Upstream mic picker: the connected microphones, with upstream's audio settings that change which are used. */
 @Composable
 private fun MicPicker(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -187,6 +187,14 @@ private fun MicPicker(onDismiss: () -> Unit) {
                 store.update { it.copy(audio = it.audio.copy(preferStereoMic = on)) }
             }
             Text(stringResource(R.string.prefer_stereo_mic_help), style = MaterialTheme.typography.bodySmall)
+            SwitchRow(stringResource(R.string.mic_auto_switch), database.mics.autoSwitch) { on ->
+                store.update { it.copy(mics = it.mics.copy(autoSwitch = on)) }
+            }
+            Text(stringResource(R.string.mic_auto_switch_help), style = MaterialTheme.typography.bodySmall)
+            SwitchRow(stringResource(R.string.bluetooth_output_only), database.debug.bluetoothOutputOnly) { on ->
+                store.update { it.copy(debug = it.debug.copy(bluetoothOutputOnly = on)) }
+            }
+            Text(stringResource(R.string.bluetooth_output_only_help), style = MaterialTheme.typography.bodySmall)
         },
     )
 }

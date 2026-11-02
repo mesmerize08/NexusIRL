@@ -104,6 +104,8 @@ data class Database(
     val remoteControl: SettingsRemoteControl = SettingsRemoteControl(),
     val moblink: SettingsMoblink = SettingsMoblink(),
     val audio: SettingsAudio = SettingsAudio(),
+    val mics: SettingsMics = SettingsMics(),
+    val debug: SettingsDebug = SettingsDebug(),
     val bitratePresets: List<SettingsBitratePreset> = emptyList(),
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {

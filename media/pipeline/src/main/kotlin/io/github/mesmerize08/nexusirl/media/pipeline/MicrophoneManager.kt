@@ -22,10 +22,44 @@ data class Microphone(
 }
 
 /**
- * Tracks connected microphones and picks one (upstream `ModelAudio` mic selection). With
- * [autoSwitch], the highest-priority connected mic is selected whenever inputs change, like
- * upstream's `autoSwitchMicIfNeededAfterRouteChange`; [priority] maps mic ids to user priorities
- * (higher wins), defaulting to USB > wired headset > Bluetooth > built-in.
+ * Upstream's mic choice after a route change (`ModelAudio` `setupAudio`,
+ * `autoSwitchMicIfNeededAfterRouteChange`, `manualSwitchMicIfNeededAfterRouteChange`): at start
+ * the [preferred] mic (upstream `mics.defaultMic`) if connected; with [autoSwitch], a mic that
+ * was just connected and ranks above the current one takes over; otherwise the current mic stays
+ * while connected, and when it goes, the highest-ranked connected mic is used.
+ */
+internal object MicrophoneChoice {
+    fun <T> choose(
+        mics: List<T>,
+        id: (T) -> String,
+        priority: (T) -> Int,
+        current: String?,
+        previous: Set<String>,
+        preferred: String?,
+        autoSwitch: Boolean,
+    ): T? {
+        val connected = mics.firstOrNull { id(it) == current }
+        if (current == null) {
+            return mics.firstOrNull { id(it) == preferred } ?: mics.maxByOrNull(priority)
+        }
+        if (autoSwitch) {
+            val added = mics.filter { id(it) !in previous }.maxByOrNull(priority)
+            if (added != null && (connected == null || priority(added) > priority(connected))) {
+                return added
+            }
+        }
+        return connected ?: mics.maxByOrNull(priority)
+    }
+}
+
+/**
+ * Tracks connected microphones and picks one (upstream `ModelAudio` mic selection, see
+ * [MicrophoneChoice]); [priority] maps mic ids to user priorities (higher wins), defaulting to
+ * USB > wired headset > Bluetooth > built-in.
+ *
+ * Unless [includeBluetooth], Bluetooth mics are not offered, as with upstream's "Bluetooth output
+ * only" (on by default): a car or headset then stays an audio output instead of being switched
+ * to its low-quality call mode for its mic.
  */
 class MicrophoneManager(context: Context) {
     private val audioManager = context.getSystemService(AudioManager::class.java)
@@ -34,6 +68,20 @@ class MicrophoneManager(context: Context) {
 
     var autoSwitch = true
     var priority: Map<String, Int> = emptyMap()
+
+    /** Upstream `mics.defaultMic`: chosen at start when connected. */
+    var preferred: String? = null
+
+    var includeBluetooth = true
+        set(value) {
+            if (field != value) {
+                field = value
+                if (listener != null) {
+                    refresh()
+                }
+            }
+        }
+    private var previous = emptySet<String>()
 
     /** Selected mic, or null for the system default route. */
     @Volatile
@@ -58,7 +106,7 @@ class MicrophoneManager(context: Context) {
     }
 
     fun available(): List<Microphone> = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-        .filter { it.type in SUPPORTED_TYPES }
+        .filter { it.type in SUPPORTED_TYPES && (includeBluetooth || it.type !in BLUETOOTH_TYPES) }
         .map { device ->
             val name = when (device.type) {
                 AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Built-in"
@@ -69,24 +117,19 @@ class MicrophoneManager(context: Context) {
         .distinctBy { it.id }
 
     /**
-     * Manually selects a mic. Automatic switching stops, so plugging something else in later does
-     * not take over; if the chosen mic goes away, the best remaining one is used.
+     * Upstream `manualSelectMicById`: selects a mic, which stays until it goes away or, with
+     * [autoSwitch], a higher-ranked mic is connected.
      */
     fun select(id: String) {
-        val mic = available().firstOrNull { it.id == id } ?: return
-        autoSwitch = false
-        selected = mic
-        listener?.invoke(available(), selected)
+        val mics = available()
+        selected = mics.firstOrNull { it.id == id } ?: return
+        listener?.invoke(mics, selected)
     }
 
     private fun refresh() {
         val mics = available()
-        val current = selected
-        selected = when {
-            autoSwitch -> mics.maxByOrNull { priorityOf(it) }
-            current != null && mics.any { it.id == current.id } -> mics.first { it.id == current.id }
-            else -> mics.maxByOrNull { priorityOf(it) }
-        }
+        selected = MicrophoneChoice.choose(mics, { it.id }, ::priorityOf, selected?.id, previous, preferred, autoSwitch)
+        previous = mics.map { it.id }.toSet()
         listener?.invoke(mics, selected)
     }
 
@@ -105,6 +148,7 @@ class MicrophoneManager(context: Context) {
     }
 
     private companion object {
+        val BLUETOOTH_TYPES = setOf(AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET)
         val SUPPORTED_TYPES = setOf(
             AudioDeviceInfo.TYPE_BUILTIN_MIC,
             AudioDeviceInfo.TYPE_WIRED_HEADSET,

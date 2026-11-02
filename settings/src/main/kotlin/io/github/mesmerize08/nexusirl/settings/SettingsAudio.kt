@@ -22,3 +22,29 @@ data class SettingsAudio(val preferStereoMic: Boolean = false, @Transient overri
     SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsAudio>(generatedSerializer())
 }
+
+/**
+ * Upstream `SettingsMics` (subset: the mic list, "all", stays in `extra`). [defaultMic] is the
+ * last mic chosen, used again at start when connected; with [autoSwitch], a newly connected
+ * higher-ranked mic takes over. Ids are this phone's own: an iOS id never matches one here.
+ */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsMics.Serializer::class)
+data class SettingsMics(
+    val autoSwitch: Boolean = true,
+    val defaultMic: String = "",
+    @Transient override var extra: JsonObject = JsonObject(emptyMap()),
+) : SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsMics>(generatedSerializer())
+}
+
+/**
+ * Upstream `SettingsDebug` (subset). [bluetoothOutputOnly], on by default as upstream, leaves
+ * Bluetooth mics out: Bluetooth stays an audio output.
+ */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsDebug.Serializer::class)
+data class SettingsDebug(val bluetoothOutputOnly: Boolean = true, @Transient override var extra: JsonObject = JsonObject(emptyMap())) :
+    SwiftPreserving {
+    object Serializer : SwiftPreservingSerializer<SettingsDebug>(generatedSerializer())
+}

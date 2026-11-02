@@ -276,6 +276,10 @@
     <string name="microphone">Microphone</string>
     <string name="prefer_stereo_mic">Prefer stereo</string>
     <string name="prefer_stereo_mic_help">Records and streams the built-in microphones in stereo. Takes effect the next time the microphone starts (going live or recording).</string>
+    <string name="mic_auto_switch">Switch automatically</string>
+    <string name="mic_auto_switch_help">A newly connected microphone that ranks higher (USB, then wired, then Bluetooth, then built-in) takes over. The last microphone chosen is used again next time.</string>
+    <string name="bluetooth_output_only">Bluetooth output only</string>
+    <string name="bluetooth_output_only_help">Makes most Bluetooth speakers work better: Bluetooth devices such as a car stay a speaker and their microphones are not used, as their call-quality sound is poor.</string>
     <string name="no_streams_here">No streams yet. Tap Add stream, or import your Moblin settings under Import and export.</string>
     <string name="no_widgets_here">No widgets yet. Tap Add widget.</string>
     <string name="moblink">Moblink</string>

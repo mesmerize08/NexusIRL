@@ -220,6 +220,25 @@ class SettingsTest {
     }
 
     @Test
+    fun micsAndBluetoothOutputOnlyUseUpstreamKeys() {
+        val defaults = Database.fromJson("{}")
+        assertTrue(defaults.debug.bluetoothOutputOnly)
+        assertTrue(defaults.mics.autoSwitch)
+        assertEquals("", defaults.mics.defaultMic)
+        val database = Database.fromJson(
+            """{"debug": {"bluetoothOutputOnly": false, "logLevel": "debug"},
+               "mics": {"all": [{"name": "Front"}], "autoSwitch": false, "defaultMic": "15:Built-in"}}""",
+        )
+        assertFalse(database.debug.bluetoothOutputOnly)
+        assertFalse(database.mics.autoSwitch)
+        assertEquals("15:Built-in", database.mics.defaultMic)
+        // The settings Android does not model stay for iOS.
+        val json = SwiftJson.parseToJsonElement(database.toJson()).jsonObject
+        assertEquals("\"debug\"", json["debug"]!!.jsonObject["logLevel"].toString())
+        assertEquals(1, json["mics"]!!.jsonObject["all"]!!.jsonArray.size)
+    }
+
+    @Test
     fun unknownRawValuesFallBackLikeUpstream() {
         val stream = Database.fromJson(
             """{"streams":[{"codec":"AV1","resolution":"7680x4320","srt":{"adaptiveBitrate":{"algorithm":{"quantum":{}}}}}]}""",

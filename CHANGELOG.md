@@ -19,6 +19,13 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   connection, no sign-in needed. Moblin's Kick alert settings import from iOS.
 
 ### Changed
+- Microphones work as in Moblin. **Bluetooth output only** is on by default (mic picker), so a
+  car or headset stays a speaker instead of becoming the microphone: in the field tests the car's
+  Bluetooth call microphone was used for whole streams. The microphone chosen is remembered and
+  used again next time, and **Switch automatically** (on by default) moves only to a newly
+  connected microphone that ranks higher, instead of to the highest-ranked one whenever anything
+  changes (choosing a microphone no longer turns it off). The settings use Moblin's names
+  (`debug.bluetoothOutputOnly`, `mics.autoSwitch`, `mics.defaultMic`).
 - The Moblink page starts with how to add another phone's mobile data to this phone's stream,
   the password shared by both parts, and then "Use other phones as relays" before the relay part
   (which lends this phone's data to another phone's stream). It shows this phone's address for
