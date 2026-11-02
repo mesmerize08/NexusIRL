@@ -546,10 +546,12 @@ object RemoteControlController {
                 StreamController.startRecording(context)
             } else {
                 // The remote only sees recording stop; say on the phone when writing failed.
-                when (StreamController.stopRecording(context)) {
-                    RecordingResult.FAILED -> ChatController.showToast(context.getString(R.string.recording_not_finished))
-                    RecordingResult.CUT_SHORT -> ChatController.showToast(context.getString(R.string.recording_cut_short))
-                    else -> {}
+                StreamController.stopRecording(context) { result ->
+                    when (result) {
+                        RecordingResult.FAILED -> ChatController.showToast(context.getString(R.string.recording_not_finished))
+                        RecordingResult.CUT_SHORT -> ChatController.showToast(context.getString(R.string.recording_cut_short))
+                        else -> {}
+                    }
                 }
             }
         }

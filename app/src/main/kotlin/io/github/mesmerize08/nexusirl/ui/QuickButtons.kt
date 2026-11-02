@@ -105,15 +105,17 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                             StreamController.goLive(context)?.let(::toast)
                         }
                         QuickButtonType.RECORD -> if (recording == null) {
-                            StreamController.startRecording(context)?.let(::toast)
+                            StreamController.startRecording(context, ::toast)
                         } else {
-                            val message = when (StreamController.stopRecording(context)) {
-                                RecordingResult.SAVED -> R.string.recording_saved
-                                RecordingResult.CUT_SHORT -> R.string.recording_cut_short
-                                RecordingResult.NOTHING_RECORDED -> R.string.recording_failed
-                                RecordingResult.FAILED -> R.string.recording_not_finished
+                            StreamController.stopRecording(context) { result ->
+                                val message = when (result) {
+                                    RecordingResult.SAVED -> R.string.recording_saved
+                                    RecordingResult.CUT_SHORT -> R.string.recording_cut_short
+                                    RecordingResult.NOTHING_RECORDED -> R.string.recording_failed
+                                    RecordingResult.FAILED -> R.string.recording_not_finished
+                                }
+                                toast(resources.getString(message))
                             }
-                            toast(resources.getString(message))
                         }
                         QuickButtonType.SNAPSHOT -> StreamController.takeSnapshot(context) { saved ->
                             Toast.makeText(

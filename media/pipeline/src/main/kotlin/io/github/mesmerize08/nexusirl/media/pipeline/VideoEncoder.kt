@@ -193,7 +193,18 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
         }
     }
 
+    private var released = false
+
+    /**
+     * Once only, and one caller at a time: the pipeline may release an encoder it still holds while
+     * it stops, as its owner stops it from the capture-control thread.
+     */
+    @Synchronized
     fun release() {
+        if (released) {
+            return
+        }
+        released = true
         // Flush first: with B-frames the encoder holds the last frames back for reordering, and a
         // recording would lose them. The output thread writes them and ends at end-of-stream.
         try {

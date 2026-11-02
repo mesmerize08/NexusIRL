@@ -436,20 +436,29 @@ object StreamController {
             return "Stop recording first: the stream uses a different resolution or frame rate"
         }
         val video = ensurePipeline(context, config.video)
-        val newSession = StreamSession(
+        lateinit var newSession: StreamSession
+        newSession = StreamSession(
             context.applicationContext,
             config,
             video,
             audio(context),
-            onStatus = { mutableStatus.value = it },
+            onStatus = { publishStatus(newSession, it) },
             onMessage = ChatController::showToast,
         )
-        session = newSession
-        newSession.start()
-        newSession.note("Camera ${mutableCamera.value.current?.label ?: "-"}")
-        MoblinkStreamerController.relays.value?.let { relays ->
-            newSession.note("Moblink: ${relays.size} relays connected${relays.joinToString("") { ", ${it.name}" }}")
+        synchronized(statusLock) {
+            session = newSession
+            mutableStatus.value = StreamStatus(state = StreamState.CONNECTING)
         }
+        val notes = listOfNotNull(
+            "Camera ${mutableCamera.value.current?.label ?: "-"}",
+            MoblinkStreamerController.relays.value?.let { relays ->
+                "Moblink: ${relays.size} relays connected${relays.joinToString("") { ", ${it.name}" }}"
+            },
+        )
+        captureControl.run({
+            newSession.start()
+            notes.forEach(newSession::note)
+        })
         LocationController.onGoLive()
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
@@ -458,17 +467,46 @@ object StreamController {
     }
 
     fun stop(context: Context) {
-        // Not live before the session's last status arrives: listeners of [status] read [isLive].
-        val stopping = session
-        session = null
-        stopping?.stop()
+        // Not live before the stopped status arrives: listeners of [status] read [isLive]. The
+        // session's own last reports come later, from the capture-control thread, and are dropped.
+        val stopping = synchronized(statusLock) {
+            session.also {
+                session = null
+                if (it != null) {
+                    mutableStatus.value = mutableStatus.value.copy(state = StreamState.STOPPED, detail = "")
+                }
+            }
+        }
+        // Now, not when stopped: a stream started meanwhile may already use new tunnels.
         MoblinkStreamerController.stopTunnels()
-        afterCaptureEnded(context)
+        val appContext = context.applicationContext
+        captureControl.run({ stopping?.stop() }) { afterCaptureEnded(appContext) }
+    }
+
+    private val statusLock = Any()
+
+    /** Status from [from], unless it was stopped already (its last reports arrive late). Any thread. */
+    private fun publishStatus(from: StreamSession, status: StreamStatus) = synchronized(statusLock) {
+        if (session === from) {
+            mutableStatus.value = status
+        }
     }
 
     // Recording (upstream ModelRecording.swift)
 
-    private class ActiveRecording(val uri: Uri, val descriptor: ParcelFileDescriptor, val recorder: Mp4Recorder, val encoder: VideoEncoder)
+    private class RecordingFile(
+        val uri: Uri,
+        val descriptor: ParcelFileDescriptor,
+        val recorder: Mp4Recorder,
+        val video: VideoPipeline,
+        val encoder: VideoEncoder,
+        val audio: SharedAudio,
+    )
+
+    /** A recording from the user's point of view; [file] exists once started (capture-control thread only). */
+    private class ActiveRecording {
+        var file: RecordingFile? = null
+    }
 
     private var activeRecording: ActiveRecording? = null
     private val mutableRecording = MutableStateFlow<RecordingState?>(null)
@@ -476,12 +514,12 @@ object StreamController {
 
     /**
      * Starts recording the camera and microphone to an MP4 in `Movies/NexusIRL` (shared storage,
-     * so it shows in the gallery and Files). Uses the running canvas; returns an error message, or
-     * null when started.
+     * so it shows in the gallery and Files). Uses the running canvas. Shows as recording at once;
+     * if the file or encoder cannot start, it ends again and [onError] gets the message (main thread).
      */
-    fun startRecording(context: Context): String? {
+    fun startRecording(context: Context, onError: (String) -> Unit = {}) {
         if (activeRecording != null) {
-            return null
+            return
         }
         val stream = settings(context).current.selectedStream
         val canvas = pipeline?.settings ?: previewSettings(context)
@@ -496,6 +534,36 @@ object StreamController {
             bFrames = true,
         )
         val name = "NexusIRL_${SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())}.mp4"
+        val audio = audio(context)
+        val active = ActiveRecording()
+        activeRecording = active
+        mutableRecording.value = RecordingState(name, SystemClock.elapsedRealtime())
+        updateService(context)
+        val appContext = context.applicationContext
+        captureControl.run({
+            active.file = openRecording(appContext, name, video, encoderSettings, audio)
+            active.file != null
+        }) { started ->
+            if (!started) {
+                // Unless already stopped: then the stop's result reports it too.
+                if (activeRecording === active) {
+                    activeRecording = null
+                    mutableRecording.value = null
+                }
+                afterCaptureEnded(appContext)
+                onError("Failed to start recording")
+            }
+        }
+    }
+
+    /** Creates the file and attaches an encoder and the audio to it; null when that failed. Capture-control thread. */
+    private fun openRecording(
+        context: Context,
+        name: String,
+        video: VideoPipeline,
+        encoderSettings: VideoEncoderSettings,
+        audio: SharedAudio,
+    ): RecordingFile? {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, name)
@@ -503,7 +571,7 @@ object StreamController {
             put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/NexusIRL")
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
-        val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return "Failed to start recording"
+        val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return null
         val descriptor = try {
             resolver.openFileDescriptor(uri, "w")
         } catch (e: Exception) {
@@ -511,39 +579,56 @@ object StreamController {
         }
         if (descriptor == null) {
             resolver.delete(uri, null, null)
-            return "Failed to start recording"
+            return null
         }
-        val recorder = Mp4Recorder(descriptor.fileDescriptor, canvas.width, canvas.height, reorderedVideo = encoderSettings.bFrames)
+        val recorder = Mp4Recorder(
+            descriptor.fileDescriptor,
+            encoderSettings.width,
+            encoderSettings.height,
+            reorderedVideo = encoderSettings.bFrames,
+        )
         val encoder = video.startEncoder(encoderSettings, recorder)
         if (encoder == null) {
             recorder.stop()
             descriptor.close()
             resolver.delete(uri, null, null)
-            return "Failed to start recording"
+            return null
         }
-        audio(context).add(recorder)
-        activeRecording = ActiveRecording(uri, descriptor, recorder, encoder)
-        mutableRecording.value = RecordingState(name, SystemClock.elapsedRealtime())
-        updateService(context)
-        return null
+        audio.add(recorder)
+        return RecordingFile(uri, descriptor, recorder, video, encoder, audio)
     }
 
     /**
      * Stops recording and publishes the file. A file that failed to write or finish is deleted
-     * rather than published, as it is likely unplayable.
+     * rather than published, as it is likely unplayable. Shows as stopped at once; [onResult]
+     * runs on the main thread once the file is finished.
      */
-    fun stopRecording(context: Context): RecordingResult {
-        val active = activeRecording ?: return RecordingResult.NOTHING_RECORDED
+    fun stopRecording(context: Context, onResult: (RecordingResult) -> Unit = {}) {
+        val active = activeRecording ?: return onResult(RecordingResult.NOTHING_RECORDED)
         activeRecording = null
         mutableRecording.value = null
+        val appContext = context.applicationContext
+        captureControl.run({
+            active.file?.let { finishRecording(appContext, it) } ?: RecordingResult.NOTHING_RECORDED
+        }) { result ->
+            afterCaptureEnded(appContext)
+            if (result == RecordingResult.FAILED || result == RecordingResult.CUT_SHORT) {
+                session?.note("Recording $result: writing the file failed")
+            }
+            onResult(result)
+        }
+    }
+
+    /** Capture-control thread. */
+    private fun finishRecording(context: Context, file: RecordingFile): RecordingResult {
         // Encoder first (its release waits for the last frame), then audio, then finalise the file.
-        pipeline?.stopEncoder(active.encoder)
-        sharedAudio?.remove(active.recorder)
+        file.video.stopEncoder(file.encoder)
+        file.audio.remove(file.recorder)
         val playable = try {
-            active.recorder.stop()
+            file.recorder.stop()
         } finally {
             try {
-                active.descriptor.close()
+                file.descriptor.close()
             } catch (e: IOException) {
                 // Storage trouble; the result below already says whether the file is good.
             }
@@ -551,28 +636,23 @@ object StreamController {
         val resolver = context.contentResolver
         val published = playable &&
             try {
-                resolver.update(active.uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null) > 0
+                resolver.update(file.uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null) > 0
             } catch (e: Exception) {
                 false
             }
         if (!published) {
             try {
-                resolver.delete(active.uri, null, null)
+                resolver.delete(file.uri, null, null)
             } catch (e: Exception) {
                 // Left pending: MediaStore removes pending items after a while.
             }
         }
-        afterCaptureEnded(context)
-        val result = when {
-            published && active.recorder.failed -> RecordingResult.CUT_SHORT
+        return when {
+            published && file.recorder.failed -> RecordingResult.CUT_SHORT
             published -> RecordingResult.SAVED
-            active.recorder.failed || playable -> RecordingResult.FAILED
+            file.recorder.failed || playable -> RecordingResult.FAILED
             else -> RecordingResult.NOTHING_RECORDED
         }
-        if (result == RecordingResult.FAILED || result == RecordingResult.CUT_SHORT) {
-            session?.note("Recording $result: writing the file failed")
-        }
-        return result
     }
 
     /**
@@ -642,9 +722,15 @@ object StreamController {
 
     // Capture lifetime
 
+    /** Starts and stops sessions and recordings, in call order. */
+    private val captureControl = CaptureControl(
+        java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "capture-control") },
+        mainHandler::post,
+    )
+
     private fun afterCaptureEnded(context: Context) {
         updateService(context)
-        if (session != null || activeRecording != null) {
+        if (isCapturing) {
             return
         }
         if (uiVisible) {
@@ -658,9 +744,13 @@ object StreamController {
     /** The foreground service runs while live or recording. */
     private fun updateService(context: Context) = updateForegroundService(context)
 
-    /** Whether the camera and microphone are in use for a stream or recording. */
+    /**
+     * Whether the camera and microphone are in use for a stream or recording, including while one
+     * is still being started or stopped: the pipeline must stay, and the service keeps the app
+     * running until a recording is finished. Main thread.
+     */
     val isCapturing: Boolean
-        get() = session != null || activeRecording != null
+        get() = session != null || activeRecording != null || captureControl.pending > 0
 
     /**
      * Upstream `isLive`: from going live until stopping, including while connecting or
@@ -725,14 +815,14 @@ object StreamController {
         uiVisible = visible
         if (visible) {
             refreshPreview(context)
-        } else if (session == null && activeRecording == null) {
+        } else if (!isCapturing) {
             releasePipeline()
         }
     }
 
     /** Restarts the preview when the selected stream's canvas changed (not while live or recording). */
     fun refreshPreview(context: Context) {
-        if (session != null || activeRecording != null || !uiVisible) {
+        if (isCapturing || !uiVisible) {
             return
         }
         ensurePipeline(context, previewSettings(context))

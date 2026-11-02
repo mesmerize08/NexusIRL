@@ -1,6 +1,8 @@
 package io.github.mesmerize08.nexusirl.stream
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
 import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
@@ -11,7 +13,8 @@ import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
  * the recording), like upstream's single audio unit feeding all encoders. Android does not
  * reliably allow one app two concurrent microphone captures, so consumers attach here instead.
  *
- * Capture runs only while at least one consumer is attached. Call from the main thread.
+ * Capture runs only while at least one consumer is attached. Consumers are added and removed on
+ * the capture-control thread (stopping capture waits for its threads); the rest is main thread.
  */
 class SharedAudio(
     context: Context,
@@ -24,7 +27,12 @@ class SharedAudio(
 
     private val fanOut = FanOutSink()
     private val consumers = mutableSetOf<MediaSink>()
+
+    @Volatile
     private var pipeline: AudioPipeline? = null
+
+    /** [Microphones] is main-thread only. */
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     /** Selected microphone name, for the status line. */
     @Volatile
@@ -32,6 +40,7 @@ class SharedAudio(
         private set
 
     /** Upstream mute quick button: the microphone keeps running but sends silence. */
+    @Volatile
     var muted = false
         set(value) {
             field = value
@@ -63,8 +72,9 @@ class SharedAudio(
 
     private fun start() {
         val audio = AudioPipeline(fanOut, channels = if (stereo()) 2 else 1)
-        audio.muted = muted
         pipeline = audio
+        // After publishing it: a mute set meanwhile on the main thread is not lost.
+        audio.muted = muted
         // Route to the selected mic before capture starts, then follow later changes.
         audio.setPreferredDevice(Microphones.selected.value?.device)
         try {
@@ -77,7 +87,7 @@ class SharedAudio(
             return
         }
         follow(Microphones.selected.value)
-        Microphones.addListener(followListener)
+        mainHandler.post { Microphones.addListener(followListener) }
     }
 
     private companion object {
@@ -95,7 +105,7 @@ class SharedAudio(
     }
 
     private fun stop() {
-        Microphones.removeListener(followListener)
+        mainHandler.post { Microphones.removeListener(followListener) }
         pipeline?.stop()
         pipeline = null
     }

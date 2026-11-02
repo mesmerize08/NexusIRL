@@ -555,6 +555,10 @@ class VideoPipeline(
             block()
             return true
         }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            // Waiting here can take seconds (or longer, if the GL driver hangs): not on the UI thread.
+            android.util.Log.w(TAG, "GL handoff on the main thread")
+        }
         return Handoff.run({ glHandler.post(it) }, GL_HANDOFF_TIMEOUT_NANOS, block)
     }
 
