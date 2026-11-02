@@ -64,22 +64,38 @@ object RtmpCode {
 
 /** Opens the TCP (or TLS) connection; replaceable for Android network binding and tests. */
 fun interface RtmpSocketFactory {
-    fun connect(host: String, port: Int, tls: Boolean): Socket
+    /** Calls [opened] with the TCP socket before connecting it, so closing that socket cancels. */
+    fun connect(host: String, port: Int, tls: Boolean, opened: (Socket) -> Unit): Socket
 
     companion object {
+        val DEFAULT = standard(10_000)
+
         /** Plain or TLS socket with full certificate *and hostname* verification (plan §9.5). */
-        val DEFAULT = RtmpSocketFactory { host, port, tls ->
-            if (tls) {
-                val socket = SSLSocketFactory.getDefault().createSocket() as SSLSocket
-                socket.sslParameters = socket.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
-                socket.connect(InetSocketAddress(host, port), 10_000)
-                socket.startHandshake()
-                socket
-            } else {
-                Socket().apply {
-                    tcpNoDelay = true
-                    connect(InetSocketAddress(host, port), 10_000)
+        fun standard(timeoutMillis: Int) = RtmpSocketFactory { host, port, tls, opened ->
+            // TLS goes on top of a plain socket: closing that one ends a handshake at once.
+            val socket = Socket()
+            opened(socket)
+            try {
+                if (!tls) {
+                    socket.tcpNoDelay = true
                 }
+                socket.connect(InetSocketAddress(host, port), timeoutMillis)
+                if (tls) {
+                    val factory = SSLSocketFactory.getDefault() as SSLSocketFactory
+                    val ssl = factory.createSocket(socket, host, port, true) as SSLSocket
+                    ssl.sslParameters = ssl.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
+                    // A server that accepts and then says nothing would otherwise hold the
+                    // handshake (and this thread) forever.
+                    ssl.soTimeout = timeoutMillis
+                    ssl.startHandshake()
+                    ssl.soTimeout = 0
+                    ssl
+                } else {
+                    socket
+                }
+            } catch (e: Throwable) {
+                socket.close()
+                throw e
             }
         }
     }
@@ -554,6 +570,7 @@ class RtmpStream(
         var closed = false
         private val outgoing = LinkedBlockingQueue<ByteArray>()
         private var socket: Socket? = null
+        private var connected = false
 
         init {
             Thread({ run(host, port, tls) }, "rtmp-io").apply {
@@ -564,7 +581,15 @@ class RtmpStream(
 
         private fun run(host: String, port: Int, tls: Boolean) {
             val socket = try {
-                socketFactory.connect(host, port, tls)
+                // Known while connecting, so close() can end a connect or TLS handshake that hangs.
+                socketFactory.connect(host, port, tls) { opened ->
+                    synchronized(this) {
+                        this.socket = opened
+                        if (closed) {
+                            opened.close()
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 post { if (connection === this) closeSocket(isDisconnected = true) }
                 return
@@ -575,6 +600,7 @@ class RtmpStream(
                     return
                 }
                 this.socket = socket
+                connected = true
             }
             val output = socket.getOutputStream()
             Thread({ writeLoop(output) }, "rtmp-writer").apply {
@@ -627,6 +653,15 @@ class RtmpStream(
                 closed = true
                 outgoing.add(ByteArray(0))
                 val socket = this.socket ?: return
+                if (!connected) {
+                    // Still connecting: nothing to send first.
+                    try {
+                        socket.close()
+                    } catch (e: IOException) {
+                        // Closed.
+                    }
+                    return
+                }
                 // Like upstream's workaround: let closeStream etc. go out before closing.
                 Thread({
                     Thread.sleep(1_000)
