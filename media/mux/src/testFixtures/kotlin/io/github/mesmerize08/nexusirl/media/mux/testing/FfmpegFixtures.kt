@@ -8,14 +8,23 @@ import java.util.concurrent.TimeUnit
 
 /** Helpers for interop tests that use ffmpeg/ffprobe as reference implementations. */
 object Ffmpeg {
+    /**
+     * Runs [command] to the end: (exit code, stdout and stderr). Output goes to a log file, so the
+     * deadline holds even if the child hangs with its output open; past it the child is killed and
+     * this throws.
+     */
     fun run(vararg command: String, timeoutSeconds: Long = 120): Pair<Int, String> {
-        val process = ProcessBuilder(*command).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText()
-        if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-            process.destroyForcibly()
-            return -1 to "$output\n(timed out)"
+        val logFile = File.createTempFile("ffmpeg-", ".log")
+        try {
+            val process = ProcessBuilder(*command).redirectErrorStream(true).redirectOutput(logFile).start()
+            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+                process.destroyForcibly().waitFor(10, TimeUnit.SECONDS)
+                error("timed out after $timeoutSeconds s: ${command.joinToString(" ")}\n${logFile.readText()}")
+            }
+            return process.exitValue() to logFile.readText()
+        } finally {
+            logFile.delete()
         }
-        return process.exitValue() to output
     }
 
     /**

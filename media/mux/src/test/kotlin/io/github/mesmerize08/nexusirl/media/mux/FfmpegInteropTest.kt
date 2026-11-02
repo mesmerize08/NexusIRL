@@ -2,6 +2,7 @@ package io.github.mesmerize08.nexusirl.media.mux
 
 import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.media.mux.nal.getNalUnits
+import io.github.mesmerize08.nexusirl.media.mux.testing.Ffmpeg
 import io.github.mesmerize08.nexusirl.media.mux.ts.AdtsHeader
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
@@ -9,7 +10,6 @@ import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsWriter
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.File
 import java.nio.file.Files
-import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -17,25 +17,14 @@ import kotlin.test.assertTrue
 /**
  * End-to-end check against a real demuxer/decoder: ffmpeg encodes H.264 + AAC elementary streams,
  * [MpegTsWriter] muxes them, and ffmpeg must decode the transport stream without any errors.
- * Skipped when ffmpeg/ffprobe are not on PATH (e.g. CI).
+ * Skipped when ffmpeg/ffprobe are not on PATH, unless NEXUSIRL_REQUIRE_FFMPEG=1 (see [Ffmpeg.available]).
  */
 class FfmpegInteropTest {
-    private fun run(vararg command: String): Pair<Int, String> {
-        val process = ProcessBuilder(*command).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText()
-        process.waitFor(120, TimeUnit.SECONDS)
-        return process.exitValue() to output
-    }
-
-    private fun available(tool: String): Boolean = try {
-        run(tool, "-version").first == 0
-    } catch (e: Exception) {
-        false
-    }
+    private fun run(vararg command: String): Pair<Int, String> = Ffmpeg.run(*command)
 
     @Test
     fun ffmpegDecodesWriterOutputWithoutErrors() {
-        assumeTrue(available("ffmpeg") && available("ffprobe"), "ffmpeg/ffprobe not installed")
+        assumeTrue(Ffmpeg.available, "ffmpeg/ffprobe not installed")
         val directory = Files.createTempDirectory("mux-interop").toFile()
         val videoFile = File(directory, "video.h264")
         val audioFile = File(directory, "audio.aac")
