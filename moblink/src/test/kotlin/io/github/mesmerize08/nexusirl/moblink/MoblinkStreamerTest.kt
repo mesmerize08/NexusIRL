@@ -3,8 +3,13 @@ package io.github.mesmerize08.nexusirl.moblink
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
 import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
 import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import org.java_websocket.framing.CloseFrame
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.util.UUID
@@ -120,6 +125,32 @@ class MoblinkStreamerTest {
             assertEquals(emptyList(), streamer.statuses())
         } finally {
             relay.stop()
+            streamer.stop()
+        }
+    }
+
+    @Test
+    fun oversizedMessagesCloseTheConnection() {
+        val port = ServerSocket(0).use { it.localPort }
+        val streamer = MoblinkStreamer(port, "1234", Events(), bindAddress = InetAddress.getLoopbackAddress()).also { it.start() }
+        val closed = LinkedBlockingQueue<Int>()
+        try {
+            Thread.sleep(300)
+            ReconnectingWebSocket.LOCAL_NETWORK_CLIENT.newWebSocket(
+                Request.Builder().url("ws://127.0.0.1:$port").build(),
+                object : WebSocketListener() {
+                    override fun onMessage(webSocket: WebSocket, text: String) {
+                        // Real messages are a few hundred bytes.
+                        webSocket.send("x".repeat(MoblinkStreamer.MAXIMUM_MESSAGE_SIZE + 1))
+                    }
+
+                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                        closed += code
+                    }
+                },
+            )
+            assertEquals(CloseFrame.TOOBIG, closed.poll(5, TimeUnit.SECONDS))
+        } finally {
             streamer.stop()
         }
     }

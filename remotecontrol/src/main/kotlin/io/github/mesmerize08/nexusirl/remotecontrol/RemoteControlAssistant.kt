@@ -49,6 +49,8 @@ class RemoteControlAssistant(
     private val delegate: RemoteControlAssistantDelegate,
     private val acceptLocalAddress: (local: InetAddress, remote: InetAddress?) -> Boolean = CleartextPolicy::isLocalConnection,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** The address to listen on; null for all (tests use loopback). */
+    private val bindAddress: InetAddress? = null,
 ) {
     private val lock = Any()
     private val random = SecureRandom()
@@ -94,7 +96,7 @@ class RemoteControlAssistant(
 
     private fun startServer() {
         synchronized(lock) {
-            val newServer = Server(InetSocketAddress(port))
+            val newServer = Server(InetSocketAddress(bindAddress, port))
             server = newServer
             newServer.isReuseAddr = true
             // WebSocket pings every 30 s; a silent connection is closed (upstream ping timer).
@@ -233,7 +235,7 @@ class RemoteControlAssistant(
         }
     }
 
-    private inner class Server(address: InetSocketAddress) : WebSocketServer(address) {
+    private inner class Server(address: InetSocketAddress) : WebSocketServer(address, listOf(LimitedDraft(MAXIMUM_MESSAGE_SIZE))) {
         override fun onStart() {
             retry?.cancel(false)
         }
@@ -296,5 +298,12 @@ class RemoteControlAssistant(
     companion object {
         const val MAXIMUM_FAILURES = 5
         const val LOCKOUT_MILLIS = 60_000L
+
+        /**
+         * The largest message (or frame) a streamer may send. Previews are the largest legitimate
+         * ones: upstream's are 400 pixel JPEGs at quality 0.3, tens of KB even as base64; settings
+         * and status are a few KB. 4 MB leaves room for other streamers and future previews.
+         */
+        const val MAXIMUM_MESSAGE_SIZE = 4 * 1024 * 1024
     }
 }

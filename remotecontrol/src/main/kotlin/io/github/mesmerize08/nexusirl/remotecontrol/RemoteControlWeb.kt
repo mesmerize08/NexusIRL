@@ -381,7 +381,7 @@ class RemoteControlWeb(
         else -> "application/octet-stream"
     }
 
-    private inner class WebServer(address: InetSocketAddress) : WebSocketServer(address) {
+    private inner class WebServer(address: InetSocketAddress) : WebSocketServer(address, listOf(LimitedDraft(MAXIMUM_MESSAGE_SIZE))) {
         override fun onStart() = Unit
 
         /** Pages without the cookie, or on a disallowed interface, are closed before anything is sent. */
@@ -441,8 +441,14 @@ class RemoteControlWeb(
         }
     }
 
-    private companion object {
+    internal companion object {
         const val COOKIE = "nexusirl_token"
+
+        /**
+         * The largest WebSocket message (or frame) a page may send: the frontend only sends small
+         * requests (upstream's largest are scoreboard updates, a few KB).
+         */
+        const val MAXIMUM_MESSAGE_SIZE = 1024 * 1024
 
         /** Concurrent HTTP requests: a page load fetches about ten files, browsers six at a time. */
         const val MAX_WORKERS = 16

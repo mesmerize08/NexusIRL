@@ -8,6 +8,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.java_websocket.framing.CloseFrame
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -253,6 +254,24 @@ class RemoteControlWebTest {
             assertEquals(false, previews.poll(5, TimeUnit.SECONDS))
             // Refused pages never got anything.
             assertTrue(refusedMessages.isEmpty())
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun oversizedWebsocketMessagesCloseThePage() {
+        val port = freePorts()
+        val server = web(port).also { it.start() }
+        try {
+            Thread.sleep(300)
+            val messages = LinkedBlockingQueue<String>()
+            val (socket, events) = connect(port, "nexusirl_token=$token", messages)
+            assertEquals("open", events.poll(5, TimeUnit.SECONDS))
+            socket.send("""{"request":{"id":1,"data":{"getStatus":{}}}}""")
+            assertTrue(messages.poll(5, TimeUnit.SECONDS)!!.startsWith("""{"response":{"id":1"""))
+            socket.send("x".repeat(RemoteControlWeb.MAXIMUM_MESSAGE_SIZE + 1))
+            assertEquals("closed ${CloseFrame.TOOBIG}", events.poll(5, TimeUnit.SECONDS))
         } finally {
             server.stop()
         }

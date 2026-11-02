@@ -4,6 +4,7 @@
 package io.github.mesmerize08.nexusirl.moblink
 
 import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
+import io.github.mesmerize08.nexusirl.remotecontrol.LimitedDraft
 import io.github.mesmerize08.nexusirl.remotecontrol.REMOTE_CONTROL_API_VERSION
 import io.github.mesmerize08.nexusirl.remotecontrol.remoteControlHashPassword
 import org.java_websocket.WebSocket
@@ -46,6 +47,8 @@ class MoblinkStreamer(
     private val listener: MoblinkStreamerListener,
     private val acceptLocalAddress: (local: InetAddress, remote: InetAddress?) -> Boolean = CleartextPolicy::isLocalConnection,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** The address to listen on; null for all (tests use loopback). */
+    private val bindAddress: InetAddress? = null,
 ) {
     private val lock = Any()
     private val random = SecureRandom()
@@ -82,7 +85,7 @@ class MoblinkStreamer(
     }
 
     fun start() {
-        val newServer = Server(InetSocketAddress(port))
+        val newServer = Server(InetSocketAddress(bindAddress, port))
         newServer.isReuseAddr = true
         newServer.connectionLostTimeout = 10
         newServer.start()
@@ -215,7 +218,7 @@ class MoblinkStreamer(
         listener.relaysChanged()
     }
 
-    private inner class Server(address: InetSocketAddress) : WebSocketServer(address) {
+    private inner class Server(address: InetSocketAddress) : WebSocketServer(address, listOf(LimitedDraft(MAXIMUM_MESSAGE_SIZE))) {
         override fun onStart() = Unit
 
         override fun onOpen(socket: WebSocket, handshake: ClientHandshake) {
@@ -265,5 +268,8 @@ class MoblinkStreamer(
     companion object {
         const val MAXIMUM_FAILURES = 5
         const val LOCKOUT_MILLIS = 60_000L
+
+        /** The largest message (or frame) a relay may send: real ones are a few hundred bytes. */
+        const val MAXIMUM_MESSAGE_SIZE = 64 * 1024
     }
 }

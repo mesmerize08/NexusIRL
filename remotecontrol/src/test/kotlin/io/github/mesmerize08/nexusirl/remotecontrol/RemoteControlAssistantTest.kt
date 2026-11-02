@@ -8,7 +8,14 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import org.java_websocket.client.WebSocketClient
+import org.java_websocket.enums.Opcode
+import org.java_websocket.framing.CloseFrame
+import org.java_websocket.handshake.ServerHandshake
+import java.net.InetAddress
 import java.net.ServerSocket
+import java.net.URI
+import java.nio.ByteBuffer
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -161,6 +168,98 @@ class RemoteControlAssistantTest {
             assertEquals("closed", closed.poll(5, TimeUnit.SECONDS))
             assertNull(replies.poll(200, TimeUnit.MILLISECONDS))
         } finally {
+            assistant.stop()
+        }
+    }
+
+    private val loopback = InetAddress.getLoopbackAddress()
+
+    @Test
+    fun largePreviewsStillArrive() {
+        val port = freePort()
+        val events = Events()
+        val assistant = RemoteControlAssistant(port, "secret", events, bindAddress = loopback)
+        val streamer = RemoteControlStreamer(
+            "ws://127.0.0.1:$port",
+            "secret",
+            "S",
+            object : RemoteControlStreamerDelegate {
+                override fun getStatus() = RemoteControlResponse.GetStatus(
+                    topLeft = RemoteControlStatusTopLeft(),
+                    topRight = RemoteControlStatusTopRight(),
+                )
+
+                override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
+            },
+        )
+        try {
+            assistant.start()
+            streamer.start()
+            assertEquals("connected", events.queue.poll(10, TimeUnit.SECONDS))
+            waitUntil { streamer.isConnected }
+            // Far beyond a real preview (a 400 pixel JPEG at quality 0.3 is tens of KB).
+            streamer.sendPreview(ByteArray(2 * 1024 * 1024))
+            assertEquals("preview ${2 * 1024 * 1024}", events.queue.poll(10, TimeUnit.SECONDS))
+        } finally {
+            streamer.stop()
+            assistant.stop()
+        }
+    }
+
+    @Test
+    fun oversizedMessagesCloseTheConnection() {
+        val port = freePort()
+        val assistant = RemoteControlAssistant(port, "secret", Events(), bindAddress = loopback)
+        try {
+            assistant.start()
+            Thread.sleep(300)
+            val closed = LinkedBlockingQueue<Int>()
+            ReconnectingWebSocket.SHARED_CLIENT.newWebSocket(
+                Request.Builder().url("ws://127.0.0.1:$port").build(),
+                object : WebSocketListener() {
+                    override fun onMessage(webSocket: WebSocket, text: String) {
+                        webSocket.send("x".repeat(RemoteControlAssistant.MAXIMUM_MESSAGE_SIZE + 1))
+                    }
+
+                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                        closed += code
+                    }
+                },
+            )
+            assertEquals(CloseFrame.TOOBIG, closed.poll(10, TimeUnit.SECONDS))
+        } finally {
+            assistant.stop()
+        }
+    }
+
+    @Test
+    fun oversizedFragmentedMessagesCloseTheConnection() {
+        val port = freePort()
+        val assistant = RemoteControlAssistant(port, "secret", Events(), bindAddress = loopback)
+        val closed = LinkedBlockingQueue<Int>()
+        // Each fragment is within the limit; together they are not.
+        val client = object : WebSocketClient(URI("ws://127.0.0.1:$port")) {
+            override fun onOpen(handshake: ServerHandshake) = Unit
+
+            override fun onMessage(message: String) {
+                val fragment = ByteBuffer.wrap(ByteArray(RemoteControlAssistant.MAXIMUM_MESSAGE_SIZE / 4) { 'x'.code.toByte() })
+                // The client turns the later TEXT fragments into continuation frames itself.
+                repeat(5) { sendFragmentedFrame(Opcode.TEXT, fragment.duplicate(), false) }
+            }
+
+            override fun onClose(code: Int, reason: String?, remote: Boolean) {
+                closed += code
+            }
+
+            override fun onError(ex: Exception) = Unit
+        }
+        try {
+            assistant.start()
+            Thread.sleep(300)
+            client.connect()
+            assertEquals(CloseFrame.TOOBIG, closed.poll(10, TimeUnit.SECONDS))
+        } finally {
+            client.close()
             assistant.stop()
         }
     }
