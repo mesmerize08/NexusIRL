@@ -94,6 +94,8 @@ object MoblinkStreamerController {
 
                 override fun log(message: String) {
                     Log.i(TAG, message)
+                    // Android's log buffer keeps only minutes; the stream log keeps the whole stream.
+                    StreamController.session?.note("Moblink: $message")
                 }
             },
             acceptLocalAddress = RemoteControlAssistantController::isAllowedLocalAddress,

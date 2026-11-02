@@ -26,7 +26,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   part, which came first, was turned on instead, so the phones' roles were swapped.
 - The diagnostics report says what happened with Moblink relays (connected, refused and why,
   wrong password, tunnels), and leaves out the video encoder's debug lines, which filled most of
-  its log.
+  its log. Camera and scene switches, camera errors and Moblink relay events while live are also
+  kept in the stream's own log, with the relays connected when it starts: Android's shared log
+  only reached back two minutes in the field test, so they were lost.
 - Releases have an APK for each processor type (`arm64-v8a`, `armeabi-v7a`, `x86_64`) besides the
   universal one, about a third of its size. Each has its own version code (10 × the release's plus
   1, 2 or 3; 0 for universal), so F-Droid can offer the same, signed by us.

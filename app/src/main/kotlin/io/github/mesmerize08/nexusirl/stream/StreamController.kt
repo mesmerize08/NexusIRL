@@ -297,6 +297,7 @@ object StreamController {
     fun selectScene(context: Context, id: UUID) {
         mutableSelectedSceneId.value = id
         val scene = refreshScene(context) ?: return
+        session?.note("Scene ${scene.name}")
         val cameras = mutableCamera.value.cameras
         val wanted = when (scene.camera) {
             SceneCamera.FRONT -> cameras.firstOrNull { it.isFront }
@@ -429,6 +430,10 @@ object StreamController {
         )
         session = newSession
         newSession.start()
+        newSession.note("Camera ${mutableCamera.value.current?.label ?: "-"}")
+        MoblinkStreamerController.relays.value?.let { relays ->
+            newSession.note("Moblink: ${relays.size} relays connected${relays.joinToString("") { ", ${it.name}" }}")
+        }
         LocationController.onGoLive()
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
@@ -712,7 +717,10 @@ object StreamController {
         val created = VideoPipeline(
             context.applicationContext,
             canvas,
-            onError = { message -> mutableStatus.value = mutableStatus.value.copy(detail = "$CAMERA_ERROR_PREFIX$message") },
+            onError = { message ->
+                session?.note("$CAMERA_ERROR_PREFIX$message")
+                mutableStatus.value = mutableStatus.value.copy(detail = "$CAMERA_ERROR_PREFIX$message")
+            },
             onCameraRunning = {
                 // A camera works again: an old camera error no longer applies.
                 mutableStatus.update { if (it.detail.startsWith(CAMERA_ERROR_PREFIX)) it.copy(detail = "") else it }
@@ -765,6 +773,7 @@ object StreamController {
         cameraId = id
         pipeline?.switchCamera(id, force)
         val info = mutableCamera.value.cameras.firstOrNull { it.id == id }
+        session?.note("Camera ${info?.label ?: id}")
         mutableCamera.value = mutableCamera.value.withAutoControls().copy(current = info, zoom = 1f, torch = false)
     }
 

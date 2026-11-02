@@ -193,6 +193,9 @@ class StreamSession(
 
     fun removeMoblink(tunnel: MoblinkTunnel) = executor.execute { destination?.removeMoblink(tunnel) }
 
+    /** Adds an event (camera switch, Moblink relay) to this stream's log. Any thread. */
+    fun note(text: String) = log.line(REDACTOR.redact(text))
+
     fun stop() {
         val done = CountDownLatch(1)
         executor.execute {
