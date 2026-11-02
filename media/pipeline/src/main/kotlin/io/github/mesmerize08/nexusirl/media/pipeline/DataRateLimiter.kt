@@ -13,6 +13,10 @@ package io.github.mesmerize08.nexusirl.media.pipeline
  * one second of that. When the bitrate drops, the bucket is only capped, so output that was fine
  * at the old bitrate is not held against the new one (which would starve the encoder of frames
  * just as it adapts).
+ *
+ * Nor does the bucket go more than [MAXIMUM_DEBT_SECONDS] of allowance into debt: frames the
+ * encoder made just before a sharp drop (field test 2026-11-02: 5 to 1.4 Mbps in 3 seconds) would
+ * otherwise hold the picture still for seconds. The excess is let go instead.
  */
 internal class DataRateLimiter {
     private var bytes = Double.NaN
@@ -22,7 +26,7 @@ internal class DataRateLimiter {
     @Synchronized
     fun add(nowNanos: Long, bitrate: Long, size: Int) {
         refill(nowNanos, bitrate)
-        bytes -= size
+        bytes = maxOf(bytes - size, -bitrate * FACTOR / 8 * MAXIMUM_DEBT_SECONDS)
     }
 
     /** Whether the next frame may be encoded at [nowNanos] for an encoder running at [bitrate]. */
@@ -37,7 +41,8 @@ internal class DataRateLimiter {
         bytes = if (bytes.isNaN()) {
             bytesPerSecond
         } else {
-            minOf(bytesPerSecond, bytes + bytesPerSecond * (nowNanos - updatedNanos).coerceAtLeast(0) / 1e9)
+            (bytes + bytesPerSecond * (nowNanos - updatedNanos).coerceAtLeast(0) / 1e9)
+                .coerceIn(-bytesPerSecond * MAXIMUM_DEBT_SECONDS, bytesPerSecond)
         }
         updatedNanos = nowNanos
     }
@@ -45,5 +50,8 @@ internal class DataRateLimiter {
     companion object {
         /** Upstream `videoEncoderDataRateLimitFactor` (1.2, also below 1 Mbps). */
         const val FACTOR = 1.2
+
+        /** At most about this long without frames after the encoder overshoots (upstream limits per second). */
+        const val MAXIMUM_DEBT_SECONDS = 1.0
     }
 }

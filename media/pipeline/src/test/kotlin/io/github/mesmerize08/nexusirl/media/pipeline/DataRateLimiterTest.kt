@@ -57,6 +57,27 @@ class DataRateLimiterTest {
     }
 
     @Test
+    fun aSharpDropAfterABurstHoldsFramesBackForAtMostASecond() {
+        // Field test 2026-11-02: 5 Mbps, a burst of output, then 1.4 Mbps. The frames were held
+        // back for 4 seconds; now the debt is capped at one second of allowance.
+        val (_, held) = run(
+            DataRateLimiter(),
+            { if (it < 60) 5_000_000 else 1_400_000 },
+            {
+                if (it == 59) {
+                    800_000
+                } else if (it < 60) {
+                    20_000
+                } else {
+                    5_000
+                }
+            },
+            6,
+        )
+        assertTrue(held in 1..31, "$held")
+    }
+
+    @Test
     fun aLowerBitrateDoesNotHoldBackOutputMadeBeforeIt() {
         // 5 Mbps for 3 seconds, then adaptive bitrate lowers it to 1 Mbps and the encoder follows.
         val (bitsPerSecond, held) = run(
