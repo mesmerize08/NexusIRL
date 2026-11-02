@@ -544,9 +544,13 @@ object RemoteControlController {
         override fun setRecord(on: Boolean) = main { context ->
             if (on) {
                 StreamController.startRecording(context)
-            } else if (StreamController.stopRecording(context) == RecordingResult.FAILED) {
-                // The remote only sees recording stop; say on the phone why there is no file.
-                ChatController.showToast(context.getString(R.string.recording_not_finished))
+            } else {
+                // The remote only sees recording stop; say on the phone when writing failed.
+                when (StreamController.stopRecording(context)) {
+                    RecordingResult.FAILED -> ChatController.showToast(context.getString(R.string.recording_not_finished))
+                    RecordingResult.CUT_SHORT -> ChatController.showToast(context.getString(R.string.recording_cut_short))
+                    else -> {}
+                }
             }
         }
 

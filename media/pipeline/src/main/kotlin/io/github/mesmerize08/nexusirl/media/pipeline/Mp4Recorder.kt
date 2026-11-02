@@ -43,7 +43,7 @@ class Mp4Recorder internal constructor(
     private var lastVideoUs = Long.MIN_VALUE
     private var lastAudioUs = Long.MIN_VALUE
 
-    /** A write or finalising failed: the file may be cut short or unreadable, so it is not kept. */
+    /** A write or finalising failed (e.g. storage full): the file ends early, or cannot be played. */
     @Volatile
     var failed = false
         private set
@@ -148,21 +148,24 @@ class Mp4Recorder internal constructor(
     }
 
     /**
-     * Finalises the file and releases the muxer. Returns true when it holds playable video; false
-     * also when a write or finalising failed, as the file is then likely broken.
+     * Finalises the file and releases the muxer. Returns true when it holds playable video: also
+     * after a failed write ([failed]), as long as finalising worked, so the video up to the failure
+     * is kept (upstream keeps what was written too). Without finalising, an MP4 cannot be played.
      */
     fun stop(): Boolean = synchronized(lock) {
         stopped = true
+        var finished = started
         try {
             if (started) {
                 muxer.stop()
             }
         } catch (e: RuntimeException) {
+            finished = false
             failed = true
         } finally {
             muxer.release()
         }
-        started && videoFrames > 0 && !failed
+        finished && videoFrames > 0
     }
 
     private fun MediaTime.toMicroseconds(): Long = value * 1_000_000 / timescale

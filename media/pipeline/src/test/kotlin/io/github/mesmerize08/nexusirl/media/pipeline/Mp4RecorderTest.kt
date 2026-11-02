@@ -79,14 +79,16 @@ class Mp4RecorderTest {
     }
 
     @Test
-    fun failureAfterGoodFramesIsNotPlayable() {
+    fun failureAfterGoodFramesKeepsTheVideoUpToIt() {
         val muxer = FakeMuxer(failFromWrite = 4)
         val recorder = started(muxer)
         recorder.video(0 until 10)
         // The writer stops at the first failure; frames after it are not attempted.
         assertEquals(4, muxer.writes)
         assertEquals(3, recorder.videoFrames)
-        assertFalse(recorder.stop())
+        // Finalising still worked, so the first three frames play; the failure is reported.
+        assertTrue(recorder.stop())
+        assertTrue(recorder.failed)
         assertTrue(muxer.released)
     }
 

@@ -81,9 +81,12 @@ data class RecordingState(val fileName: String, val startedAtElapsedMillis: Long
 
 enum class RecordingResult {
     SAVED,
+
+    /** Writing failed part way (e.g. storage full); the video up to then was saved. */
+    CUT_SHORT,
     NOTHING_RECORDED,
 
-    /** Writing or finishing the file failed (e.g. storage full); the partial file was deleted. */
+    /** Writing or finishing the file failed; it could not be played, so it was deleted. */
     FAILED,
 }
 
@@ -557,12 +560,13 @@ object StreamController {
         }
         afterCaptureEnded(context)
         val result = when {
+            published && active.recorder.failed -> RecordingResult.CUT_SHORT
             published -> RecordingResult.SAVED
             active.recorder.failed || playable -> RecordingResult.FAILED
             else -> RecordingResult.NOTHING_RECORDED
         }
-        if (result == RecordingResult.FAILED) {
-            session?.note("Recording failed: the file could not be finished")
+        if (result == RecordingResult.FAILED || result == RecordingResult.CUT_SHORT) {
+            session?.note("Recording $result: writing the file failed")
         }
         return result
     }

@@ -109,6 +109,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                         } else {
                             val message = when (StreamController.stopRecording(context)) {
                                 RecordingResult.SAVED -> R.string.recording_saved
+                                RecordingResult.CUT_SHORT -> R.string.recording_cut_short
                                 RecordingResult.NOTHING_RECORDED -> R.string.recording_failed
                                 RecordingResult.FAILED -> R.string.recording_not_finished
                             }
