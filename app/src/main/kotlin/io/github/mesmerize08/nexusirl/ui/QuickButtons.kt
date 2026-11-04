@@ -107,6 +107,9 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                         QuickButtonType.RECORD -> if (recording == null) {
                             StreamController.startRecording(context, ::toast)
                         } else {
+                            // The result comes once the file is finished, perhaps after this
+                            // screen is gone: not the activity's context then.
+                            val appContext = context.applicationContext
                             StreamController.stopRecording(context) { result ->
                                 val message = when (result) {
                                     RecordingResult.SAVED -> R.string.recording_saved
@@ -114,7 +117,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                                     RecordingResult.NOTHING_RECORDED -> R.string.recording_failed
                                     RecordingResult.FAILED -> R.string.recording_not_finished
                                 }
-                                toast(resources.getString(message))
+                                Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
                             }
                         }
                         QuickButtonType.SNAPSHOT -> StreamController.takeSnapshot(context) { saved ->

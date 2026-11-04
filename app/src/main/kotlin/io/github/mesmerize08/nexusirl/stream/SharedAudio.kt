@@ -14,12 +14,15 @@ import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
  * reliably allow one app two concurrent microphone captures, so consumers attach here instead.
  *
  * Capture runs only while at least one consumer is attached. Consumers are added and removed on
- * the capture-control thread (stopping capture waits for its threads); the rest is main thread.
+ * the capture-control thread (stopping capture waits for its threads), and microphone changes
+ * are applied there too, so the capture is only touched from that thread.
  */
 class SharedAudio(
     context: Context,
     /** Whether to capture in stereo; read when capture starts (upstream `preferStereoMic`). */
     private val stereo: () -> Boolean = { false },
+    /** Runs on the capture-control thread. */
+    private val control: (() -> Unit) -> Unit,
 ) {
     init {
         Microphones.start(context)
@@ -87,7 +90,11 @@ class SharedAudio(
             return
         }
         follow(Microphones.selected.value)
-        mainHandler.post { Microphones.addListener(followListener) }
+        mainHandler.post {
+            Microphones.addListener(followListener)
+            // A change between the line above and the listener would otherwise be missed.
+            control { follow(Microphones.selected.value) }
+        }
     }
 
     private companion object {
@@ -95,9 +102,9 @@ class SharedAudio(
         const val NO_MICROPHONE = "No microphone (sending silence)"
     }
 
-    private val followListener: (Microphone?) -> Unit = ::follow
+    private val followListener: (Microphone?) -> Unit = { selected -> control { follow(selected) } }
 
-    /** Routes capture to the selected mic. */
+    /** Routes capture to the selected mic. Capture-control thread. */
     private fun follow(selected: Microphone?) {
         val audio = pipeline ?: return
         audio.setPreferredDevice(selected?.device)

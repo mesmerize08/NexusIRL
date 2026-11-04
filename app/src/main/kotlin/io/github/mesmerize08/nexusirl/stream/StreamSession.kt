@@ -123,6 +123,15 @@ class StreamSession(
     private var generation = 0
     private var reconnectTimer: Cancellable? = null
     private var stopped = false
+
+    /** Set when stopping is decided, before [stop] runs on the capture-control thread. */
+    @Volatile
+    private var ending = false
+
+    /** Stops starting Moblink tunnels: the stream is ending. Any thread. */
+    fun ending() {
+        ending = true
+    }
     private var liveSince: Long? = null
     private var reconnects = 0
     private var lastEncodedFrames = 0L
@@ -310,7 +319,11 @@ class StreamSession(
                 override fun onDisconnected(message: String) = handleDisconnected(eventGeneration, message)
 
                 // Upstream moblinkStreamerDestinationAddress: relays tunnel to the SRTLA server.
-                override fun onMoblinkDestinationAddress(host: String, port: Int) = MoblinkStreamerController.startTunnels(host, port)
+                override fun onMoblinkDestinationAddress(host: String, port: Int) {
+                    if (!ending) {
+                        MoblinkStreamerController.startTunnels(host, port)
+                    }
+                }
             },
         )
         // Upstream Media.srtSetAdaptiveBitrateAlgorithm: no algorithm when adaptive bitrate is off.

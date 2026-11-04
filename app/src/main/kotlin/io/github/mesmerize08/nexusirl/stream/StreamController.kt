@@ -379,9 +379,11 @@ object StreamController {
     val audioChannels: Int
         get() = sharedAudio?.channels ?: 1
 
-    private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(context) {
-        settings(context).current.audio.preferStereoMic
-    }.also {
+    private fun audio(context: Context): SharedAudio = sharedAudio ?: SharedAudio(
+        context,
+        stereo = { settings(context).current.audio.preferStereoMic },
+        control = captureControl::post,
+    ).also {
         sharedAudio = it
         it.muted = isQuickButtonOn(context, QuickButtonType.MUTE)
     }
@@ -435,6 +437,9 @@ object StreamController {
         if (activeRecording != null && !pipelineMatches(config.video)) {
             return "Stop recording first: the stream uses a different resolution or frame rate"
         }
+        if (pipelineBusy(config.video)) {
+            return STILL_STOPPING
+        }
         val video = ensurePipeline(context, config.video)
         lateinit var newSession: StreamSession
         newSession = StreamSession(
@@ -477,13 +482,24 @@ object StreamController {
                 }
             }
         }
-        // Now, not when stopped: a stream started meanwhile may already use new tunnels.
+        // Now, not when stopped: a stream started meanwhile may already use new tunnels. The
+        // stopping session must not start them again before its stop runs.
+        stopping?.ending()
         MoblinkStreamerController.stopTunnels()
         val appContext = context.applicationContext
         captureControl.run({ stopping?.stop() }) { afterCaptureEnded(appContext) }
     }
 
     private val statusLock = Any()
+
+    /**
+     * Whether [canvas] needs a new pipeline while queued work (a stop, a recording being finished)
+     * still uses the current one: replacing it then would stop it under that work.
+     */
+    private fun pipelineBusy(canvas: VideoEncoderSettings): Boolean =
+        pipeline != null && !pipelineMatches(canvas) && captureControl.pending > 0
+
+    private const val STILL_STOPPING = "Still finishing the last stream or recording; try again in a moment"
 
     /** Status from [from], unless it was stopped already (its last reports arrive late). Any thread. */
     private fun publishStatus(from: StreamSession, status: StreamStatus) = synchronized(statusLock) {
@@ -523,6 +539,10 @@ object StreamController {
         }
         val stream = settings(context).current.selectedStream
         val canvas = pipeline?.settings ?: previewSettings(context)
+        if (pipelineBusy(canvas)) {
+            onError(STILL_STOPPING)
+            return
+        }
         val video = ensurePipeline(context, canvas)
         val recording = stream?.recording
         val hevc = (recording?.videoCodec ?: StreamCodec.H265_HEVC) == StreamCodec.H265_HEVC && EncoderCapabilities.supportsHevc()
@@ -545,13 +565,13 @@ object StreamController {
             active.file != null
         }) { started ->
             if (!started) {
-                // Unless already stopped: then the stop's result reports it too.
+                // Unless already stopped: then the stop's result reports it.
                 if (activeRecording === active) {
                     activeRecording = null
                     mutableRecording.value = null
+                    onError("Failed to start recording")
                 }
                 afterCaptureEnded(appContext)
-                onError("Failed to start recording")
             }
         }
     }

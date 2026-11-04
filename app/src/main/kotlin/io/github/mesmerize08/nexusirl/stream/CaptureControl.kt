@@ -13,6 +13,9 @@ internal class CaptureControl(private val executor: Executor, private val main: 
     var pending = 0
         private set
 
+    /** Runs [work] on [executor] in order with the rest, without a result. Any thread. */
+    fun post(work: () -> Unit) = executor.execute(work)
+
     /** Runs [work] on [executor], then [done] with its result on the main thread. Main thread. */
     fun <T> run(work: () -> T, done: (T) -> Unit = {}) {
         pending += 1
