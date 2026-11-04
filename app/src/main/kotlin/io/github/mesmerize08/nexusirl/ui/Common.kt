@@ -21,6 +21,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,24 +79,47 @@ fun <T> ChoiceField(label: String, value: T, options: List<T>, display: (T) -> S
 
 /**
  * A text field for secrets (stream URLs, keys): masked with a Show/Hide toggle, password keyboard
- * so the IME does not learn or suggest it, and no autocorrect (docs/PORT_PLAN.md §9.4).
+ * so the IME does not learn or suggest it, and no autocorrect (docs/PORT_PLAN.md §9.4). While
+ * [locked] it can be neither shown nor changed; Show calls [onUnlock] and reveals once unlocked.
  */
 @Composable
-fun SecretTextField(label: String, value: String, onValueChange: (String) -> Unit, supportingText: String? = null) {
+fun SecretTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    supportingText: String? = null,
+    locked: Boolean = false,
+    onUnlock: () -> Unit = {},
+) {
     var reveal by remember { mutableStateOf(false) }
+    var revealWhenUnlocked by remember { mutableStateOf(false) }
+    LaunchedEffect(locked) {
+        if (!locked && revealWhenUnlocked) {
+            reveal = true
+            revealWhenUnlocked = false
+        }
+    }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             label = { Text(label) },
             singleLine = true,
-            visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
+            readOnly = locked,
+            visualTransformation = if (reveal && !locked) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Done),
-            supportingText = supportingText?.let { { Text(it) } },
+            supportingText = (if (locked) stringResource(R.string.secret_locked_help) else supportingText)?.let { { Text(it) } },
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = { reveal = !reveal }) {
-            Text(stringResource(if (reveal) R.string.hide else R.string.show))
+        TextButton(onClick = {
+            if (locked) {
+                revealWhenUnlocked = true
+                onUnlock()
+            } else {
+                reveal = !reveal
+            }
+        }) {
+            Text(stringResource(if (reveal && !locked) R.string.hide else R.string.show))
         }
     }
 }

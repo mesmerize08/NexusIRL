@@ -26,6 +26,10 @@
     <string name="delete_stream_text">The stream and its stream key are removed from this phone.</string>
     <string name="stream_name">Name</string>
     <string name="stream_url_help">srt://, srtla://, rtmp:// or rtmps://. Includes your stream key, which is stored encrypted.</string>
+    <string name="secret_locked_help">Tap Show and confirm with your fingerprint, face or screen lock to see or change it.</string>
+    <string name="secret_unlock_title">Show stream keys</string>
+    <string name="secret_unlock_subtitle">Confirm it is you to see or change the saved keys.</string>
+    <string name="secret_unlock_no_screen_lock">This phone has no screen lock, so keys are shown without asking. Set a screen lock to protect them.</string>
     <string name="paste_stream_key">Paste stream key or URL</string>
     <string name="paste_stream_url_done">Stream URL pasted (%1$s).</string>
     <string name="paste_stream_key_done">Stream key added to %1$s.</string>

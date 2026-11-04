@@ -90,6 +90,19 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         mutableStateOf(original?.multiStreaming?.destinations.orEmpty().map { it.copy(url = resolved(it.url)) })
     }
     val context = LocalContext.current
+    // Saved keys need the screen lock to be shown or changed (SecretUnlock); new ones do not.
+    var unlocked by remember(streamId) { mutableStateOf(false) }
+    val savedSecrets = remember(streamId) { listOf(url, snapshotWebhook, chatBotWebhook) + destinations.map { it.url } }
+    fun locked(value: String) = value in savedSecrets && SecretUnlock.needsUnlock(value, unlocked)
+    fun unlockThen(value: String, action: () -> Unit) = if (locked(value)) {
+        SecretUnlock.authenticate(context) {
+            unlocked = true
+            action()
+        }
+    } else {
+        action()
+    }
+    val unlock = { unlockThen(url) {} }
     val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
     val urlValid = StreamUrlSecrets.isValid(url)
     val scheme = url.substringBefore("://", "").lowercase()
@@ -136,8 +149,10 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 url.isNotEmpty() && !urlValid -> StreamUrls.validate(url) ?: stringResource(R.string.stream_url_invalid)
                 else -> stringResource(R.string.stream_url_help)
             },
+            locked = locked(url),
+            onUnlock = unlock,
         )
-        OutlinedButton(onClick = { pasteStreamKey(context, url)?.let { url = it } }) {
+        OutlinedButton(onClick = { unlockThen(url) { pasteStreamKey(context, url)?.let { url = it } } }) {
             Text(stringResource(R.string.paste_stream_key))
         }
         if (scheme == "rtmp") {
@@ -149,7 +164,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             )
         }
         if (scheme == "rtmp" || scheme == "rtmps") {
-            MultiStreamingSection(destinations) { destinations = it }
+            MultiStreamingSection(destinations, ::locked, unlock) { destinations = it }
         }
         HorizontalDivider()
         Text(stringResource(R.string.video), style = MaterialTheme.typography.titleMedium)
@@ -268,8 +283,20 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         HorizontalDivider()
         // Upstream's snapshot settings: Discord uploads.
         Text("Discord", style = MaterialTheme.typography.titleMedium)
-        SecretTextField(stringResource(R.string.webhook_url), snapshotWebhook, { snapshotWebhook = it.trim() })
-        SecretTextField(stringResource(R.string.chat_bot_webhook_url), chatBotWebhook, { chatBotWebhook = it.trim() })
+        SecretTextField(
+            stringResource(R.string.webhook_url),
+            snapshotWebhook,
+            { snapshotWebhook = it.trim() },
+            locked = locked(snapshotWebhook),
+            onUnlock = unlock,
+        )
+        SecretTextField(
+            stringResource(R.string.chat_bot_webhook_url),
+            chatBotWebhook,
+            { chatBotWebhook = it.trim() },
+            locked = locked(chatBotWebhook),
+            onUnlock = unlock,
+        )
         SwitchRow(stringResource(R.string.only_when_live), stream.discordSnapshotWebhookOnlyWhenLive) {
             stream = stream.copy(discordSnapshotWebhookOnlyWhenLive = it)
         }
@@ -307,6 +334,8 @@ private fun pasteStreamKey(context: Context, current: String): String? {
 @Composable
 private fun MultiStreamingSection(
     destinations: List<SettingsStreamMultiStreamingDestination>,
+    locked: (String) -> Boolean,
+    onUnlock: () -> Unit,
     onChange: (List<SettingsStreamMultiStreamingDestination>) -> Unit,
 ) {
     HorizontalDivider()
@@ -328,6 +357,8 @@ private fun MultiStreamingSection(
             label = stringResource(R.string.url),
             value = url,
             onValueChange = { value -> change(index) { it.copy(url = value.trim()) } },
+            locked = locked(url),
+            onUnlock = onUnlock,
             supportingText = if (url.isNotEmpty() && (!StreamUrlSecrets.isValid(url) || !url.startsWith("rtmp", ignoreCase = true))) {
                 stringResource(R.string.multi_streaming_url_invalid)
             } else {
