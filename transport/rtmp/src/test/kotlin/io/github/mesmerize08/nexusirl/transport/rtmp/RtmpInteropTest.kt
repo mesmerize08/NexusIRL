@@ -18,7 +18,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Publishes real H.264 or HEVC + AAC with [RtmpStream] to ffmpeg's RTMP server. Skipped without ffmpeg. */
+/** Publishes real H.264 or HEVC + AAC or Opus with [RtmpStream] to ffmpeg's RTMP server. Skipped without ffmpeg. */
 class RtmpInteropTest {
     @Test
     fun ffmpegRtmpServerReceivesH264Stream() {
@@ -50,19 +50,38 @@ class RtmpInteropTest {
         publishAndVerify(directory, streams, MpegTsVideoConfig.Hevc(streams.vps, streams.sps, streams.pps), expectedCodec = "hevc")
     }
 
+    /** Enhanced RTMP Opus (ex-header, `Opus` FourCC and an OpusHead), as upstream streams it. */
+    @Test
+    fun ffmpegRtmpServerReceivesEnhancedRtmpOpusAudio() {
+        assumeTrue(Ffmpeg.available, "ffmpeg/ffprobe not installed")
+        val directory = Files.createTempDirectory("rtmp-interop").toFile()
+        val streams = Ffmpeg.generateElementaryStreams(directory, seconds = 3).withOpus(Ffmpeg.generateOpusPackets(directory, seconds = 3))
+        publishAndVerify(
+            directory,
+            streams,
+            MpegTsVideoConfig.Avc(streams.sps, streams.pps),
+            expectedCodec = "h264",
+            audioConfig = MpegTsAudioConfig.opus(48000, 2),
+            // ffmpeg's FLV muxer cannot store Opus; Matroska can.
+            container = "matroska",
+        )
+    }
+
     private fun publishAndVerify(
         directory: File,
         streams: ElementaryStreams,
         videoConfig: MpegTsVideoConfig,
         expectedCodec: String,
         videoLagSeconds: Double = 0.0,
+        audioConfig: MpegTsAudioConfig = MpegTsAudioConfig.aacLc(48000, 2),
+        container: String = "flv",
     ) {
         val port = ServerSocket(0).use { it.localPort }
-        val recording = File(directory, "received.flv")
+        val recording = File(directory, "received.$container")
         val server = Ffmpeg.start(
             // An explicit listen timeout: ffmpeg's default (-1) fails to listen on Windows.
             "ffmpeg", "-y", "-v", "error", "-listen", "1", "-timeout", "30", "-i", "rtmp://127.0.0.1:$port/live/testkey",
-            "-c", "copy", "-f", "flv", recording.path,
+            "-c", "copy", "-f", container, recording.path,
         )
         Thread.sleep(1_000)
 
@@ -82,7 +101,7 @@ class RtmpInteropTest {
             },
         )
         stream.setMetadata(RtmpMetadata(640, 360, 30.0, videoConfig is MpegTsVideoConfig.Hevc, 2_000_000, 128_000, 48_000.0))
-        stream.setAudioConfig(MpegTsAudioConfig.aacLc(48000, 2), 48000)
+        stream.setAudioConfig(audioConfig, 48000)
         stream.setVideoConfig(videoConfig)
         stream.connect()
         if (!connected.await(15, TimeUnit.SECONDS)) {
@@ -123,7 +142,8 @@ class RtmpInteropTest {
         // RTMP is reliable and nothing is held back, so every frame arrives.
         assertEquals(90, probed[expectedCodec], "video frames: $probed")
         // Audio sent before the first video frame waits for it (a frame or two with a lag).
-        assertTrue((probed["aac"] ?: 0) >= 138, "audio frames: $probed")
+        val audioCodec = if (audioConfig.isOpus) "opus" else "aac"
+        assertTrue((probed[audioCodec] ?: 0) >= streams.audioFrames.size - 3, "audio frames: $probed")
         directory.deleteRecursively()
     }
 }

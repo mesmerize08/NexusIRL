@@ -55,7 +55,8 @@ class Mp4Recorder internal constructor(
 
     override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) {
         if (config.isOpus) {
-            // Opus is not offered for recording in v1; keep a video-only file rather than fail.
+            // Recordings get their own AAC encoder, even next to an Opus stream (SharedAudio);
+            // should Opus arrive anyway, keep a video-only file rather than fail.
             return
         }
         val audioSpecificConfig = config.encode()

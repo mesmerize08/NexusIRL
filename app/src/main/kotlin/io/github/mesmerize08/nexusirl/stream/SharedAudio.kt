@@ -3,15 +3,17 @@ package io.github.mesmerize08.nexusirl.stream
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import io.github.mesmerize08.nexusirl.media.pipeline.AudioConsumers
+import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderFormat
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
-import io.github.mesmerize08.nexusirl.media.pipeline.FanOutSink
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
 import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
 
 /**
- * One microphone capture and AAC encoder shared by everything that needs audio (the stream and
- * the recording), like upstream's single audio unit feeding all encoders. Android does not
- * reliably allow one app two concurrent microphone captures, so consumers attach here instead.
+ * One microphone capture shared by everything that needs audio (the stream and the recording),
+ * like upstream's single audio unit feeding all encoders. Android does not reliably allow one app
+ * two concurrent microphone captures, so consumers attach here instead. Consumers of one codec
+ * share its encoder: an Opus stream and a recording (always AAC, as upstream's) get one each.
  *
  * Capture runs only while at least one consumer is attached. Consumers are added and removed on
  * the capture-control thread (stopping capture waits for its threads), and microphone changes
@@ -28,8 +30,17 @@ class SharedAudio(
         Microphones.start(context)
     }
 
-    private val fanOut = FanOutSink()
-    private val consumers = mutableSetOf<MediaSink>()
+    private val consumers = AudioConsumers(
+        startEncoder = { format, sink ->
+            try {
+                pipeline?.addEncoder(format, sink)
+            } catch (e: Exception) {
+                // The encoder failed: stream and record without audio rather than crash.
+                android.util.Log.w("SharedAudio", "Audio encoder $format failed: $e")
+            }
+        },
+        stopEncoder = { format -> pipeline?.removeEncoder(format) },
+    )
 
     @Volatile
     private var pipeline: AudioPipeline? = null
@@ -57,24 +68,26 @@ class SharedAudio(
     val levelDbfs: Float
         get() = pipeline?.levelDbfs ?: -160f
 
-    fun add(consumer: MediaSink) {
-        if (consumers.isEmpty()) {
+    /** Attaches [consumer] to a [format] encoder; recordings use AAC. */
+    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC) {
+        if (consumers.isEmpty) {
             start()
         }
-        // The current audio format is replayed to the new consumer.
-        fanOut.add(consumer)
-        consumers += consumer
+        consumers.add(consumer, format)
     }
 
     fun remove(consumer: MediaSink) {
-        fanOut.remove(consumer)
-        if (consumers.remove(consumer) && consumers.isEmpty()) {
+        if (consumers.isEmpty) {
+            return
+        }
+        consumers.remove(consumer)
+        if (consumers.isEmpty) {
             stop()
         }
     }
 
     private fun start() {
-        val audio = AudioPipeline(fanOut, channels = if (stereo()) 2 else 1)
+        val audio = AudioPipeline(channels = if (stereo()) 2 else 1)
         pipeline = audio
         // After publishing it: a mute set meanwhile on the main thread is not lost.
         audio.muted = muted
@@ -83,7 +96,7 @@ class SharedAudio(
         try {
             audio.start()
         } catch (e: Exception) {
-            // The AAC encoder failed: stream and record without audio rather than crash.
+            // No capture: stream and record without audio rather than crash.
             android.util.Log.w("SharedAudio", "Audio failed: $e")
             pipeline = null
             microphoneName = NO_MICROPHONE

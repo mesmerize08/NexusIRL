@@ -1,9 +1,11 @@
 package io.github.mesmerize08.nexusirl.stream
 
+import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderFormat
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoRateControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
+import io.github.mesmerize08.nexusirl.settings.StreamAudioCodec
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamRateControl
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
@@ -31,9 +33,11 @@ data class StreamConfig(
      * far above what the link has recently carried.
      */
     val limitAdaptiveBitrateByTransportBitrate: Boolean = true,
+    /** The stream's audio codec (upstream `audioCodec.toEncoder()`); recordings stay AAC. */
+    val audioFormat: AudioEncoderFormat = AudioEncoderFormat.AAC,
 ) {
     override fun toString(): String =
-        "StreamConfig(url=***, video=$video, srtLatency=$srtLatency, rtmpDestinations=${rtmpDestinations.size})"
+        "StreamConfig(url=***, video=$video, audio=$audioFormat, srtLatency=$srtLatency, rtmpDestinations=${rtmpDestinations.size})"
 
     companion object {
         /**
@@ -94,6 +98,10 @@ data class StreamConfig(
                 srtAdaptiveBitrate = choice,
                 rtmpDestinations = rtmpDestinations,
                 limitAdaptiveBitrateByTransportBitrate = stream.rateControl != StreamRateControl.CBR,
+                audioFormat = when (stream.audioCodec) {
+                    StreamAudioCodec.AAC -> AudioEncoderFormat.AAC
+                    StreamAudioCodec.OPUS -> AudioEncoderFormat.OPUS
+                },
             )
         }
     }

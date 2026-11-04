@@ -50,6 +50,16 @@ class SettingsTest {
     }
 
     @Test
+    fun streamAudioCodec() {
+        // Upstream SettingsStreamAudioCodec raw values; unknown values decode as AAC.
+        val streams = Database.fromJson("""{"streams": [{"audioCodec": "OPUS"}, {"audioCodec": "MP3"}, {}]}""").streams
+        assertEquals(listOf(StreamAudioCodec.OPUS, StreamAudioCodec.AAC, StreamAudioCodec.AAC), streams.map { it.audioCodec })
+        assertTrue(Database(streams = streams.take(1)).toJson().contains("\"audioCodec\":\"OPUS\""))
+        // Upstream toString(), shown in the picker.
+        assertEquals(listOf("AAC", "Opus"), StreamAudioCodec.entries.map { it.displayName })
+    }
+
+    @Test
     fun chatSettings() {
         val database = Database.fromJson(
             """{"chat": {"fontSize": 25, "height": 0.5, "usernameColor": {"red": 1, "green": 2, "blue": 3}, "botEnabled": true},

@@ -83,9 +83,10 @@ enum class StreamResolution(override val rawValue: String, val width: Int, val h
 }
 
 @Serializable(with = StreamAudioCodec.Serializer::class)
-enum class StreamAudioCodec(override val rawValue: String) : SwiftRawValueEnum {
-    AAC("AAC"),
-    OPUS("OPUS"),
+/** Upstream `SettingsStreamAudioCodec`; [displayName] is its `toString()`. */
+enum class StreamAudioCodec(override val rawValue: String, val displayName: String) : SwiftRawValueEnum {
+    AAC("AAC", "AAC"),
+    OPUS("OPUS", "Opus"),
     ;
 
     object Serializer : SwiftRawValueEnumSerializer<StreamAudioCodec>("SettingsStreamAudioCodec", entries, AAC)

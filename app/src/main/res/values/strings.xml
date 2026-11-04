@@ -45,6 +45,8 @@
     <string name="bitrate">Bitrate</string>
     <string name="codec">Codec</string>
     <string name="hevc_fallback_note">This phone has no hardware H.265 encoder, so H.264 is used.</string>
+    <string name="audio">Audio</string>
+    <string name="audio_codec_help">Recordings are always AAC. Opus needs a server that accepts it.</string>
     <string name="srt">SRT</string>
     <string name="srt_latency">Latency</string>
     <string name="adaptive_bitrate">Adaptive bitrate</string>

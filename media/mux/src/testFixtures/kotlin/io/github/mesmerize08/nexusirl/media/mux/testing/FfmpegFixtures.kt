@@ -88,6 +88,44 @@ object Ffmpeg {
         check(audioExit == 0) { audioLog }
         return ElementaryStreams.fromHevc(videoFile.readBytes(), audioFile.readBytes())
     }
+
+    /**
+     * Encodes [seconds] of a stereo 48 kHz tone as 20 ms Opus packets (what the app's Opus encoder
+     * makes), without the OpusHead and OpusTags packets: the muxers signal the format themselves.
+     */
+    fun generateOpusPackets(directory: File, seconds: Int = 3): List<ByteArray> {
+        val oggFile = File(directory, "audio.opus")
+        val (exit, log) = run(
+            "ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "$seconds",
+            "-ac", "2", "-c:a", "libopus", "-b:a", "128k", "-frame_duration", "20", "-f", "ogg", oggFile.path,
+        )
+        check(exit == 0) { log }
+        return oggPackets(oggFile.readBytes()).drop(2)
+    }
+
+    /** Splits an Ogg stream (RFC 3533) into its packets. */
+    private fun oggPackets(ogg: ByteArray): List<ByteArray> {
+        val packets = ArrayList<ByteArray>()
+        var current = ByteArrayOutputStream()
+        var offset = 0
+        while (offset + 27 <= ogg.size) {
+            check(String(ogg, offset, 4, Charsets.US_ASCII) == "OggS") { "no Ogg page at $offset" }
+            val segments = ogg[offset + 26].toInt() and 0xFF
+            val lacing = offset + 27
+            var data = lacing + segments
+            for (i in 0 until segments) {
+                val length = ogg[lacing + i].toInt() and 0xFF
+                current.write(ogg, data, length)
+                data += length
+                if (length < 255) {
+                    packets += current.toByteArray()
+                    current = ByteArrayOutputStream()
+                }
+            }
+            offset = data
+        }
+        return packets
+    }
 }
 
 class BackgroundProcess(val process: Process, private val logFile: File) {
@@ -104,8 +142,8 @@ class BackgroundProcess(val process: Process, private val logFile: File) {
 class AccessUnit(val data: ByteArray, val isIdr: Boolean)
 
 /**
- * Video access units (Annex-B, without AUD and parameter sets) plus raw AAC frames, at 30 fps and
- * 1024-sample frames. [vps] is set for HEVC streams.
+ * Video access units (Annex-B, without AUD and parameter sets) plus raw audio frames, at 30 fps
+ * and [audioFrameSamples] samples per frame at 48 kHz (1024 for AAC). [vps] is set for HEVC streams.
  */
 class ElementaryStreams(
     val sps: ByteArray,
@@ -113,14 +151,18 @@ class ElementaryStreams(
     val accessUnits: List<AccessUnit>,
     val audioFrames: List<ByteArray>,
     val vps: ByteArray? = null,
+    val audioFrameSamples: Int = 1024,
 ) {
+    /** The same video with 20 ms Opus packets (from [Ffmpeg.generateOpusPackets]) for audio. */
+    fun withOpus(packets: List<ByteArray>) = ElementaryStreams(sps, pps, accessUnits, packets, vps, audioFrameSamples = 960)
+
     /** Calls [video] and [audio] interleaved in timestamp order, with times in seconds from 0. */
     fun forEachInterleaved(video: (AccessUnit, Double) -> Unit, audio: (ByteArray, Double) -> Unit) {
         var videoIndex = 0
         var audioIndex = 0
         while (videoIndex < accessUnits.size || audioIndex < audioFrames.size) {
             val videoTime = videoIndex / 30.0
-            val audioTime = audioIndex * 1024 / 48000.0
+            val audioTime = audioIndex * audioFrameSamples / 48000.0
             if (audioIndex < audioFrames.size && (videoIndex >= accessUnits.size || audioTime <= videoTime)) {
                 audio(audioFrames[audioIndex++], audioTime)
             } else {

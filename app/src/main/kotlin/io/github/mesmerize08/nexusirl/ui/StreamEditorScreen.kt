@@ -34,6 +34,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamMultiStreamingDestination
 import io.github.mesmerize08.nexusirl.settings.SettingsTwitchAlerts
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
+import io.github.mesmerize08.nexusirl.settings.StreamAudioCodec
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamKeyPaste
 import io.github.mesmerize08.nexusirl.settings.StreamResolution
@@ -194,6 +195,17 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         if (stream.codec == StreamCodec.H265_HEVC && !hevcSupported) {
             Text(stringResource(R.string.hevc_fallback_note), style = MaterialTheme.typography.bodySmall)
         }
+        HorizontalDivider()
+        // Upstream StreamAudioSettingsView's codec picker; applies from the next go live.
+        Text(stringResource(R.string.audio), style = MaterialTheme.typography.titleMedium)
+        ChoiceField(
+            stringResource(R.string.codec),
+            stream.audioCodec,
+            StreamAudioCodec.entries,
+            { it.displayName },
+            { stream = stream.copy(audioCodec = it) },
+        )
+        Text(stringResource(R.string.audio_codec_help), style = MaterialTheme.typography.bodySmall)
         if (isSrt) {
             HorizontalDivider()
             Text(stringResource(R.string.srt), style = MaterialTheme.typography.titleMedium)

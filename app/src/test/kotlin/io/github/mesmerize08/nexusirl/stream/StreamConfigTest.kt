@@ -1,5 +1,6 @@
 package io.github.mesmerize08.nexusirl.stream
 
+import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderFormat
 import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
@@ -63,6 +64,14 @@ class StreamConfigTest {
             ).srtAdaptiveBitrate!!.settings,
         )
         assertNull(StreamConfig.from(stream("""{"srt":{"adaptiveBitrateEnabled":false}}"""), "srt://h").srtAdaptiveBitrate)
+    }
+
+    @Test
+    fun audioCodecComesFromTheStream() {
+        // Upstream SettingsStreamAudioCodec.toEncoder(), on SRT(LA) and RTMP alike.
+        assertEquals(AudioEncoderFormat.AAC, StreamConfig.from(stream("{}"), "srt://h").audioFormat)
+        assertEquals(AudioEncoderFormat.OPUS, StreamConfig.from(stream("""{"audioCodec":"OPUS"}"""), "srtla://h").audioFormat)
+        assertEquals(AudioEncoderFormat.OPUS, StreamConfig.from(stream("""{"audioCodec":"OPUS"}"""), "rtmp://h/app/k").audioFormat)
     }
 
     @Test

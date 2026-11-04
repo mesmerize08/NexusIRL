@@ -9,19 +9,19 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaRecorder
 import io.github.mesmerize08.nexusirl.core.clock.MediaTime
-import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.abs
 import kotlin.math.log10
 import kotlin.math.max
 
 /**
- * Microphone capture and AAC-LC encoding (upstream `AudioUnit` + `AudioEncoder`).
+ * Microphone capture feeding AAC-LC and Opus encoders (upstream `AudioUnit` + `AudioEncoder`).
  *
- * One source at a time feeds the encoder, like upstream (there is no mixer). PTS are on the
- * monotonic host clock via [AudioRecord.getTimestamp], so they line up with video.
+ * One source at a time feeds the encoders, like upstream (there is no mixer). PTS are on the
+ * monotonic host clock via [AudioRecord.getTimestamp], so they line up with video. Each encoder
+ * gets the same samples, cut to its own frame size.
  */
 class AudioPipeline(
-    private val sink: MediaSink,
     private val sampleRate: Int = 48_000,
     /** 1 (mono) or 2 (stereo). */
     val channels: Int = 1,
@@ -29,9 +29,8 @@ class AudioPipeline(
 ) {
     private val channelMask = if (channels == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
     private var record: AudioRecord? = null
-    private var codec: MediaCodec? = null
     private var captureThread: Thread? = null
-    private var outputThread: Thread? = null
+    private val encoders = CopyOnWriteArrayList<Encoder>()
 
     @Volatile
     private var running = false
@@ -80,58 +79,61 @@ class AudioPipeline(
         }
         microphoneAvailable = microphone != null
         microphone?.let { mic -> preferredDevice?.let { mic.setPreferredDevice(it) } }
-        val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, channels).apply {
-            setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 1024 * channels * 2 * 4)
-        }
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
-        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        codec.start()
         this.record = microphone
-        this.codec = codec
         running = true
-        sink.setAudioConfig(MpegTsAudioConfig.aacLc(sampleRate, channels), sampleRate)
         captureThread = if (microphone != null) {
             microphone.startRecording()
-            Thread({ capture(microphone, codec) }, "audio-capture")
+            Thread({ capture(microphone) }, "audio-capture")
         } else {
-            Thread({ silence(codec) }, "audio-silence")
+            Thread({ silence() }, "audio-silence")
         }.apply { start() }
-        outputThread = Thread({ drain(codec) }, "audio-encoder").apply { start() }
+    }
+
+    /**
+     * Starts a [format] encoder whose output goes to [sink]. An Opus encoder that cannot be
+     * created falls back to AAC, so the stream keeps its audio. Throws when AAC fails too.
+     */
+    fun addEncoder(format: AudioEncoderFormat, sink: MediaSink) {
+        val encoder = try {
+            Encoder(format, sink)
+        } catch (e: Exception) {
+            if (format == AudioEncoderFormat.AAC) {
+                throw e
+            }
+            android.util.Log.w("AudioPipeline", "No $format encoder, using AAC: $e")
+            Encoder(AudioEncoderFormat.AAC, sink, requested = format)
+        }
+        encoders.add(encoder)
+    }
+
+    fun removeEncoder(format: AudioEncoderFormat) {
+        encoders.filter { it.requested == format }.forEach {
+            encoders.remove(it)
+            it.release()
+        }
     }
 
     fun stop() {
         running = false
         captureThread?.join(1_000)
-        outputThread?.join(1_000)
         record?.run {
             stop()
             release()
         }
-        codec?.run {
-            try {
-                stop()
-            } catch (e: IllegalStateException) {
-                // Already stopped.
-            }
-            release()
-        }
         record = null
-        codec = null
+        encoders.forEach { it.release() }
+        encoders.clear()
     }
 
-    private fun capture(record: AudioRecord, codec: MediaCodec) {
-        val bytesPerFrame = channels * 2
-        val chunkFrames = 1024 // One AAC frame worth of samples per encoder input.
+    private fun capture(record: AudioRecord) {
+        val chunkFrames = 1024
         val pcm = ShortArray(chunkFrames * channels)
         val timestamp = AudioTimestamp()
         var framesRead = 0L
-        // Times come from the sample count, like upstream, so frames are exactly 1024 samples apart;
-        // Android's per-read timestamps jitter by several milliseconds.
+        // Times come from the sample count, like upstream, so frames are evenly spaced; Android's
+        // per-read timestamps jitter by several milliseconds.
         var anchorNanos: Long? = null
         var anchorFrames = 0L
-        var droppedChunks = 0
         var windowStart = System.nanoTime()
         var windowFrames = 0L
         while (running) {
@@ -147,7 +149,7 @@ class AudioPipeline(
             val frames = read / channels
             val measured = presentationTimeNanos(record, timestamp, framesRead)
             val counted = anchorNanos?.let { it + (framesRead - anchorFrames) * 1_000_000_000L / sampleRate }
-            val pts = if (counted == null || kotlin.math.abs(measured - counted) > RESYNC_NANOS) {
+            val pts = if (counted == null || abs(measured - counted) > RESYNC_NANOS) {
                 // First read, or the count drifted from the clock (e.g. after a device change).
                 anchorNanos = measured
                 anchorFrames = framesRead
@@ -159,32 +161,16 @@ class AudioPipeline(
             windowFrames += frames
             val now = System.nanoTime()
             if (now - windowStart >= 1_000_000_000) {
+                val dropped = encoders.joinToString { "${it.format} ${it.droppedChunks}" }
                 android.util.Log.d(
                     "AudioPipeline",
-                    "Captured ${windowFrames * 1_000_000_000L / (now - windowStart)} frames/s, dropped chunks $droppedChunks",
+                    "Captured ${windowFrames * 1_000_000_000L / (now - windowStart)} frames/s, dropped chunks $dropped",
                 )
                 windowStart = now
                 windowFrames = 0
             }
             applyGainAndMeasure(pcm, read)
-            val inputIndex = try {
-                codec.dequeueInputBuffer(10_000)
-            } catch (e: IllegalStateException) {
-                return
-            }
-            if (inputIndex < 0) {
-                droppedChunks++
-                continue // Encoder backed up; drop this chunk rather than block capture.
-            }
-            val buffer = codec.getInputBuffer(inputIndex) ?: continue
-            buffer.clear()
-            // PCM must be in native (little-endian) order; ByteBuffer defaults to big-endian.
-            buffer.order(java.nio.ByteOrder.nativeOrder())
-            for (i in 0 until read) {
-                buffer.putShort(pcm[i])
-            }
-            codec.queueInputBuffer(inputIndex, 0, read * 2, pts / 1000, 0)
-            check(read * 2 == frames * bytesPerFrame)
+            encoders.forEach { it.feed(pcm, read, pts) }
         }
     }
 
@@ -193,10 +179,11 @@ class AudioPipeline(
         const val RESYNC_NANOS = 20_000_000L
     }
 
-    /** Silent AAC frames in real time on the host clock, for when there is no microphone. */
-    private fun silence(codec: MediaCodec) {
+    /** Silence in real time on the host clock, for when there is no microphone. */
+    private fun silence() {
         val chunkFrames = 1024
         val chunkNanos = chunkFrames * 1_000_000_000L / sampleRate
+        val pcm = ShortArray(chunkFrames * channels)
         val start = System.nanoTime()
         var chunks = 0L
         levelDbfs = -160f
@@ -206,20 +193,8 @@ class AudioPipeline(
             if (wait > 0) {
                 Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
             }
-            val inputIndex = try {
-                codec.dequeueInputBuffer(10_000)
-            } catch (e: IllegalStateException) {
-                return
-            }
             chunks++
-            if (inputIndex < 0) {
-                continue
-            }
-            val buffer = codec.getInputBuffer(inputIndex) ?: continue
-            val size = chunkFrames * channels * 2
-            buffer.clear()
-            buffer.put(ByteArray(size))
-            codec.queueInputBuffer(inputIndex, 0, size, pts / 1000, 0)
+            encoders.forEach { it.feed(pcm, pcm.size, pts) }
         }
     }
 
@@ -244,25 +219,109 @@ class AudioPipeline(
         levelDbfs = if (peak == 0) -160f else (20 * log10(peak / 32768.0)).toFloat()
     }
 
-    private fun drain(codec: MediaCodec) {
-        val info = MediaCodec.BufferInfo()
-        while (running) {
-            val index = try {
-                codec.dequeueOutputBuffer(info, 10_000)
+    /** One MediaCodec encoder with its output thread, fed from the capture thread. */
+    private inner class Encoder(
+        val format: AudioEncoderFormat,
+        private val sink: MediaSink,
+        /** What the consumers asked for ([format] differs after a fallback to AAC). */
+        val requested: AudioEncoderFormat = format,
+    ) {
+        private val rechunker = PcmRechunker(channels, format.framesPerChunk, sampleRate)
+        private val codec: MediaCodec
+        private val outputThread: Thread
+
+        @Volatile
+        private var released = false
+
+        @Volatile
+        var droppedChunks = 0
+            private set
+
+        init {
+            val mediaFormat = MediaFormat.createAudioFormat(format.mimeType, sampleRate, channels).apply {
+                if (format == AudioEncoderFormat.AAC) {
+                    setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+                }
+                setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, format.framesPerChunk * channels * 2 * 4)
+            }
+            // Opus: c2.android.opus.encoder, on every phone since Android 10.
+            val codec = MediaCodec.createEncoderByType(format.mimeType)
+            try {
+                codec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                codec.start()
+            } catch (e: Exception) {
+                codec.release()
+                throw e
+            }
+            this.codec = codec
+            // The muxers build the OpusHead / AudioSpecificConfig from this, so the encoder's own
+            // codec config buffers are not needed.
+            sink.setAudioConfig(format.config(sampleRate, channels), sampleRate)
+            outputThread = Thread({ drain() }, "audio-encoder-$format").apply { start() }
+        }
+
+        /** Capture thread. The lock keeps [release] from freeing buffers being filled. */
+        fun feed(pcm: ShortArray, count: Int, ptsNanos: Long) {
+            synchronized(this) {
+                if (released) {
+                    return
+                }
+                try {
+                    rechunker.append(pcm, count, ptsNanos) { chunk, pts -> queue(chunk, pts) }
+                } catch (e: IllegalStateException) {
+                    // The codec failed; it is released with the pipeline.
+                }
+            }
+        }
+
+        private fun queue(chunk: ShortArray, ptsNanos: Long) {
+            val inputIndex = codec.dequeueInputBuffer(10_000)
+            if (inputIndex < 0) {
+                droppedChunks++
+                return // Encoder backed up; drop this chunk rather than block capture.
+            }
+            val buffer = codec.getInputBuffer(inputIndex) ?: return
+            buffer.clear()
+            // PCM must be in native (little-endian) order; ByteBuffer defaults to big-endian.
+            buffer.order(java.nio.ByteOrder.nativeOrder())
+            buffer.asShortBuffer().put(chunk)
+            codec.queueInputBuffer(inputIndex, 0, chunk.size * 2, ptsNanos / 1000, 0)
+        }
+
+        private fun drain() {
+            val info = MediaCodec.BufferInfo()
+            while (!released) {
+                val index = try {
+                    codec.dequeueOutputBuffer(info, 10_000)
+                } catch (e: IllegalStateException) {
+                    return
+                }
+                if (index < 0) {
+                    continue
+                }
+                val buffer = codec.getOutputBuffer(index)
+                if (buffer != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                    val data = ByteArray(info.size)
+                    buffer.position(info.offset)
+                    buffer.get(data)
+                    sink.writeAudio(data, MediaTime(info.presentationTimeUs, 1_000_000))
+                }
+                codec.releaseOutputBuffer(index, false)
+            }
+        }
+
+        fun release() {
+            synchronized(this) {
+                released = true
+            }
+            outputThread.join(1_000)
+            try {
+                codec.stop()
             } catch (e: IllegalStateException) {
-                return
+                // Already stopped.
             }
-            if (index < 0) {
-                continue
-            }
-            val buffer = codec.getOutputBuffer(index)
-            if (buffer != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                val data = ByteArray(info.size)
-                buffer.position(info.offset)
-                buffer.get(data)
-                sink.writeAudio(data, MediaTime(info.presentationTimeUs, 1_000_000))
-            }
-            codec.releaseOutputBuffer(index, false)
+            codec.release()
         }
     }
 }
