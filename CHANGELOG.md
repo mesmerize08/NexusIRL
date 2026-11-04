@@ -75,6 +75,10 @@ From an independent pre-release audit (`docs/audit/`).
 - Going live, ending a stream and starting or stopping a recording no longer hold up the screen
   (stopping could take up to about 8 seconds, long enough for Android to offer to close the app as
   not responding). The recording message now appears once the file is finished.
+- An RTMP destination that stops taking data could hold up to 100 MB of video in memory before
+  reconnecting, as in Moblin; on a phone, two or more of them (multi streaming) could run the app
+  out of memory. Each now holds at most an eighth of the app's memory (on most phones 32-64 MB,
+  20-80 seconds of video) before reconnecting.
 - An RTMPS server that accepts the connection but never answers no longer hangs a stream attempt:
   connecting gives up after 10 seconds, and stopping ends the attempt at once.
 - A link with a user name and password (`ws://user:pass@host`) came back broken after being stored.

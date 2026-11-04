@@ -26,7 +26,19 @@ import kotlin.random.Random
 
 private const val HANDSHAKE_SIG_SIZE = 1536
 private const val HANDSHAKE_PROTOCOL_VERSION = 3
+
+/** Upstream's limit: more than this queued and unsent ends the connection, which then reconnects. */
 private const val MAXIMUM_UNSENT_BYTES = 100_000_000L
+private const val MINIMUM_UNSENT_BYTES = 16L * 1024 * 1024
+
+/**
+ * Upstream's limit, but at most an eighth of [heapBytes]: the queue is on the Java heap, which on
+ * a phone is a few hundred MB for the whole app, so several stalled destinations (multi streaming)
+ * at 100 MB each would run it out of memory. iOS has no such per-app heap limit.
+ */
+internal fun maximumUnsentBytes(heapBytes: Long): Long = (heapBytes / 8).coerceIn(MINIMUM_UNSENT_BYTES, MAXIMUM_UNSENT_BYTES)
+
+private val maximumUnsentBytes = maximumUnsentBytes(Runtime.getRuntime().maxMemory())
 private const val NANOS_PER_SECOND = 1_000_000_000L
 
 /** How long audio waits for video to start before going alone (audio-only streams). */
@@ -748,7 +760,7 @@ class RtmpStream(
         totalBytesSending += data.size
         connection.send(data)
         info.onWritten(totalBytesSending)
-        if (totalBytesSending - totalBytesSent > MAXIMUM_UNSENT_BYTES) {
+        if (totalBytesSending - totalBytesSent > maximumUnsentBytes) {
             executor.execute { closeSocket(isDisconnected = true) }
         }
     }
