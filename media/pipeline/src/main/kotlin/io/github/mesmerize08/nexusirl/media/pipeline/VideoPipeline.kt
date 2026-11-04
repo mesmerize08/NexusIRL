@@ -468,6 +468,14 @@ class VideoPipeline(
         cameraSource?.setTorch(on)
     }
 
+    /** Torch brightness for this and later cameras (upstream `torchLevel`, 0.01 to 1). */
+    @Volatile
+    var torchLevel = 1f
+        set(value) {
+            field = value
+            cameraSource?.setTorchLevel(value)
+        }
+
     fun setAutoFocus() {
         cameraSource?.setAutoFocus()
     }
@@ -630,6 +638,7 @@ class VideoPipeline(
         val camera = CameraSource(context)
         this.cameraSource = camera
         camera.setStabilization(stabilization)
+        camera.setTorchLevel(torchLevel)
         val cameraId = requestedId?.takeIf { id -> camera.cameras().any { it.id == id } } ?: camera.backCameraId()
         if (cameraId == null) {
             onError("No camera")

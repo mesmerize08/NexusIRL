@@ -52,7 +52,13 @@ data class CameraInfo(
     /** EV per exposure compensation step. */
     val exposureCompensationStep: Float = 0f,
     val supportsStabilization: Boolean = false,
+    /** FLASH_TORCH_STRENGTH_MAX_LEVEL (Android 15+); 1 means full strength only. */
+    val torchStrengthMaxLevel: Int = 1,
 ) {
+    /** Torch brightness can be set while the camera is open (upstream's torch slider). */
+    val supportsTorchStrength: Boolean
+        get() = hasTorch && TorchStrength.adjustable(torchStrengthMaxLevel)
+
     val supportsManualFocus: Boolean
         get() = minFocusDistance > 0f
 
@@ -121,6 +127,10 @@ class CameraSource(private val context: Context) {
     @Volatile
     var torch = false
         private set
+
+    /** Upstream `torchLevel`, 0.01 to 1 (VideoPipeline carries it over to the next camera). */
+    @Volatile
+    private var torchLevel = 1f
 
     /** Latest values the camera used (auto or manual), from capture results. */
     @Volatile
@@ -206,6 +216,13 @@ class CameraSource(private val context: Context) {
                 ?.contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON) == true ||
                 c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION)
                     ?.contains(CameraMetadata.LENS_OPTICAL_STABILIZATION_MODE_ON) == true,
+            // CameraManager.turnOnTorchWithStrengthLevel (Android 13) needs the camera closed; only
+            // the capture request's FLASH_STRENGTH_LEVEL (Android 15) works while streaming.
+            torchStrengthMaxLevel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                c.get(CameraCharacteristics.FLASH_TORCH_STRENGTH_MAX_LEVEL) ?: 1
+            } else {
+                1
+            },
         )
     }
 
@@ -389,8 +406,32 @@ class CameraSource(private val context: Context) {
                 builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON)
             }
             builder.set(CaptureRequest.FLASH_MODE, if (on) CameraMetadata.FLASH_MODE_TORCH else CameraMetadata.FLASH_MODE_OFF)
+            if (on) {
+                applyTorchLevel(builder)
+            }
             updateRepeating()
         }
+    }
+
+    /** Torch brightness, 0.01 to 1 (upstream `torchLevel`); applied at once if the torch is on. */
+    fun setTorchLevel(level: Float) {
+        torchLevel = level
+        post {
+            val builder = request ?: return@post
+            if (torch && applyTorchLevel(builder)) {
+                updateRepeating()
+            }
+        }
+    }
+
+    /** False when this camera has no adjustable torch strength (full strength is all there is). */
+    private fun applyTorchLevel(builder: CaptureRequest.Builder): Boolean {
+        val camera = current ?: return false
+        if (!camera.supportsTorchStrength || Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            return false
+        }
+        builder.set(CaptureRequest.FLASH_STRENGTH_LEVEL, TorchStrength.level(torchLevel, camera.torchStrengthMaxLevel))
+        return true
     }
 
     /**

@@ -180,11 +180,14 @@ object ChatBot {
     }
 
     private fun torch(context: Context, command: ChatBotCommand) {
-        // Android has no torch brightness on most phones, so "level" is ignored.
         when (command.popFirstArgument(ChatBotTorchArgument.entries.toTypedArray())) {
             ChatBotTorchArgument.ON -> StreamController.setQuickButton(context, QuickButtonType.TORCH, true)
             ChatBotTorchArgument.OFF -> StreamController.setQuickButton(context, QuickButtonType.TORCH, false)
-            else -> Unit
+            // Upstream: 1 to 100 percent. Phones without torch strength (before Android 15) stay at full.
+            ChatBotTorchArgument.LEVEL -> command.popFirstInt(1..100)?.let {
+                StreamController.setTorchLevel(context, it / 100f, save = true)
+            }
+            null -> Unit
         }
     }
 

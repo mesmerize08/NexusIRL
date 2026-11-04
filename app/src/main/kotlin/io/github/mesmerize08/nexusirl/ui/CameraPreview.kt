@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,12 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.mesmerize08.nexusirl.R
+import io.github.mesmerize08.nexusirl.media.pipeline.TorchStrength
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -72,6 +78,7 @@ fun CameraPreview(
     overlay: @Composable () -> Unit = {},
 ) {
     val camera by StreamController.camera.collectAsState()
+    val context = LocalContext.current
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     if (showSettings) {
@@ -187,6 +194,24 @@ fun CameraPreview(
                 } else {
                     FilledTonalButton(onClick = { StreamController.setTorch(true) }) { Text(stringResource(R.string.torch)) }
                 }
+            }
+            // Upstream's torch brightness slider: while the torch is on, back cameras only. Torch
+            // strength needs Android 15 and a phone that reports it.
+            if (camera.torch && current?.supportsTorchStrength == true && !current.isFront) {
+                val description = stringResource(R.string.torch_brightness)
+                Slider(
+                    value = camera.torchLevel,
+                    onValueChange = { StreamController.setTorchLevel(context, it, save = false) },
+                    onValueChangeFinished = {
+                        StreamController.setTorchLevel(context, StreamController.camera.value.torchLevel, save = true)
+                    },
+                    valueRange = TorchStrength.MINIMUM_LEVEL..1f,
+                    modifier = Modifier
+                        .width(160.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        .padding(horizontal = 8.dp)
+                        .semantics { contentDescription = description },
+                )
             }
             if (camera.cameras.size > 1) {
                 FilledTonalButton(onClick = {

@@ -50,6 +50,15 @@ class SettingsTest {
     }
 
     @Test
+    fun torchLevel() {
+        // Upstream Database.torchLevel: Float, default 1.0 (full brightness).
+        assertEquals(1f, Database.fromJson("{}").torchLevel)
+        val database = Database.fromJson("""{"torchLevel": 0.25}""")
+        assertEquals(0.25f, database.torchLevel)
+        assertTrue(database.toJson().contains("\"torchLevel\":0.25"))
+    }
+
+    @Test
     fun streamAudioCodec() {
         // Upstream SettingsStreamAudioCodec raw values; unknown values decode as AAC.
         val streams = Database.fromJson("""{"streams": [{"audioCodec": "OPUS"}, {"audioCodec": "MP3"}, {}]}""").streams

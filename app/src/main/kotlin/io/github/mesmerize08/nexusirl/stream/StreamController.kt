@@ -22,6 +22,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.EffectSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.EncoderCapabilities
 import io.github.mesmerize08.nexusirl.media.pipeline.Mp4Recorder
 import io.github.mesmerize08.nexusirl.media.pipeline.SceneSwitchTransitionKind
+import io.github.mesmerize08.nexusirl.media.pipeline.TorchStrength
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEffect
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoder
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
@@ -70,6 +71,8 @@ data class CameraUiState(
     val manualIso: Float? = null,
     val manualWhiteBalance: Float? = null,
     val stabilization: Boolean = false,
+    /** Upstream `torchLevel`: torch brightness, 0.01 to 1. */
+    val torchLevel: Float = 1f,
 ) {
     /** Resets the per-camera manual controls (upstream re-applies auto after a camera change). */
     fun withAutoControls(): CameraUiState =
@@ -881,6 +884,7 @@ object StreamController {
         )
         created.displayRotationDegrees = displayRotationDegrees
         created.stabilization = settings(context).current.videoStabilizationMode != VideoStabilizationMode.OFF
+        created.torchLevel = settings(context).current.torchLevel
         created.start(cameraId)
         previewSurface?.let { created.setPreviewSurface(it) }
         pipeline = created
@@ -903,6 +907,7 @@ object StreamController {
             zoom = 1f,
             torch = false,
             stabilization = created.stabilization,
+            torchLevel = created.torchLevel,
         )
         return created
     }
@@ -943,6 +948,19 @@ object StreamController {
         }
         pipeline?.setTorch(on)
         mutableCamera.value = mutableCamera.value.copy(torch = on)
+    }
+
+    /**
+     * Torch brightness while dragging (upstream's torch slider); [save] stores it like upstream's
+     * global `torchLevel`, once the drag ends.
+     */
+    fun setTorchLevel(context: Context, level: Float, save: Boolean) {
+        val clamped = level.coerceIn(TorchStrength.MINIMUM_LEVEL, 1f)
+        pipeline?.torchLevel = clamped
+        mutableCamera.value = mutableCamera.value.copy(torchLevel = clamped)
+        if (save) {
+            settings(context).update { it.copy(torchLevel = clamped) }
+        }
     }
 
     /** Tap-to-focus at a normalized point of the preview (upstream tap gesture). */

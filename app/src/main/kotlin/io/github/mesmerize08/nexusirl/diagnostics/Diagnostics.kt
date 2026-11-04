@@ -97,7 +97,10 @@ object Diagnostics {
             "Camera" to listOf(
                 "Current ${camera.current?.label ?: "-"}, zoom ${camera.zoom} " +
                     "(${camera.current?.minZoom ?: "-"}..${camera.current?.maxZoom ?: "-"}), ${camera.cameras.size} cameras",
-            ) + camera.cameras.map { "  ${it.label}: sensor ${it.sensorOrientation} deg, torch ${it.hasTorch}" },
+            ) +
+                camera.cameras.map {
+                    "  ${it.label}: sensor ${it.sensorOrientation} deg, torch ${it.hasTorch} (strength levels ${it.torchStrengthMaxLevel})"
+                },
             "Microphones" to Microphones.mics.value.map {
                 (if (it.id == Microphones.selected.value?.id) "* " else "  ") + it.name
             },

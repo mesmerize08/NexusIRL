@@ -98,6 +98,7 @@
     <string name="link_failed">URL import failed</string>
     <string name="link_not_while_live">Cannot import settings while live.</string>
     <string name="torch">Torch</string>
+    <string name="torch_brightness">Torch brightness</string>
     <string name="camera">Camera</string>
     <string name="record">Record</string>
     <string name="stop_recording">Stop recording</string>

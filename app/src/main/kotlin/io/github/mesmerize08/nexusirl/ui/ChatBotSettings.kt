@@ -46,7 +46,7 @@ private val COMMANDS = listOf(
     BotCommand("!moblin scene <name>", { it.scene }, { p, c -> p.copy(scene = c) }),
     BotCommand("!moblin mute, !moblin unmute", { it.audio }, { p, c -> p.copy(audio = c) }),
     BotCommand("!moblin zoom <x>", { it.zoom }, { p, c -> p.copy(zoom = c) }),
-    BotCommand("!moblin torch on, !moblin torch off", { it.torch }, { p, c -> p.copy(torch = c) }),
+    BotCommand("!moblin torch on, !moblin torch off, !moblin torch level <1 to 100>", { it.torch }, { p, c -> p.copy(torch = c) }),
     BotCommand(
         "!moblin filter <grayscale, sepia, pixellate, 4:3, whirlpool or pinch> <on or off>",
         { it.filter },
