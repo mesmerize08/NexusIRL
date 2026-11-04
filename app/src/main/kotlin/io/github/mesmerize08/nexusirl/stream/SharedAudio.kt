@@ -33,10 +33,14 @@ class SharedAudio(
     private val consumers = AudioConsumers(
         startEncoder = { format, sink ->
             try {
-                pipeline?.addEncoder(format, sink)
+                pipeline?.run {
+                    addEncoder(format, sink)
+                    true
+                } ?: false
             } catch (e: Exception) {
                 // The encoder failed: stream and record without audio rather than crash.
                 android.util.Log.w("SharedAudio", "Audio encoder $format failed: $e")
+                false
             }
         },
         stopEncoder = { format -> pipeline?.removeEncoder(format) },
@@ -70,10 +74,14 @@ class SharedAudio(
 
     /** Attaches [consumer] to a [format] encoder; recordings use AAC. */
     fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC) {
-        if (consumers.isEmpty) {
+        if (pipeline == null) {
             start()
         }
         consumers.add(consumer, format)
+        if (!consumers.hasEncoder) {
+            // No encoder could start: keep the microphone (and its privacy indicator) off.
+            stopCapture()
+        }
     }
 
     fun remove(consumer: MediaSink) {
@@ -124,7 +132,9 @@ class SharedAudio(
         microphoneName = if (audio.microphoneAvailable) selected?.name ?: "" else NO_MICROPHONE
     }
 
-    private fun stop() {
+    private fun stop() = stopCapture()
+
+    private fun stopCapture() {
         mainHandler.post { Microphones.removeListener(followListener) }
         pipeline?.stop()
         pipeline = null

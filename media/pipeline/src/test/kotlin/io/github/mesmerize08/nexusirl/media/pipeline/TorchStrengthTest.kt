@@ -2,6 +2,8 @@ package io.github.mesmerize08.nexusirl.media.pipeline
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class TorchStrengthTest {
     @Test
@@ -34,5 +36,20 @@ class TorchStrengthTest {
         assertEquals(false, TorchStrength.adjustable(null))
         assertEquals(false, TorchStrength.adjustable(1))
         assertEquals(true, TorchStrength.adjustable(2))
+    }
+
+    @Test
+    fun fullBrightnessLeavesThePhonesDefaultLevel() {
+        assertFalse(TorchStrength.overridesDefault(1f))
+        assertFalse(TorchStrength.overridesDefault(5f))
+        assertTrue(TorchStrength.overridesDefault(0.5f))
+    }
+
+    @Test
+    fun importedLevelsAreMadeValid() {
+        assertEquals(1f, TorchStrength.clamp(Float.NaN))
+        assertEquals(1f, TorchStrength.clamp(5f))
+        assertEquals(TorchStrength.MINIMUM_LEVEL, TorchStrength.clamp(0f))
+        assertEquals(0.4f, TorchStrength.clamp(0.4f))
     }
 }

@@ -26,7 +26,8 @@ enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int) {
  * Not thread safe; SharedAudio calls it from the capture-control thread.
  */
 class AudioConsumers(
-    private val startEncoder: (AudioEncoderFormat, MediaSink) -> Unit,
+    /** Returns false when the encoder could not start: that format is tried again next time. */
+    private val startEncoder: (AudioEncoderFormat, MediaSink) -> Boolean,
     private val stopEncoder: (AudioEncoderFormat) -> Unit,
 ) {
     private val fanOuts = mutableMapOf<AudioEncoderFormat, FanOutSink>()
@@ -35,19 +36,22 @@ class AudioConsumers(
     val isEmpty: Boolean
         get() = consumers.isEmpty()
 
+    /** Whether any encoder is running; without one, capturing the microphone is pointless. */
+    val hasEncoder: Boolean
+        get() = fanOuts.isNotEmpty()
+
     fun add(consumer: MediaSink, format: AudioEncoderFormat) {
         remove(consumer)
-        val fanOut = fanOuts.getOrPut(format) { FanOutSink().also { startEncoder(format, it) } }
+        val fanOut = fanOuts[format] ?: FanOutSink().takeIf { startEncoder(format, it) }?.also { fanOuts[format] = it }
         // The current audio format is replayed to the new consumer.
-        fanOut.add(consumer)
+        fanOut?.add(consumer)
         consumers[consumer] = format
     }
 
     fun remove(consumer: MediaSink) {
         val format = consumers.remove(consumer) ?: return
         fanOuts[format]?.remove(consumer)
-        if (format !in consumers.values) {
-            fanOuts.remove(format)
+        if (format !in consumers.values && fanOuts.remove(format) != null) {
             stopEncoder(format)
         }
     }

@@ -45,9 +45,11 @@ class HandoffTest {
     @Test
     fun startedWorkIsWaitedForPastTheTimeout() {
         val ran = AtomicBoolean(false)
+        // The block must start within the timeout and outlast it; 20 ms was too short to start
+        // in while the whole build ran in parallel.
         assertTrue(
-            Handoff.run(post, 20_000_000) {
-                Thread.sleep(150)
+            Handoff.run(post, 500_000_000) {
+                Thread.sleep(800)
                 ran.set(true)
             },
         )

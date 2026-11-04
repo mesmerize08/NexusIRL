@@ -430,6 +430,12 @@ class CameraSource(private val context: Context) {
         if (!camera.supportsTorchStrength || Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             return false
         }
+        // Full brightness is the default: leave the phone's own default level then, which some
+        // set below the maximum to keep the torch cool; only a level chosen below it overrides.
+        if (!TorchStrength.overridesDefault(torchLevel)) {
+            builder.set(CaptureRequest.FLASH_STRENGTH_LEVEL, null)
+            return true
+        }
         builder.set(CaptureRequest.FLASH_STRENGTH_LEVEL, TorchStrength.level(torchLevel, camera.torchStrengthMaxLevel))
         return true
     }

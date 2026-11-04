@@ -16,6 +16,12 @@ object TorchStrength {
         return (clamped * maxLevel).roundToInt().coerceIn(1, maxLevel)
     }
 
+    /** Upstream's level within 0.01 to 1; anything else (imported settings) is made valid. */
+    fun clamp(level: Float): Float = if (level.isNaN()) 1f else level.coerceIn(MINIMUM_LEVEL, 1f)
+
+    /** Whether [level] asks for less than full brightness, the default. */
+    fun overridesDefault(level: Float): Boolean = clamp(level) < 1f
+
     /** Cameras reporting one level (or none) only have full strength. */
     fun adjustable(maxLevel: Int?): Boolean = maxLevel != null && maxLevel > 1
 }

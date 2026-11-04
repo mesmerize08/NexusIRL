@@ -40,6 +40,7 @@ import io.github.mesmerize08.nexusirl.settings.StreamKeyPaste
 import io.github.mesmerize08.nexusirl.settings.StreamResolution
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.settings.StreamUrls
+import io.github.mesmerize08.nexusirl.stream.StreamController
 import java.util.UUID
 
 /** Bitrate choices in kbps (upstream's bitrate presets cover the same range). */
@@ -213,14 +214,17 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
             Text(stringResource(R.string.hevc_fallback_note), style = MaterialTheme.typography.bodySmall)
         }
         HorizontalDivider()
-        // Upstream StreamAudioSettingsView's codec picker; applies from the next go live.
+        // Upstream StreamAudioSettingsView's codec picker; applies from the next go live, so,
+        // as upstream, it cannot be changed for the stream that is live.
         Text(stringResource(R.string.audio), style = MaterialTheme.typography.titleMedium)
+        val live = StreamController.status.collectAsState().value.active && stream.enabled
         ChoiceField(
             stringResource(R.string.codec),
             stream.audioCodec,
             StreamAudioCodec.entries,
             { it.displayName },
             { stream = stream.copy(audioCodec = it) },
+            enabled = !live,
         )
         Text(stringResource(R.string.audio_codec_help), style = MaterialTheme.typography.bodySmall)
         if (isSrt) {

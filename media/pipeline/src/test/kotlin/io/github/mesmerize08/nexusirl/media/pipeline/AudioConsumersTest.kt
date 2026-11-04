@@ -29,11 +29,18 @@ class AudioConsumersTest {
     /** Stands in for the MediaCodec encoders: one output sink per running format. */
     private val running = LinkedHashMap<AudioEncoderFormat, MediaSink>()
     private val events = ArrayList<String>()
+    private var failNextStart = false
     private val consumers = AudioConsumers(
         startEncoder = { format, sink ->
             events += "start $format"
-            running[format] = sink
-            sink.setAudioConfig(format.config(48_000, 1), 48_000)
+            if (failNextStart) {
+                failNextStart = false
+                false
+            } else {
+                running[format] = sink
+                sink.setAudioConfig(format.config(48_000, 1), 48_000)
+                true
+            }
         },
         stopEncoder = { format ->
             events += "stop $format"
@@ -42,6 +49,23 @@ class AudioConsumersTest {
     )
 
     private fun encode(format: AudioEncoderFormat, text: String) = running.getValue(format).writeAudio(text.toByteArray(), MediaTime(0, 1))
+
+    @Test
+    fun anEncoderThatFailedToStartIsTriedAgainForTheNextConsumer() {
+        failNextStart = true
+        val stream = RecordingSink()
+        consumers.add(stream, AudioEncoderFormat.AAC)
+        assertFalse(consumers.hasEncoder)
+        val recording = RecordingSink()
+        consumers.add(recording, AudioEncoderFormat.AAC)
+        assertEquals(listOf("start AAC", "start AAC"), events)
+        assertTrue(consumers.hasEncoder)
+        encode(AudioEncoderFormat.AAC, "aac")
+        assertEquals(listOf("aac"), recording.frames)
+        // Removing the consumer whose encoder never started stops nothing.
+        consumers.remove(stream)
+        assertEquals(listOf("start AAC", "start AAC"), events)
+    }
 
     @Test
     fun recordingAlongsideAnOpusStreamGetsItsOwnAacEncoder() {

@@ -889,7 +889,7 @@ object StreamController {
         )
         created.displayRotationDegrees = displayRotationDegrees
         created.stabilization = settings(context).current.videoStabilizationMode != VideoStabilizationMode.OFF
-        created.torchLevel = settings(context).current.torchLevel
+        created.torchLevel = TorchStrength.clamp(settings(context).current.torchLevel)
         created.start(cameraId)
         previewSurface?.let { created.setPreviewSurface(it) }
         pipeline = created

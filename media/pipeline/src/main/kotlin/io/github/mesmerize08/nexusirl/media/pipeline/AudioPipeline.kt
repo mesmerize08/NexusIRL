@@ -300,14 +300,24 @@ class AudioPipeline(
                 if (index < 0) {
                     continue
                 }
-                val buffer = codec.getOutputBuffer(index)
-                if (buffer != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                    val data = ByteArray(info.size)
-                    buffer.position(info.offset)
-                    buffer.get(data)
-                    sink.writeAudio(data, MediaTime(info.presentationTimeUs, 1_000_000))
+                // Copied out and handed back before the sink gets it: a sink stuck on a stalled
+                // connection must not hold the codec, which [release] frees after a second.
+                val data = try {
+                    val buffer = codec.getOutputBuffer(index)
+                    val copy = if (buffer != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                        ByteArray(info.size).also {
+                            buffer.position(info.offset)
+                            buffer.get(it)
+                        }
+                    } else {
+                        null
+                    }
+                    codec.releaseOutputBuffer(index, false)
+                    copy
+                } catch (e: IllegalStateException) {
+                    return // Released meanwhile.
                 }
-                codec.releaseOutputBuffer(index, false)
+                data?.let { sink.writeAudio(it, MediaTime(info.presentationTimeUs, 1_000_000)) }
             }
         }
 
