@@ -270,6 +270,20 @@ data class SettingsStream(
     val discordChatBotSnapshotWebhook: String = "",
     val discordSnapshotWebhookOnlyWhenLive: Boolean = true,
     val multiStreaming: SettingsStreamMultiStreaming = SettingsStreamMultiStreaming(),
+    /** OBS remote control over obs-websocket (upstream `obs*`). "BRB when video source broken" stays in `extra`. */
+    val obsWebSocketEnabled: Boolean = false,
+    /** Secret: may hold user info. */
+    val obsWebSocketUrl: String = "",
+    /** Secret. */
+    val obsWebSocketPassword: String = "",
+    /** The OBS source that plays the stream from the phone (fix button, audio sync and levels). */
+    val obsSourceName: String = "",
+    val obsMainScene: String = "",
+    val obsBrbScene: String = "",
+    val obsAutoStartStream: Boolean = false,
+    val obsAutoStopStream: Boolean = false,
+    val obsAutoStartRecording: Boolean = false,
+    val obsAutoStopRecording: Boolean = false,
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     // Up to 0.2.0 the Android app wrote "youTubeVideoIds", which iOS does not read.
@@ -288,6 +302,10 @@ data class SettingsStream(
     /** Upstream `getYouTubeVideoIds`. */
     val youTubeVideoIdList: List<String>
         get() = youTubeVideoIds.split(",").filter { it.isNotEmpty() }
+
+    /** Upstream `isObsRemoteControlConfigured`. */
+    val isObsRemoteControlConfigured: Boolean
+        get() = obsWebSocketEnabled && obsWebSocketUrl.isNotEmpty()
 }
 
 /** Upstream `SettingsStreamMultiStreamingDestination`: one more RTMP server the stream also goes to. */

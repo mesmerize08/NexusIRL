@@ -57,4 +57,31 @@ class SettingsStreamTest {
         kotlin.test.assertTrue("\"future\":1" in database.toJson())
         kotlin.test.assertTrue(SettingsStream().kickChatAlerts.bans)
     }
+
+    @Test
+    fun obsRemoteControlSettingsFromIos() {
+        val obs = """"obsWebSocketEnabled":true,"obsWebSocketUrl":"ws://10.0.0.5:4455","obsWebSocketPassword":"p",""" +
+            """"obsSourceName":"Moblin","obsMainScene":"Main","obsBrbScene":"BRB","obsBrbSceneVideoSourceBroken":true,""" +
+            """"obsAutoStartStream":true,"obsAutoStopStream":true,"obsAutoStartRecording":true,"obsAutoStopRecording":false"""
+        val database = io.github.mesmerize08.nexusirl.core.codable.SwiftJson.decodeFromString(
+            Database.Serializer,
+            """{"streams":[{"name":"S",$obs}]}""",
+        )
+        val stream = database.streams.single()
+        kotlin.test.assertTrue(stream.obsWebSocketEnabled)
+        assertEquals("ws://10.0.0.5:4455", stream.obsWebSocketUrl)
+        assertEquals("p", stream.obsWebSocketPassword)
+        assertEquals("Moblin", stream.obsSourceName)
+        assertEquals("Main" to "BRB", stream.obsMainScene to stream.obsBrbScene)
+        kotlin.test.assertTrue(stream.obsAutoStartStream && stream.obsAutoStopStream && stream.obsAutoStartRecording)
+        kotlin.test.assertFalse(stream.obsAutoStopRecording)
+        kotlin.test.assertTrue(stream.isObsRemoteControlConfigured)
+        kotlin.test.assertFalse(stream.copy(obsWebSocketUrl = "").isObsRemoteControlConfigured)
+        // Written back under upstream's keys; what Android does not use stays for iOS.
+        val json = database.toJson()
+        kotlin.test.assertTrue("\"obsAutoStartRecording\":true" in json, json)
+        kotlin.test.assertTrue("\"obsBrbSceneVideoSourceBroken\":true" in json, json)
+        // Upstream's default: off.
+        kotlin.test.assertFalse(SettingsStream().obsWebSocketEnabled)
+    }
 }

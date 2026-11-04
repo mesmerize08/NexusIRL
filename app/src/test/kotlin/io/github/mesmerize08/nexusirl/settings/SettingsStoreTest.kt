@@ -180,6 +180,22 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun obsPasswordAndUrlAreSecret() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        val obsUrl = "ws://user:$key@10.0.0.5:4455"
+        store.update {
+            it.addStream(SettingsStream(name = "S", obsWebSocketEnabled = true, obsWebSocketUrl = obsUrl, obsWebSocketPassword = key))
+        }
+        assertFalse(key in file.readText())
+        val stream = store.current.selectedStream!!
+        assertEquals(key, store.obsWebSocketPassword(stream))
+        assertEquals(obsUrl, store.obsWebSocketUrl(stream))
+        assertFalse(key in store.exportJson())
+        assertTrue("\"obsWebSocketUrl\":\"ws://10.0.0.5:4455\"" in store.exportJson())
+    }
+
+    @Test
     fun moblinkPasswordIsSecret() {
         val file = File(directory, "settings.json")
         val store = SettingsStore(file, InMemorySecretStore())

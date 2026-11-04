@@ -53,9 +53,12 @@ class MoblinSettingsUrlTest {
         assertEquals(2500, irl.srt.latency)
         assertEquals(false, irl.srt.adaptiveBitrateEnabled)
         assertEquals("someone", irl.twitchChannelName)
-        // OBS (holds a password), remote control and Moblin Cloud are not applied.
-        assertNull(irl.extra["obsWebSocketPassword"])
-        assertEquals(listOf("OBS WebSocket", "remote control", "Moblin Cloud"), link.ignoredParts)
+        // Upstream turns on OBS remote control with the link's address and password.
+        assertEquals(true, irl.obsWebSocketEnabled)
+        assertEquals("ws://10.0.0.2:4455", irl.obsWebSocketUrl)
+        assertEquals("x", irl.obsWebSocketPassword)
+        // Remote control and Moblin Cloud are not applied.
+        assertEquals(listOf("remote control", "Moblin Cloud"), link.ignoredParts)
     }
 
     @Test

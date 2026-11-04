@@ -136,6 +136,12 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     /** The web remote control access token, from the secret store. Keep it in memory only. */
     fun webControlToken(): String = SecretRef.resolve(current.remoteControl.web.token, secrets)
 
+    /** The stream's OBS WebSocket URL, with any user info. Keep it in memory only. */
+    fun obsWebSocketUrl(stream: SettingsStream): String = SecretRef.resolve(stream.obsWebSocketUrl, secrets)
+
+    /** The stream's OBS WebSocket password, from the secret store. Keep it in memory only. */
+    fun obsWebSocketPassword(stream: SettingsStream): String = SecretRef.resolve(stream.obsWebSocketPassword, secrets)
+
     /** The Moblink password, from the secret store. Keep it in memory only. */
     fun moblinkPassword(): String = SecretRef.resolve(current.moblink.password, secrets)
 

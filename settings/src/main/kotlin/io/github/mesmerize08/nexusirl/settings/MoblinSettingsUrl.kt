@@ -30,6 +30,9 @@ data class MoblinSettingsUrlStreamTwitch(val channelName: String, val channelId:
 data class MoblinSettingsUrlStreamKick(val channelName: String)
 
 @Serializable
+data class MoblinSettingsUrlStreamObs(val webSocketUrl: String, val webSocketPassword: String)
+
+@Serializable
 data class MoblinSettingsUrlStream(
     val name: String,
     val url: String,
@@ -37,7 +40,7 @@ data class MoblinSettingsUrlStream(
     val video: MoblinSettingsUrlStreamVideo? = null,
     val audio: MoblinSettingsUrlStreamAudio? = null,
     val srt: MoblinSettingsSrt? = null,
-    val obs: JsonObject? = null,
+    val obs: MoblinSettingsUrlStreamObs? = null,
     val twitch: MoblinSettingsUrlStreamTwitch? = null,
     val kick: MoblinSettingsUrlStreamKick? = null,
 )
@@ -60,7 +63,6 @@ data class MoblinSettingsUrl(
     /** Parts of the link the Android app does not apply yet, for the confirmation dialog. */
     val ignoredParts: List<String>
         get() = buildList {
-            if (streams.orEmpty().any { it.obs != null }) add("OBS WebSocket")
             if (quickButtons != null) add("quick buttons")
             if (webBrowser != null) add("web browser")
             if (remoteControl != null) add("remote control")
@@ -99,6 +101,13 @@ data class MoblinSettingsUrl(
             linkStream.srt?.let { srt ->
                 srt.latency?.let { target = target.copy(srt = target.srt.copy(latency = it)) }
                 srt.adaptiveBitrateEnabled?.let { target = target.copy(srt = target.srt.copy(adaptiveBitrateEnabled = it)) }
+            }
+            linkStream.obs?.let {
+                target = target.copy(
+                    obsWebSocketEnabled = true,
+                    obsWebSocketUrl = it.webSocketUrl.trim(),
+                    obsWebSocketPassword = it.webSocketPassword.trim(),
+                )
             }
             linkStream.twitch?.let {
                 target = target.copy(twitchChannelName = it.channelName.trim(), twitchChannelId = it.channelId.trim())
