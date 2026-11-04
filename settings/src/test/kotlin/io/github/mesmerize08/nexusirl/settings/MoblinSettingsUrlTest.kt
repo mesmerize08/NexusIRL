@@ -61,6 +61,23 @@ class MoblinSettingsUrlTest {
         assertEquals(listOf("remote control", "Moblin Cloud"), link.ignoredParts)
     }
 
+    /** Upstream requires both OBS fields; a link missing one still sets up the rest here. */
+    @Test
+    fun partialObsBlockStillImports() {
+        val link = MoblinSettingsUrl.fromJson(
+            """{"streams":[{"name":"A","url":"srt://h:1","obs":{"webSocketUrl":"ws://10.0.0.2:4455"}},""" +
+                """{"name":"B","url":"srt://h:2","obs":{"webSocketPassword":"x"}}]}""",
+        )
+        val streams = link.apply(Database(), replaceCollisions = false).streams
+        assertEquals(listOf("A", "B"), streams.map { it.name })
+        assertEquals("ws://10.0.0.2:4455", streams[0].obsWebSocketUrl)
+        assertEquals("", streams[0].obsWebSocketPassword)
+        assertTrue(streams[0].obsWebSocketEnabled)
+        // Without an address there is nothing to connect to: OBS remote control stays as it was.
+        assertEquals(SettingsStream().obsWebSocketEnabled, streams[1].obsWebSocketEnabled)
+        assertEquals("", streams[1].obsWebSocketPassword)
+    }
+
     @Test
     fun outOfRangeValuesAreIgnored() {
         val link = MoblinSettingsUrl.fromJson(

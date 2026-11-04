@@ -195,6 +195,31 @@ class SettingsStoreTest {
         assertTrue("\"obsWebSocketUrl\":\"ws://10.0.0.5:4455\"" in store.exportJson())
     }
 
+    /** The stream editor saves the plain values back: unchanged ones keep their references (no OBS reconnect). */
+    @Test
+    fun unchangedSecretsKeepTheirReferences() {
+        val secrets = InMemorySecretStore()
+        val store = SettingsStore(File(directory, "settings.json"), secrets)
+        val obsUrl = "ws://user:$key@10.0.0.5:4455"
+        store.update {
+            it.addStream(SettingsStream(name = "S", url = url, obsWebSocketUrl = obsUrl, obsWebSocketPassword = key))
+        }
+        val saved = store.current.selectedStream!!
+        val refCount = secrets.refs().size
+        store.update {
+            it.updateStream(saved.copy(name = "Renamed", url = url, obsWebSocketUrl = obsUrl, obsWebSocketPassword = key))
+        }
+        val resaved = store.current.selectedStream!!
+        assertEquals(saved.url, resaved.url)
+        assertEquals(saved.obsWebSocketUrl, resaved.obsWebSocketUrl)
+        assertEquals(saved.obsWebSocketPassword, resaved.obsWebSocketPassword)
+        assertEquals(refCount, secrets.refs().size)
+        // A changed value still gets a new reference.
+        store.update { it.updateStream(resaved.copy(obsWebSocketPassword = "fakepass-bbbbbbbbbbbb")) }
+        assertFalse(store.current.selectedStream!!.obsWebSocketPassword == saved.obsWebSocketPassword)
+        assertEquals("fakepass-bbbbbbbbbbbb", store.obsWebSocketPassword(store.current.selectedStream!!))
+    }
+
     @Test
     fun moblinkPasswordIsSecret() {
         val file = File(directory, "settings.json")

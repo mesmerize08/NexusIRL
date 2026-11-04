@@ -29,8 +29,9 @@ data class MoblinSettingsUrlStreamTwitch(val channelName: String, val channelId:
 @Serializable
 data class MoblinSettingsUrlStreamKick(val channelName: String)
 
+/** Upstream requires both fields; here a link missing one still imports (as before OBS support). */
 @Serializable
-data class MoblinSettingsUrlStreamObs(val webSocketUrl: String, val webSocketPassword: String)
+data class MoblinSettingsUrlStreamObs(val webSocketUrl: String = "", val webSocketPassword: String = "")
 
 @Serializable
 data class MoblinSettingsUrlStream(
@@ -102,7 +103,7 @@ data class MoblinSettingsUrl(
                 srt.latency?.let { target = target.copy(srt = target.srt.copy(latency = it)) }
                 srt.adaptiveBitrateEnabled?.let { target = target.copy(srt = target.srt.copy(adaptiveBitrateEnabled = it)) }
             }
-            linkStream.obs?.let {
+            linkStream.obs?.takeIf { it.webSocketUrl.isNotBlank() }?.let {
                 target = target.copy(
                     obsWebSocketEnabled = true,
                     obsWebSocketUrl = it.webSocketUrl.trim(),

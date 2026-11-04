@@ -40,7 +40,7 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     /** Applies [transform], moves any new secrets into the secret store, and saves. */
     @Synchronized
     fun update(transform: (Database) -> Database) {
-        val updated = protectSecrets(transform(current))
+        val updated = protectSecrets(transform(current), previous = current)
         val json = save(updated)
         mutableDatabase.value = updated
         removeUnreferencedSecrets(json)
@@ -112,15 +112,22 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
 
     /**
      * Moves every credential in [database], wherever it is, into the secret store. Values that
-     * already hold a placeholder stay as they are.
+     * already hold a placeholder stay as they are. A secret [previous] already held keeps its
+     * reference: editors save the plain values back, and a new reference would look like a change
+     * (reconnecting OBS, for one).
      */
-    private fun protectSecrets(database: Database): Database {
+    private fun protectSecrets(database: Database, previous: Database? = null): Database {
         val tree = SwiftJson.encodeToJsonElement(Database.Serializer, database)
+        val previousRefs by lazy {
+            val refs = previous?.let { SecretRef.findAll(it.toJson()) }.orEmpty().distinct()
+            refs.mapNotNull { ref -> secrets.get(ref)?.let { value -> value to ref } }.toMap()
+        }
+        fun store(secret: String) = (previousRefs[secret] ?: secrets.put(secret)).placeholder
         val protected = SettingsCredentials.map(tree) { kind, value ->
             when {
                 value.isEmpty() || SecretRef.findAll(value).isNotEmpty() -> value
-                kind == CredentialKind.WHOLE -> secrets.put(value).placeholder
-                kind == CredentialKind.URL -> StreamUrlSecrets.protect(value) { secret -> secrets.put(secret).placeholder }
+                kind == CredentialKind.WHOLE -> store(value)
+                kind == CredentialKind.URL -> StreamUrlSecrets.protect(value, ::store)
                 else -> value
             }
         }
