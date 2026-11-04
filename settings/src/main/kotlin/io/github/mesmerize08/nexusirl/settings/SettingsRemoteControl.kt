@@ -15,7 +15,12 @@ import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonObject
 import java.security.SecureRandom
 
-/** Upstream `SettingsRemoteControlStreamer`: this device connecting to an assistant at [url]. */
+/**
+ * Upstream `SettingsRemoteControlStreamer`: this device connecting to an assistant at [url].
+ * [allowSettingsImport] is Android's addition (docs/PORT_PLAN.md §9.6): upstream applies an
+ * assistant's settings import directly; here it is refused unless turned on, and then the user
+ * is asked on the phone each time. It belongs to this phone: imports keep it, exports omit it.
+ */
 @KeepGeneratedSerializer
 @Serializable(with = SettingsRemoteControlStreamer.Serializer::class)
 data class SettingsRemoteControlStreamer(
@@ -23,6 +28,8 @@ data class SettingsRemoteControlStreamer(
     val name: String = "",
     val url: String = "",
     val previewFps: SFloat = 1f,
+    @SerialName("nexusirlAllowSettingsImport")
+    val allowSettingsImport: Boolean = false,
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsRemoteControlStreamer>(generatedSerializer())

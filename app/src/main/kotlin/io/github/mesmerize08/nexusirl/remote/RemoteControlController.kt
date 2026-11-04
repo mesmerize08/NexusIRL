@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.content.edit
 import androidx.core.graphics.scale
 import io.github.mesmerize08.nexusirl.BuildConfig
@@ -54,6 +55,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
@@ -66,7 +68,8 @@ enum class RemoteControlConnection { OFF, CONNECTING, CONNECTED, WRONG_PASSWORD 
 /**
  * Runs the streamer side of remote control while it is enabled: an iOS Moblin assistant (or any
  * compatible one) can see the status and preview and control scenes, going live, recording,
- * zoom, torch, mute, stealth mode and effects. Settings imports from the assistant are refused.
+ * zoom, torch, mute, stealth mode and effects. Settings imports from the assistant are refused
+ * unless allowed in the settings, and then each needs the user's yes on the phone ([pendingImport]).
  *
  * Call from the main thread.
  */
@@ -104,6 +107,49 @@ object RemoteControlController {
     /** Whether the web remote control is listening. */
     val webRunning: StateFlow<Boolean> = mutableWebRunning
 
+    private val mutablePendingImport = MutableStateFlow<PendingRemoteImport?>(null)
+
+    /** An assistant's settings import for the user to accept or reject (MainActivity asks). */
+    val pendingImport: StateFlow<PendingRemoteImport?> = mutablePendingImport
+
+    private val importTimeout = Runnable { rejectImport() }
+
+    private fun takePendingImport(): PendingRemoteImport? {
+        handler.removeCallbacks(importTimeout)
+        return mutablePendingImport.value.also { mutablePendingImport.value = null }
+    }
+
+    /** The user said no, or did not answer in time. Main thread. */
+    fun rejectImport() {
+        takePendingImport()?.respond(false)
+    }
+
+    /** The user said yes: replaces all settings, unless the stream went live meanwhile. Main thread. */
+    fun acceptImport() {
+        val pending = takePendingImport() ?: return
+        val context = context
+        val scope = scope
+        if (context == null || scope == null || StreamController.status.value.active) {
+            pending.respond(false)
+            return
+        }
+        scope.launch {
+            val imported = try {
+                withContext(Dispatchers.IO) {
+                    SettingsArchive.replaceImages(pending.data, File(context.filesDir, SettingsArchive.IMAGES_DIRECTORY))
+                }
+                StreamController.settings(context).import(pending.json)
+                StreamController.settingsImported(context)
+                true
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "Settings import from the assistant failed: ${e.javaClass.simpleName}")
+                false
+            }
+            pending.respond(imported)
+            ChatController.showToast(context.getString(if (imported) R.string.remote_import_done else R.string.remote_import_failed))
+        }
+    }
+
     fun start(context: Context) {
         if (scope != null) {
             return
@@ -125,6 +171,12 @@ object RemoteControlController {
                 .map { WebConfig(it.remoteControl.web.enabled, it.remoteControl.web.androidPort, it.remoteControl.web.token) }
                 .distinctUntilChanged()
                 .collect(::reloadWeb)
+        }
+        // docs/PORT_PLAN.md §9.7: no imports while live, also not one already waiting.
+        newScope.launch {
+            StreamController.status.map { it.active }.distinctUntilChanged().collect { active ->
+                if (active) rejectImport()
+            }
         }
         // Tell the assistant about changes (upstream `remoteControlStreamerSendStateChanged`).
         newScope.launch {
@@ -170,6 +222,7 @@ object RemoteControlController {
     }
 
     private fun reload(config: Config) {
+        rejectImport()
         streamer?.stop()
         streamer = null
         streamerStatusMillis = 0
@@ -422,6 +475,7 @@ object RemoteControlController {
     }
 
     private const val PREVIEW_LONG_SIDE = 400
+    private const val TAG = "RemoteControl"
 
     private const val REQUEST_TIMEOUT_SECONDS = 3L
     private const val ZOOM_STATE_INTERVAL_MILLIS = 500L
@@ -479,20 +533,46 @@ object RemoteControlController {
         }
 
         /**
-         * Refused, as the class says, except for automated tests: a debug build with the marker
-         * file [TEST_IMPORT_MARKER] (created over `adb run-as`, which only works on debug builds)
-         * accepts imports so Moblin's system-test harness can configure the phone. Never live.
+         * Put to the user on the phone when "Allow settings import" is on ([RemoteImportPolicy]),
+         * otherwise refused. Automated tests: a debug build with the marker file
+         * [TEST_IMPORT_MARKER] (created over `adb run-as`, which only works on debug builds)
+         * accepts imports without asking so Moblin's system-test harness can configure the phone.
          */
-        override fun importSettings(data: ByteArray): Boolean {
-            val context = context ?: return false
-            if (web || !BuildConfig.DEBUG || !File(context.filesDir, TEST_IMPORT_MARKER).exists()) {
-                return false
-            }
-            val json = try {
-                SettingsArchive.readSettingsJson(data)
+        override fun importSettings(data: ByteArray, respond: (Boolean) -> Unit) {
+            val context = context ?: return respond(false)
+            val (json, database) = try {
+                SettingsArchive.readSettingsJson(data).let { it to Database.fromJson(it) }
             } catch (e: Exception) {
-                return false
+                return respond(false)
             }
+            if (!web && BuildConfig.DEBUG && File(context.filesDir, TEST_IMPORT_MARKER).exists()) {
+                return respond(importForTests(context, data, json))
+            }
+            handler.post {
+                val decision = RemoteImportPolicy.decide(
+                    allowed = store?.current?.remoteControl?.streamer?.allowSettingsImport == true,
+                    fromWeb = web,
+                    live = StreamController.status.value.active,
+                    waiting = mutablePendingImport.value != null,
+                )
+                if (!isCurrent() || decision != RemoteImportDecision.ASK) {
+                    android.util.Log.i(TAG, "Settings import from the assistant refused: $decision")
+                    respond(false)
+                    return@post
+                }
+                mutablePendingImport.value = PendingRemoteImport(
+                    data,
+                    json,
+                    database,
+                    SystemClock.elapsedRealtime() + RemoteImportPolicy.ANSWER_TIMEOUT_MILLIS,
+                    respond,
+                )
+                handler.postDelayed(importTimeout, RemoteImportPolicy.ANSWER_TIMEOUT_MILLIS)
+            }
+        }
+
+        /** The test harness's import: applied at once, never live. */
+        private fun importForTests(context: Context, data: ByteArray, json: String): Boolean {
             val done = CountDownLatch(1)
             var imported = false
             handler.post {
@@ -513,6 +593,10 @@ object RemoteControlController {
         }
 
         override fun disconnected() = main {
+            if (!web) {
+                // The answer could not reach the assistant any more.
+                rejectImport()
+            }
             mutableConnection.value = RemoteControlConnection.CONNECTING
             streamerStatusMillis = 0
             streamerPreview = false

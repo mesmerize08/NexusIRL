@@ -47,6 +47,22 @@ class SettingsStoreTest {
         assertEquals("srt://example.com:4000?streamid=$key", store.resolveUrl(store.current.selectedStream!!))
     }
 
+    /** Who may import settings remotely is decided on this phone only: imports and exports never change it. */
+    @Test
+    fun allowRemoteImportStaysOnDevice() {
+        val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())
+        assertFalse(store.current.remoteControl.streamer.allowSettingsImport, "off by default")
+        store.import("""{"remoteControl":{"server":{"nexusirlAllowSettingsImport":true}}}""")
+        assertFalse(store.current.remoteControl.streamer.allowSettingsImport)
+
+        store.update {
+            it.copy(remoteControl = it.remoteControl.copy(streamer = it.remoteControl.streamer.copy(allowSettingsImport = true)))
+        }
+        assertFalse("nexusirlAllowSettingsImport\":true" in store.exportJson(includeSecrets = true))
+        store.import("{}")
+        assertTrue(store.current.remoteControl.streamer.allowSettingsImport, "an import keeps this phone's choice")
+    }
+
     @Test
     fun importAddsMissingQuickButtonsAllOff() {
         val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())

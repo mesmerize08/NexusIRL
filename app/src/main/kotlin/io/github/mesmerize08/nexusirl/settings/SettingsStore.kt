@@ -59,7 +59,15 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
      */
     fun import(json: String) {
         val imported = Database.fromJson(json)
-        update { imported.copy(quickButtons = addMissingQuickButtons(imported.quickButtons)) }
+        update { current ->
+            // Whether an assistant may import settings is this phone's choice; a file never changes it.
+            val allowSettingsImport = current.remoteControl.streamer.allowSettingsImport
+            val streamer = imported.remoteControl.streamer.copy(allowSettingsImport = allowSettingsImport)
+            imported.copy(
+                quickButtons = addMissingQuickButtons(imported.quickButtons),
+                remoteControl = imported.remoteControl.copy(streamer = streamer),
+            )
+        }
     }
 
     /**
@@ -75,7 +83,11 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
                     it.copy(twitchAccessToken = "", twitchLoggedIn = false, kickAccessToken = "", kickLoggedIn = false)
                 },
                 // The web access token stays on this device (it is not part of upstream's settings).
-                remoteControl = database.remoteControl.copy(web = database.remoteControl.web.copy(token = "")),
+                // So does the permission for remote settings imports.
+                remoteControl = database.remoteControl.copy(
+                    web = database.remoteControl.web.copy(token = ""),
+                    streamer = database.remoteControl.streamer.copy(allowSettingsImport = false),
+                ),
             )
         }
         val tree = SwiftJson.encodeToJsonElement(Database.Serializer, database)

@@ -113,6 +113,11 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
                 update { it.copy(previewFps = fps) }
             },
         )
+        // docs/PORT_PLAN.md §9.6: upstream imports an assistant's settings without asking.
+        SwitchRow(stringResource(R.string.allow_remote_import), streamer.allowSettingsImport) { on ->
+            update { it.copy(allowSettingsImport = on) }
+        }
+        Text(stringResource(R.string.allow_remote_import_help), style = MaterialTheme.typography.bodySmall)
         HorizontalDivider()
         WebRemoteControlSection(store)
     }
@@ -163,8 +168,9 @@ fun WebRemoteControlSection(store: SettingsStore) {
     val qr = remember(links.first()) { WidgetBitmaps.qrCode(links.first(), 400) }
     qr?.let { Image(it.asImageBitmap(), contentDescription = null, modifier = Modifier.size(200.dp)) }
     val context = LocalContext.current
+    val clipLabel = stringResource(R.string.web_remote_control)
     OutlinedButton(onClick = {
-        SensitiveClipboard.copy(context, context.getString(R.string.web_remote_control), links.first())
+        SensitiveClipboard.copy(context, clipLabel, links.first())
         // Android 13+ confirms copies itself.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             Toast.makeText(context, R.string.copied_cleared_soon, Toast.LENGTH_SHORT).show()

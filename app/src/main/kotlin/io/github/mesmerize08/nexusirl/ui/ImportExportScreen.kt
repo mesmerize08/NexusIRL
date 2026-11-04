@@ -46,8 +46,18 @@ import java.util.Date
 import java.util.Locale
 
 /** An import waiting for the user's confirmation. */
-private class PendingImport(val data: ByteArray, val json: String, val database: Database) {
-    val containsSecrets: Boolean = database.streams.any { StreamUrlSecrets.split(it.url).second.isNotEmpty() }
+private class PendingImport(val data: ByteArray, val json: String, val database: Database)
+
+/**
+ * What an import replaces: its streams by name and whether it holds stream keys (never the keys).
+ * Shared by file imports and the remote control's ([RemoteImportDialog]).
+ */
+@Composable
+fun importSummary(database: Database): String {
+    val streams = database.streams.joinToString(", ") { it.name }.ifEmpty { "-" }
+    val containsSecrets = database.streams.any { StreamUrlSecrets.split(it.url).second.isNotEmpty() }
+    return pluralStringResource(R.plurals.import_confirm_text, database.streams.size, database.streams.size, streams) +
+        if (containsSecrets) "\n\n" + stringResource(R.string.import_contains_keys) else ""
 }
 
 /** How the next export is written. */
@@ -169,18 +179,7 @@ fun ImportExportScreen(store: SettingsStore, live: Boolean, onBack: () -> Unit) 
         AlertDialog(
             onDismissRequest = { pendingImport = null },
             title = { Text(stringResource(R.string.import_confirm_title)) },
-            text = {
-                val streams = pending.database.streams.joinToString(", ") { it.name }.ifEmpty { "-" }
-                Text(
-                    pluralStringResource(
-                        R.plurals.import_confirm_text,
-                        pending.database.streams.size,
-                        pending.database.streams.size,
-                        streams,
-                    ) +
-                        if (pending.containsSecrets) "\n\n" + stringResource(R.string.import_contains_keys) else "",
-                )
-            },
+            text = { Text(importSummary(pending.database)) },
             confirmButton = {
                 TextButton(onClick = {
                     pendingImport = null

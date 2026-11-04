@@ -68,9 +68,10 @@ interface RemoteControlStreamerDelegate {
 
     /**
      * Upstream applies imported settings directly. Android only does so after the user agrees on
-     * the device (docs/threat-model.md T6); return whether it was accepted.
+     * the device (docs/threat-model.md T6), so the answer can come much later: call [respond]
+     * once, from any thread, with whether it was imported. Other requests are handled meanwhile.
      */
-    fun importSettings(data: ByteArray): Boolean = false
+    fun importSettings(data: ByteArray, respond: (Boolean) -> Unit) = respond(false)
 }
 
 /**
@@ -223,6 +224,14 @@ class RemoteControlStreamer(
     }
 
     private fun handleRequest(id: Int, request: RemoteControlRequest) {
+        if (request is RemoteControlRequest.ImportSettings) {
+            delegate.importSettings(request.data) { imported ->
+                send(
+                    RemoteControlMessageToAssistant.Response(id, if (imported) RemoteControlResult.OK else RemoteControlResult.ERROR, null),
+                )
+            }
+            return
+        }
         val (result, data) = delegate.handle(request)
         send(RemoteControlMessageToAssistant.Response(id, result, data))
     }
@@ -259,9 +268,8 @@ fun RemoteControlStreamerDelegate.handle(request: RemoteControlRequest): Pair<Re
         is RemoteControlRequest.SendMessage -> sendMessage(request.text)
         is RemoteControlRequest.TwitchEventSubNotification -> twitchEventSubNotification(request.message)
         is RemoteControlRequest.ChatMessages -> chatMessages(request.history, request.messages)
-        is RemoteControlRequest.ImportSettings -> if (!importSettings(request.data)) {
-            result = RemoteControlResult.ERROR
-        }
+        // Answered later by the assistant connection (it waits for the user); never from here.
+        is RemoteControlRequest.ImportSettings -> result = RemoteControlResult.ERROR
         RemoteControlRequest.Unknown -> result = RemoteControlResult.UNKNOWN_REQUEST
     }
     return result to data

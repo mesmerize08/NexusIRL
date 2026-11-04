@@ -250,4 +250,68 @@ class RemoteControlTest {
             server.shutdown()
         }
     }
+
+    /**
+     * A settings import waits for the user on the phone: other requests (and pings) are answered
+     * meanwhile, and the import's answer comes when the user decides.
+     */
+    @Test
+    fun importSettingsIsAnsweredLater() {
+        val fromStreamer = LinkedBlockingQueue<String>()
+        val assistant = LinkedBlockingQueue<WebSocket>()
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    assistant += webSocket
+                    webSocket.send("""{"hello":{"apiVersion":"0.1","authentication":{"challenge":"c","salt":"s"}}}""")
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    fromStreamer += text
+                }
+            }),
+        )
+        server.start()
+        val imports = LinkedBlockingQueue<Pair<ByteArray, (Boolean) -> Unit>>()
+        val streamer = RemoteControlStreamer(
+            server.loopbackUrl("/").toString().replace("http", "ws"),
+            "password",
+            "streamer-1",
+            object : RemoteControlStreamerDelegate {
+                override fun getStatus() = RemoteControlResponse.GetStatus(
+                    topLeft = RemoteControlStatusTopLeft(),
+                    topRight = RemoteControlStatusTopRight(),
+                )
+
+                override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
+
+                override fun importSettings(data: ByteArray, respond: (Boolean) -> Unit) {
+                    imports += data to respond
+                }
+            },
+        )
+        val importRequest = { id: Int ->
+            """{"request":{"id":$id,"data":{"importSettings":{"data":"${Base64.getEncoder().encodeToString("{}".toByteArray())}"}}}}"""
+        }
+        try {
+            streamer.start()
+            assertNotNull(fromStreamer.poll(5, TimeUnit.SECONDS))
+            val socket = assertNotNull(assistant.poll(5, TimeUnit.SECONDS))
+            socket.send("""{"identified":{"result":{"ok":{}}}}""")
+            socket.send(importRequest(4))
+            val (data, respond) = assertNotNull(imports.poll(5, TimeUnit.SECONDS))
+            assertContentEquals("{}".toByteArray(), data)
+            socket.send("""{"request":{"id":5,"data":{"setTorch":{"on":true}}}}""")
+            assertEquals("""{"response":{"id":5,"result":{"ok":{}}}}""", fromStreamer.poll(5, TimeUnit.SECONDS))
+            respond(true)
+            assertEquals("""{"response":{"id":4,"result":{"ok":{}}}}""", fromStreamer.poll(5, TimeUnit.SECONDS))
+            socket.send(importRequest(6))
+            assertNotNull(imports.poll(5, TimeUnit.SECONDS)).second(false)
+            assertEquals("""{"response":{"id":6,"result":{"error":{}}}}""", fromStreamer.poll(5, TimeUnit.SECONDS))
+        } finally {
+            streamer.stop()
+            server.shutdown()
+        }
+    }
 }

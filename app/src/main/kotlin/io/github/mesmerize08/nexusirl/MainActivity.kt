@@ -86,6 +86,7 @@ import io.github.mesmerize08.nexusirl.ui.QuickButtonBar
 import io.github.mesmerize08.nexusirl.ui.QuickButtonsScreen
 import io.github.mesmerize08.nexusirl.ui.RemoteAssistantScreen
 import io.github.mesmerize08.nexusirl.ui.RemoteControlScreen
+import io.github.mesmerize08.nexusirl.ui.RemoteImportDialog
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
 import io.github.mesmerize08.nexusirl.ui.ScenesScreen
@@ -341,6 +342,10 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             },
             onDismiss = { pendingLink.value = null },
         )
+    }
+    // An assistant's settings import, when allowed in the remote control settings.
+    RemoteControlController.pendingImport.collectAsState().value?.let { pending ->
+        RemoteImportDialog(pending, onAccept = RemoteControlController::acceptImport, onReject = RemoteControlController::rejectImport)
     }
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     // Widgets and LUTs open from the Scenes page or from the main screen's quick buttons; Back

@@ -266,6 +266,14 @@
     <string name="mute">Mute</string>
     <string name="stealth_mode">Stealth mode</string>
     <string name="zoom">Zoom</string>
+    <string name="allow_remote_import">Allow settings import from the assistant</string>
+    <string name="allow_remote_import_help">Off, the assistant can never change your settings or stream keys. On, each import must be accepted on this phone within 30 seconds, and never while live.</string>
+    <string name="remote_import_title">Settings from the remote control</string>
+    <string name="remote_import_text">The remote control assistant wants to replace all settings on this phone.</string>
+    <string name="remote_import_countdown">Rejected automatically in %1$d s.</string>
+    <string name="reject">Reject</string>
+    <string name="remote_import_done">Settings imported from the remote control.</string>
+    <string name="remote_import_failed">The settings from the remote control could not be imported.</string>
     <string name="web_remote_control">Web remote control</string>
     <string name="web_remote_control_help">Control this phone from a browser on the same Wi-Fi, hotspot or Tailscale. The link contains a private access token: share it only with people who may control your stream. It never works over mobile data.</string>
     <string name="web_remote_control_not_running">Could not start the web remote control on port %1$d. Another app may be using it.</string>
