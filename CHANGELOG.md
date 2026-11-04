@@ -72,6 +72,9 @@ From an independent pre-release audit (`docs/audit/`).
 - A very large or malformed colour LUT (for example in an imported settings file) is refused or
   skipped with a message, instead of running out of memory and crashing the app, on every start
   when the LUT was on.
+- Going live, ending a stream and starting or stopping a recording no longer hold up the screen
+  (stopping could take up to about 8 seconds, long enough for Android to offer to close the app as
+  not responding). The recording message now appears once the file is finished.
 - An RTMPS server that accepts the connection but never answers no longer hangs a stream attempt:
   connecting gives up after 10 seconds, and stopping ends the attempt at once.
 - A link with a user name and password (`ws://user:pass@host`) came back broken after being stored.
