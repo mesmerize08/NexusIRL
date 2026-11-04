@@ -89,6 +89,7 @@ import io.github.mesmerize08.nexusirl.ui.RemoteControlScreen
 import io.github.mesmerize08.nexusirl.ui.SceneEditorScreen
 import io.github.mesmerize08.nexusirl.ui.ScenePicker
 import io.github.mesmerize08.nexusirl.ui.ScenesScreen
+import io.github.mesmerize08.nexusirl.ui.SensitiveClipboard
 import io.github.mesmerize08.nexusirl.ui.SettingsLinkDialog
 import io.github.mesmerize08.nexusirl.ui.StreamEditorScreen
 import io.github.mesmerize08.nexusirl.ui.StreamsScreen
@@ -176,6 +177,11 @@ class MainActivity : ComponentActivity() {
         getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener)
         StreamController.setUiVisible(this, false)
         super.onStop()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        SensitiveClipboard.onWindowFocusChanged(hasFocus)
     }
 
     override fun onNewIntent(intent: Intent) {

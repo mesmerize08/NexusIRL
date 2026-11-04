@@ -2,6 +2,8 @@
 // @97e26d2.
 package io.github.mesmerize08.nexusirl.ui
 
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -19,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -159,6 +162,14 @@ fun WebRemoteControlSection(store: SettingsStore) {
     }
     val qr = remember(links.first()) { WidgetBitmaps.qrCode(links.first(), 400) }
     qr?.let { Image(it.asImageBitmap(), contentDescription = null, modifier = Modifier.size(200.dp)) }
+    val context = LocalContext.current
+    OutlinedButton(onClick = {
+        SensitiveClipboard.copy(context, context.getString(R.string.web_remote_control), links.first())
+        // Android 13+ confirms copies itself.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Toast.makeText(context, R.string.copied_cleared_soon, Toast.LENGTH_SHORT).show()
+        }
+    }) { Text(stringResource(R.string.copy_link)) }
     OutlinedButton(onClick = {
         store.update {
             it.copy(
