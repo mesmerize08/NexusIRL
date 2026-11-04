@@ -235,7 +235,7 @@
     <string name="moblink_streamer_url_help">For example ws://192.168.1.10:7777</string>
     <string name="notification_moblink_relay">Moblink relay: sharing mobile data with a streamer</string>
     <string name="twitch_sign_in">Sign in to Twitch</string>
-    <string name="twitch_sign_in_help">Optional. Needed for sending chat messages and for follow, subscription, cheer and channel point alerts. Reading chat works without it.</string>
+    <string name="twitch_sign_in_help">Optional. Needed for sending chat messages and for Twitch alerts (follows, subscriptions, cheers, channel points, watch streaks, hype trains, polls, predictions, shoutouts and ads). Reading chat works without it.</string>
     <string name="twitch_save_first">Save the stream first to sign in to Twitch.</string>
     <string name="twitch_signed_in_as">Signed in to Twitch as %1$s</string>
     <string name="sign_out">Sign out</string>
@@ -373,4 +373,10 @@
     <string name="multi_streaming_warning">⚠️ This will increase network bandwidth usage, system load and device heat.</string>
     <string name="destination">Destination</string>
     <string name="multi_streaming_url_invalid">Enter an rtmp:// or rtmps:// URL with the stream key.</string>
+    <string name="hype_train">Hype train</string>
+    <string name="poll">Poll</string>
+    <string name="prediction">Prediction</string>
+    <string name="hype_train_level">LEVEL %1$d</string>
+    <string name="poll_choice_votes">%1$s (%2$d votes)</string>
+    <string name="prediction_outcome_points">%1$s (%2$d points, %3$d users)</string>
 </resources>

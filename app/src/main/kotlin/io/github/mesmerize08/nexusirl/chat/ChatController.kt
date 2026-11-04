@@ -10,6 +10,8 @@ import io.github.mesmerize08.nexusirl.chat.kick.KickChat
 import io.github.mesmerize08.nexusirl.chat.kick.KickChatIds
 import io.github.mesmerize08.nexusirl.chat.kick.KickUnauthorizedException
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchApi
+import io.github.mesmerize08.nexusirl.chat.twitch.TwitchBanner
+import io.github.mesmerize08.nexusirl.chat.twitch.TwitchBanners
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChat
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchEventSub
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
@@ -81,6 +83,16 @@ object ChatController {
 
     /** Whether Twitch alerts (EventSub) are subscribed; null when not signed in. */
     val twitchAlertsConnected: StateFlow<Boolean?> = mutableTwitchAlertsConnected
+
+    private val mutableTwitchBanners = MutableStateFlow(TwitchBanners())
+
+    /** Hype train, poll and prediction banners (upstream `BannersView`). */
+    val twitchBanners: StateFlow<TwitchBanners> = mutableTwitchBanners
+
+    /** Upstream `removeHypeTrain`, `removeTwitchPoll` and `removeTwitchPrediction`. */
+    fun closeTwitchBanner(close: (TwitchBanners) -> TwitchBanners) {
+        mutableTwitchBanners.value = close(mutableTwitchBanners.value)
+    }
 
     /** Twitch viewers while live and signed in (upstream polls Helix `streams`); null otherwise. */
     val twitchViewers: StateFlow<Int?> = mutableTwitchViewers
@@ -173,6 +185,7 @@ object ChatController {
         twitchAccount = null
         mutableTwitchViewers.value = null
         mutableTwitchAlertsConnected.value = null
+        mutableTwitchBanners.value = TwitchBanners()
         handler.removeCallbacks(viewersTick)
         emoteLoaders.clear()
         mutablePosts.value = emptyList()
@@ -210,12 +223,36 @@ object ChatController {
                     }
                 }
 
+                override fun onTwitchBanner(banner: TwitchBanner) = onMain(current) {
+                    mutableTwitchBanners.value = mutableTwitchBanners.value.with(banner)
+                }
+
+                // Upstream always toasts these (ad breaks).
+                override fun onToast(text: String) {
+                    mutableToasts.tryEmit(text)
+                }
+
                 override fun onConnectionChanged(platform: ChatPlatform, connected: Boolean) = onMain(current) {
                     mutableTwitchAlertsConnected.value = connected
                 }
             }
             mutableTwitchAlertsConnected.value = false
-            eventSub = TwitchEventSub(config.twitchChannelId, alertsListener, api = { twitchApi(context, signedIn) }).also { it.start() }
+            var toldToSignInAgain = false
+            eventSub = TwitchEventSub(
+                config.twitchChannelId,
+                alertsListener,
+                api = { twitchApi(context, signedIn) },
+                // Sign-ins from before the new EventSub permissions (all added with user:read:chat,
+                // which channel.chat.notification needs whatever the channel); once per connection.
+                onMissingPermissions = { types ->
+                    onMain(current) {
+                        if (!toldToSignInAgain && "channel.chat.notification" in types) {
+                            toldToSignInAgain = true
+                            showToast("Sign in to Twitch again in the stream's settings to get all Twitch alerts.")
+                        }
+                    }
+                },
+            ).also { it.start() }
             handler.post(viewersTick)
         }
         if (config.twitchChannelName.isNotEmpty()) {

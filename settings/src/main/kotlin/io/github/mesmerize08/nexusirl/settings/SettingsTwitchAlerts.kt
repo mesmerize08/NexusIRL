@@ -36,4 +36,7 @@ data class SettingsTwitchAlerts(
 
     /** Upstream `isBitsEnabled`. */
     fun isBitsEnabled(amount: Int): Boolean = cheers && amount >= minimumCheerBits
+
+    /** Upstream `isWatchStreakEnabled`. */
+    fun isWatchStreakEnabled(count: Int): Boolean = watchStreaks && count >= minimumWatchStreak
 }

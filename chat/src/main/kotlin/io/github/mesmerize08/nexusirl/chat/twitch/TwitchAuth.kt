@@ -15,16 +15,25 @@ import java.io.IOException
 
 /**
  * The permissions asked for, only what the app uses (upstream asks for about 30 up front):
- * sending chat, follow, subscription, cheer and channel point alerts, and changing the stream's
- * title and category. Raids and viewer counts need none.
+ * sending chat, follow, cheer and channel point alerts, changing the stream's title and category,
+ * and reading the EventSub events upstream subscribes to: subscriptions, watch streaks and shared
+ * chat alerts (`channel.chat.notification`, user:read:chat), hype trains, ads, polls, predictions
+ * and shoutouts. Read-only where upstream asks to manage polls, predictions and shoutouts (it
+ * also creates them). Raids and viewer counts need none. Sign-ins from before the EventSub
+ * additions have channel:read:subscriptions instead of user:read:chat; see [TwitchEventSub].
  */
 val TWITCH_SCOPES = listOf(
     "user:write:chat",
     "channel:manage:broadcast",
     "moderator:read:followers",
-    "channel:read:subscriptions",
     "bits:read",
     "channel:read:redemptions",
+    "user:read:chat",
+    "channel:read:hype_train",
+    "channel:read:ads",
+    "channel:read:polls",
+    "channel:read:predictions",
+    "moderator:read:shoutouts",
 )
 
 /** A sign-in in progress: show [userCode] and send the user to [verificationUri]. */

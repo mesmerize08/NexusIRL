@@ -1,6 +1,7 @@
 // Port of Moblin/Various/ChatPost.swift @97e26d2 (the data parts).
 package io.github.mesmerize08.nexusirl.chat
 
+import io.github.mesmerize08.nexusirl.chat.twitch.TwitchBanner
 import io.github.mesmerize08.nexusirl.settings.RgbColor
 
 /** Where a chat message came from (upstream `Platform`). */
@@ -79,13 +80,22 @@ data class ChatPost(
 
 /** Receives chat events from a platform connection. Called from network threads. */
 /** Twitch alert kinds, as upstream's per-kind alert settings (`SettingsTwitchAlerts`). */
-enum class TwitchAlertType { FOLLOW, SUBSCRIPTION, RESUBSCRIPTION, GIFT_SUBSCRIPTION, CHEER, RAID, REWARD }
+enum class TwitchAlertType { FOLLOW, SUBSCRIPTION, RESUBSCRIPTION, GIFT_SUBSCRIPTION, CHEER, RAID, REWARD, WATCH_STREAK }
 
 /**
  * A Twitch alert (EventSub): its kind, who, upstream's text ("just followed!"), the bits of a
- * cheer, and the highlighted chat post for it.
+ * cheer, the highlighted chat post for it, the streams in a row of a watch streak, and whether
+ * it happened in a shared chat partner's channel.
  */
-data class TwitchAlert(val type: TwitchAlertType, val user: String, val text: String, val bits: Int?, val post: ChatPost)
+data class TwitchAlert(
+    val type: TwitchAlertType,
+    val user: String,
+    val text: String,
+    val bits: Int?,
+    val post: ChatPost,
+    val streak: Int? = null,
+    val sharedChat: Boolean = false,
+)
 
 /** Kick alert kinds, as upstream's per-kind alert settings (`SettingsKickAlerts`). */
 enum class KickAlertType { SUBSCRIPTION, GIFTED_SUBSCRIPTIONS, REWARD, HOST, BAN, KICKS }
@@ -104,6 +114,12 @@ interface ChatListener {
 
     /** A Twitch alert; by default it goes to chat. Listeners with settings filter it. */
     fun onTwitchAlert(alert: TwitchAlert) = onPost(alert.post)
+
+    /** A Twitch hype train, poll or prediction changed (upstream's banners). */
+    fun onTwitchBanner(banner: TwitchBanner) {}
+
+    /** A toast for the streamer that no alert setting covers (upstream `makeToast`, e.g. ad breaks). */
+    fun onToast(text: String) {}
 
     fun onDeleteMessage(messageId: String) {}
 

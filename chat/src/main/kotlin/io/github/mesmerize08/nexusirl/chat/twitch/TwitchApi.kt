@@ -20,6 +20,9 @@ class TwitchUnauthorizedException : IOException("Twitch rejected the sign-in")
 /** The sign-in lacks a permission ([scope]) the request needs: sign in again to grant it. */
 class TwitchMissingScopeException(val scope: String) : IOException("Sign in to Twitch again to allow this ($scope)")
 
+/** Twitch refused the request (HTTP 403), e.g. an EventSub subscription the sign-in has no permission for. */
+class TwitchForbiddenException : IOException("Twitch refused the request")
+
 /** A channel's title and category (upstream `TwitchApiChannelInformationData`). */
 data class TwitchChannelInfo(val title: String, val categoryId: String, val categoryName: String)
 
@@ -46,6 +49,10 @@ class TwitchApi(
             val message = response.body?.string().orEmpty()
             Regex("Missing scope: ([a-z:_]+)").find(message)?.let { throw TwitchMissingScopeException(it.groupValues[1]) }
             throw TwitchUnauthorizedException()
+        }
+        if (response.code == 403) {
+            // EventSub: {"error":"Forbidden","status":403,"message":"subscription missing proper authorization"}
+            throw TwitchForbiddenException()
         }
         if (!response.isSuccessful) {
             throw IOException("Twitch HTTP ${response.code}")

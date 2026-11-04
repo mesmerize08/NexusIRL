@@ -94,6 +94,7 @@ import io.github.mesmerize08.nexusirl.ui.SensitiveClipboard
 import io.github.mesmerize08.nexusirl.ui.SettingsLinkDialog
 import io.github.mesmerize08.nexusirl.ui.StreamEditorScreen
 import io.github.mesmerize08.nexusirl.ui.StreamsScreen
+import io.github.mesmerize08.nexusirl.ui.TwitchBannersView
 import io.github.mesmerize08.nexusirl.ui.WidgetEditorScreen
 import io.github.mesmerize08.nexusirl.ui.WidgetsScreen
 import io.github.mesmerize08.nexusirl.ui.summary
@@ -505,6 +506,8 @@ private fun MainScreen(
     }
     val controls: @Composable ColumnScope.() -> Unit = {
         LiveStatusBar(status)
+        // Under the status, not over the preview: the preview's gesture layer would take the taps.
+        TwitchBannersView()
         if (status.detail.isNotEmpty()) {
             Text(status.detail, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }

@@ -3,6 +3,7 @@
 
 package io.github.mesmerize08.nexusirl.chat
 
+import io.github.mesmerize08.nexusirl.chat.twitch.TWITCH_SCOPES
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchAuth
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchAuthException
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchTokens
@@ -25,6 +26,27 @@ class TwitchAuthTest {
     }
 
     private fun json(body: String, code: Int = 200) = MockResponse().setResponseCode(code).setBody(body)
+
+    /** Only what NexusIRL uses (PORT_PLAN §9.5): read-only scopes where upstream asks to manage. */
+    @Test
+    fun scopes() {
+        assertEquals(
+            listOf(
+                "user:write:chat",
+                "channel:manage:broadcast",
+                "moderator:read:followers",
+                "bits:read",
+                "channel:read:redemptions",
+                "user:read:chat",
+                "channel:read:hype_train",
+                "channel:read:ads",
+                "channel:read:polls",
+                "channel:read:predictions",
+                "moderator:read:shoutouts",
+            ),
+            TWITCH_SCOPES,
+        )
+    }
 
     @Test
     fun deviceFlow() = withServer { server, auth ->
