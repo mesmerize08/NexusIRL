@@ -21,7 +21,6 @@ import kotlinx.serialization.json.putJsonObject
 import okhttp3.OkHttpClient
 import java.security.MessageDigest
 import java.util.Base64
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.log10
 
@@ -137,6 +136,9 @@ interface ObsWebSocketListener {
 
     fun disconnected() {}
 
+    /** A connection attempt ended before OBS accepted it, such as with "Authentication failed.". */
+    fun connectionFailed(message: String) {}
+
     fun sceneChanged(sceneName: String) {}
 
     fun inputMuteStateChanged(inputName: String, muted: Boolean) {}
@@ -169,8 +171,13 @@ class ObsWebSocket(
     client: OkHttpClient = ReconnectingWebSocket.LOCAL_NETWORK_CLIENT,
 ) {
     private val nextId = AtomicInteger(0)
-    private val requests = ConcurrentHashMap<String, (Result<JsonObject?>) -> Unit>()
-    private val batchRequests = ConcurrentHashMap<String, (Result<List<JsonObject?>>) -> Unit>()
+
+    // Guards the connected state and the pending requests: requests come from any thread and
+    // stop() from the caller's, while OBS's messages arrive on the connection's thread.
+    private val lock = Any()
+    private val requests = HashMap<String, (Result<JsonObject?>) -> Unit>()
+    private val batchRequests = HashMap<String, (Result<List<JsonObject?>>) -> Unit>()
+    private var stopped = false
 
     @Volatile
     var isConnected = false
@@ -184,7 +191,10 @@ class ObsWebSocket(
     private val socket = ReconnectingWebSocket(
         url,
         object : ReconnectingWebSocket.Listener {
-            override fun onConnected(socket: ReconnectingWebSocket) = Unit
+            override fun onConnected(socket: ReconnectingWebSocket) {
+                // A new attempt: an earlier attempt's error no longer applies.
+                connectionErrorMessage = ""
+            }
 
             override fun onMessage(socket: ReconnectingWebSocket, text: String) {
                 try {
@@ -194,9 +204,9 @@ class ObsWebSocket(
                 }
             }
 
+            // onDisconnected follows.
             override fun onClosing(socket: ReconnectingWebSocket, code: Int, reason: String) {
                 connectionErrorMessage = reason.ifEmpty { "Disconnected" }
-                handleDisconnected()
             }
 
             override fun onDisconnected(socket: ReconnectingWebSocket) {
@@ -212,26 +222,27 @@ class ObsWebSocket(
     fun start() = socket.start()
 
     fun stop() {
+        synchronized(lock) { stopped = true }
         socket.stop()
-        handleDisconnected()
+        handleDisconnected(stopping = true)
     }
 
-    private fun handleDisconnected() {
-        val wasConnected = isConnected
-        isConnected = false
-        failPending()
+    private fun handleDisconnected(stopping: Boolean = false) {
+        val (wasConnected, pending, pendingBatches) = synchronized(lock) {
+            val wasConnected = isConnected
+            isConnected = false
+            Triple(wasConnected, requests.values.toList(), batchRequests.values.toList()).also {
+                requests.clear()
+                batchRequests.clear()
+            }
+        }
+        val error = Result.failure<Nothing>(ObsException("Disconnected"))
+        pending.forEach { it(error) }
+        pendingBatches.forEach { it(error) }
         if (wasConnected) {
             listener.disconnected()
-        }
-    }
-
-    private fun failPending() {
-        val error = Result.failure<Nothing>(ObsException("Disconnected"))
-        for (id in requests.keys.toList()) {
-            requests.remove(id)?.invoke(error)
-        }
-        for (id in batchRequests.keys.toList()) {
-            batchRequests.remove(id)?.invoke(error)
+        } else if (!stopping) {
+            listener.connectionFailed(connectionErrorMessage)
         }
     }
 
@@ -419,12 +430,8 @@ class ObsWebSocket(
         }
 
     private fun sendRequest(type: String, data: JsonObject?, errorMessages: Map<Int, String>, callback: (Result<JsonObject?>) -> Unit) {
-        if (!isConnected) {
-            callback(Result.failure(ObsException("Not connected to server")))
-            return
-        }
         val id = nextId()
-        requests[id] = { result ->
+        val registered = register(requests, id) { result ->
             callback(
                 result.recoverCatching { error ->
                     val status = (error as? RequestFailed) ?: throw error
@@ -437,7 +444,19 @@ class ObsWebSocket(
                 },
             )
         }
+        if (!registered) {
+            callback(Result.failure(ObsException("Not connected to server")))
+            return
+        }
         send(OpCode.REQUEST, packRequest(type, id, data))
+    }
+
+    /** Adds a pending request, unless not connected (a disconnect fails every added one). */
+    private fun <T> register(pending: HashMap<String, T>, id: String, callback: T): Boolean = synchronized(lock) {
+        if (isConnected) {
+            pending[id] = callback
+        }
+        isConnected
     }
 
     private fun <T> requestBatch(
@@ -446,13 +465,13 @@ class ObsWebSocket(
         callback: (Result<List<T?>>) -> Unit,
         decode: (JsonObject) -> T,
     ) {
-        if (!isConnected) {
+        val id = nextId()
+        val registered = register(batchRequests, id) { result: Result<List<JsonObject?>> ->
+            callback(result.map { responses -> responses.map { response -> response?.let { runCatching { decode(it) }.getOrNull() } } })
+        }
+        if (!registered) {
             callback(Result.failure(ObsException("Not connected to server")))
             return
-        }
-        val id = nextId()
-        batchRequests[id] = { result ->
-            callback(result.map { responses -> responses.map { response -> response?.let { runCatching { decode(it) }.getOrNull() } } })
         }
         send(
             OpCode.REQUEST_BATCH,
@@ -502,8 +521,14 @@ class ObsWebSocket(
     }
 
     private fun handleIdentified() {
-        connectionErrorMessage = ""
-        isConnected = true
+        synchronized(lock) {
+            // Identified may have been on its way when stop() was called.
+            if (stopped) {
+                return
+            }
+            connectionErrorMessage = ""
+            isConnected = true
+        }
         listener.connected()
     }
 
@@ -552,14 +577,14 @@ class ObsWebSocket(
 
     private fun handleRequestResponse(data: JsonObject) {
         val id = data["requestId"]?.jsonPrimitive?.content ?: return
-        val callback = requests.remove(id) ?: return
+        val callback = synchronized(lock) { requests.remove(id) } ?: return
         callback(parseResult(data))
     }
 
     private fun handleRequestBatchResponse(data: JsonObject) {
         // obs-websocket echoes the id as sent; accept a number too.
         val id = data["requestId"]?.jsonPrimitive?.content ?: return
-        val callback = batchRequests.remove(id) ?: return
+        val callback = synchronized(lock) { batchRequests.remove(id) } ?: return
         val results = data.getValue("results").jsonArray.map { parseResult(it.jsonObject).getOrNull() }
         callback(Result.success(results))
     }

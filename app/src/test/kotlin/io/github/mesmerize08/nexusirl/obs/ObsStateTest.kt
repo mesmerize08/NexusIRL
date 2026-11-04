@@ -27,4 +27,12 @@ class ObsStateTest {
         assertEquals(ObsOutputState.STOPPED, outputState(active = false, state = null))
         assertEquals(ObsOutputState.STOPPING, outputState(active = true, state = ObsOutputState.STOPPING))
     }
+
+    @Test
+    fun audioInputsKeepTheGlobalMicsWithoutSceneItems() {
+        val inputs = listOf("Mic/Aux", "Moblin", "Music", "Hidden")
+        val items = listOf(ObsSceneItem("Moblin", "ffmpeg_source", true), ObsSceneItem("Hidden", "ffmpeg_source", false))
+        assertEquals(listOf("Mic/Aux", "Moblin"), obsSceneAudioInputNames(inputs, mics = listOf("Mic/Aux"), items))
+        assertEquals(listOf("Mic/Aux"), obsSceneAudioInputNames(inputs, mics = listOf("Mic/Aux"), emptyList()))
+    }
 }

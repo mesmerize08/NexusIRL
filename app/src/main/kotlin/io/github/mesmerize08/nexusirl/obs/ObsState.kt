@@ -50,3 +50,7 @@ fun obsAudioLevelsText(volumes: List<Float>): String =
 /** Upstream `obsWebsocketStreamStatusChanged`: the state, or one derived from [active] when not known. */
 fun outputState(active: Boolean, state: ObsOutputState?): ObsOutputState =
     state ?: if (active) ObsOutputState.STARTED else ObsOutputState.STOPPED
+
+/** Upstream `updateObsAudioInputs`'s choice: of OBS's [inputs], its global [mics] and the scene's enabled [items]. */
+fun obsSceneAudioInputNames(inputs: List<String>, mics: List<String>, items: List<ObsSceneItem>): List<String> =
+    inputs.filter { input -> input in mics || items.firstOrNull { it.sourceName == input }?.sceneItemEnabled == true }

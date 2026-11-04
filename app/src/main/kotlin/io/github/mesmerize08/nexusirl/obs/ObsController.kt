@@ -65,7 +65,8 @@ object ObsController {
         val newScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         scope = newScope
         newScope.launch {
-            // References only: the secrets are resolved when connecting.
+            // References only: the secrets are resolved when connecting. An unchanged secret keeps
+            // its reference when the stream is saved (SettingsStore), so that does not reconnect.
             settings.database
                 .map { database ->
                     val stream = database.selectedStream
@@ -88,6 +89,8 @@ object ObsController {
         obs = null
         handler.removeCallbacks(tick)
         mutableScreenshot.value = null
+        // A replaced connection's screenshot reply is dropped.
+        screenshotFetching = false
         switcher = ObsSceneSwitcher(SystemClock::elapsedRealtime)
         val settings = store ?: return
         val stream = selectedStream()
@@ -132,6 +135,10 @@ object ObsController {
 
         override fun disconnected() = post {
             mutableState.update { it.copy(connected = false, error = obs?.connectionErrorMessage.orEmpty()) }
+        }
+
+        override fun connectionFailed(message: String) = post {
+            mutableState.update { it.copy(connected = false, error = message) }
         }
 
         override fun sceneChanged(sceneName: String) = post {
@@ -180,18 +187,24 @@ object ObsController {
         }
     }
 
+    /** Runs [block] on the main thread if this is still the current connection: a replaced one's replies are dropped. */
+    private fun ObsWebSocket.post(block: () -> Unit) {
+        handler.post { if (obs === this) block() }
+    }
+
     /** Upstream `updateObsStatus`, every 10 s and on connect. */
     private fun updateStatus() {
         val obs = obs?.takeIf { it.isConnected } ?: return
-        obs.getStreamStatus { result -> handler.post { updateStreamStatus(result.getOrDefault(false), null) } }
-        obs.getRecordStatus { result -> handler.post { updateRecordStatus(result.getOrDefault(false), null) } }
+        obs.getStreamStatus { result -> obs.post { updateStreamStatus(result.getOrDefault(false), null) } }
+        obs.getRecordStatus { result -> obs.post { updateRecordStatus(result.getOrDefault(false), null) } }
         listScenes()
     }
 
     /** Upstream `listObsScenes`. */
     private fun listScenes(updateAudioInputs: Boolean = false) {
-        obs?.getSceneList { result ->
-            handler.post {
+        val obs = obs ?: return
+        obs.getSceneList { result ->
+            obs.post {
                 val list = result.getOrNull() ?: return@post
                 mutableState.update { it.copy(currentScene = list.current, scenes = list.scenes) }
                 if (updateAudioInputs) {
@@ -205,56 +218,48 @@ object ObsController {
     /** Upstream `updateObsMediaInputs`: the scene's media sources that play a URL, not a file. */
     private fun updateMediaInputs(sceneName: String) {
         val obs = obs ?: return
+        fun publish(sources: List<ObsSceneMediaSource>) = obs.post { mutableState.update { it.copy(sceneMediaSources = sources) } }
         obs.getSceneItemList(sceneName) { items ->
             val names = items.getOrNull()?.filter { it.inputKind == "ffmpeg_source" }?.map { it.sourceName }
-            if (names == null) {
-                handler.post { mutableState.update { it.copy(sceneMediaSources = emptyList()) } }
-                return@getSceneItemList
-            }
-            if (names.isEmpty()) {
+            // Unlike upstream, a scene without media sources clears the last scene's.
+            if (names.isNullOrEmpty()) {
+                publish(emptyList())
                 return@getSceneItemList
             }
             obs.getMediaSourcesSettingsBatch(names) { result ->
-                val sources = result.getOrNull()?.let { settings ->
-                    names.zip(settings).mapNotNull { (name, setting) ->
-                        setting?.takeIf { !it.isLocalFile }?.let { ObsSceneMediaSource(name, it.input) }
-                    }
-                }.orEmpty()
-                handler.post { mutableState.update { it.copy(sceneMediaSources = sources) } }
+                publish(
+                    result.getOrNull()?.let { settings ->
+                        names.zip(settings).mapNotNull { (name, setting) ->
+                            setting?.takeIf { !it.isLocalFile }?.let { ObsSceneMediaSource(name, it.input) }
+                        }
+                    }.orEmpty(),
+                )
             }
         }
     }
 
-    /** Upstream `updateObsAudioInputs`: OBS's global mics, and the scene's enabled inputs, with their mute state. */
+    /**
+     * Upstream `updateObsAudioInputs`: OBS's global mics, and the scene's enabled inputs, with their
+     * mute state. Unlike upstream, a scene without items still shows the mics, and a failed request
+     * keeps the inputs shown.
+     */
     private fun updateAudioInputs(sceneName: String) {
         val obs = obs ?: return
-        fun publish(sceneInputs: List<ObsSceneInput>) {
-            handler.post { mutableState.update { it.copy(sceneInputs = sceneInputs) } }
-        }
         obs.getInputList { inputsResult ->
-            val inputs = inputsResult.getOrNull()
-            if (inputs == null) {
-                publish(emptyList())
-                return@getInputList
-            }
+            val inputs = inputsResult.getOrNull() ?: return@getInputList
             obs.getSpecialInputs { specialResult ->
-                val mics = specialResult.getOrNull()?.mics
-                if (mics == null) {
-                    publish(emptyList())
-                    return@getSpecialInputs
-                }
+                val mics = specialResult.getOrNull()?.mics ?: return@getSpecialInputs
                 obs.getSceneItemList(sceneName) { itemsResult ->
-                    val items = itemsResult.getOrNull()
-                    if (items.isNullOrEmpty()) {
-                        publish(emptyList())
+                    val items = itemsResult.getOrNull() ?: return@getSceneItemList
+                    val names = obsSceneAudioInputNames(inputs, mics, items)
+                    if (names.isEmpty()) {
+                        obs.post { mutableState.update { it.copy(sceneInputs = emptyList()) } }
                         return@getSceneItemList
                     }
-                    val names = inputs.filter { input ->
-                        input in mics || items.firstOrNull { it.sourceName == input }?.sceneItemEnabled == true
-                    }
                     obs.getInputMuteBatch(names) { mutedResult ->
-                        val muted = mutedResult.getOrNull()?.takeIf { it.size == names.size }
-                        publish(muted?.let { names.zip(it).map { (name, isMuted) -> ObsSceneInput(name, isMuted) } }.orEmpty())
+                        val muted = mutedResult.getOrNull()?.takeIf { it.size == names.size } ?: return@getInputMuteBatch
+                        val sceneInputs = names.zip(muted).map { (name, isMuted) -> ObsSceneInput(name, isMuted) }
+                        obs.post { mutableState.update { it.copy(sceneInputs = sceneInputs) } }
                     }
                 }
             }
@@ -270,7 +275,7 @@ object ObsController {
         }
         screenshotFetching = true
         obs.getSourceScreenshot(scene) { result ->
-            handler.post {
+            obs.post {
                 screenshotFetching = false
                 if (panelOpen) {
                     mutableScreenshot.value = result.getOrNull()
@@ -286,7 +291,7 @@ object ObsController {
         if (!StreamController.isLive || !state.connected) {
             return
         }
-        val target = switcher.update(
+        val switch = switcher.update(
             state.currentScene,
             stream.obsMainScene,
             stream.obsBrbScene,
@@ -294,12 +299,16 @@ object ObsController {
             // Android's transports do not count dropped packets.
             droppedPackets = false,
         ) ?: return
-        if (target == stream.obsBrbScene) {
-            ChatController.showToast("😠 Stream likely broken 😠 Trying to switch OBS scene to $target")
-        } else {
-            ChatController.showToast("🥳 Stream likely working 🥳 Trying to switch OBS scene to $target")
+        val target = switch.scene
+        if (switch.toast) {
+            if (target == stream.obsBrbScene) {
+                ChatController.showToast("😠 Stream likely broken 😠 Trying to switch OBS scene to $target")
+            } else {
+                ChatController.showToast("🥳 Stream likely working 🥳 Trying to switch OBS scene to $target")
+            }
         }
-        setScene(target)
+        val switching = switcher
+        setScene(target, toastOnFailure = switch.toast) { success -> switching.finished(target, success) }
     }
 
     /** The OBS panel opened: upstream's onAppear. */
@@ -320,15 +329,21 @@ object ObsController {
         obs?.stopAudioVolume()
     }
 
-    /** Upstream `setObsScene`. */
-    fun setScene(name: String) {
+    /** Upstream `setObsScene`. [onDone]: whether OBS switched. */
+    fun setScene(name: String, toastOnFailure: Boolean = true, onDone: (Boolean) -> Unit = {}) {
+        val obs = obs ?: return
         updateMediaInputs(name)
-        obs?.setCurrentProgramScene(name) { result ->
-            handler.post {
+        obs.setCurrentProgramScene(name) { result ->
+            obs.post {
                 result.onSuccess {
                     mutableState.update { it.copy(currentScene = name) }
                     updateAudioInputs(name)
-                }.onFailure { ChatController.showToast("Failed to set OBS scene to $name: ${it.message}") }
+                }.onFailure {
+                    if (toastOnFailure) {
+                        ChatController.showToast("Failed to set OBS scene to $name: ${it.message}")
+                    }
+                }
+                onDone(result.isSuccess)
             }
         }
     }
@@ -367,7 +382,7 @@ object ObsController {
         val sourceName = selectedStream()?.obsSourceName.orEmpty()
         mutableState.update { it.copy(fixing = true) }
         obs.restartInput(sourceName) { result ->
-            handler.post {
+            obs.post {
                 mutableState.update { it.copy(fixing = false) }
                 result.onFailure { ChatController.showToast("Failed to fix OBS input: ${it.message}") }
             }
@@ -381,8 +396,9 @@ object ObsController {
         if (sourceName.isEmpty()) {
             return
         }
-        obs?.setInputAudioSyncOffset(sourceName, offsetMs.coerceIn(OBS_MINIMUM_AUDIO_DELAY, OBS_MAXIMUM_AUDIO_DELAY)) {
-            handler.post { updateAudioDelay() }
+        val obs = obs ?: return
+        obs.setInputAudioSyncOffset(sourceName, offsetMs.coerceIn(OBS_MINIMUM_AUDIO_DELAY, OBS_MAXIMUM_AUDIO_DELAY)) {
+            obs.post { updateAudioDelay() }
         }
     }
 
@@ -391,14 +407,16 @@ object ObsController {
         if (sourceName.isEmpty()) {
             return
         }
-        obs?.getInputAudioSyncOffset(sourceName) { result ->
-            result.onSuccess { offset -> handler.post { mutableState.update { it.copy(audioDelayMs = offset) } } }
+        val obs = obs ?: return
+        obs.getInputAudioSyncOffset(sourceName) { result ->
+            result.onSuccess { offset -> obs.post { mutableState.update { it.copy(audioDelayMs = offset) } } }
         }
     }
 
     /** Upstream `setObsMediaSourceSettings`: what a scene's media source plays. */
     fun setMediaSourceInput(name: String, input: String) {
-        obs?.setMediaSourceSettings(name, input) { handler.post { updateMediaInputs(mutableState.value.currentScene) } }
+        val obs = obs ?: return
+        obs.setMediaSourceSettings(name, input) { obs.post { updateMediaInputs(mutableState.value.currentScene) } }
     }
 
     /** Upstream's OBS part of `startStream`: called when going live with [stream]. */

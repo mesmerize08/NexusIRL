@@ -29,6 +29,10 @@ class ObsWebSocketTest {
             queue += "disconnected"
         }
 
+        override fun connectionFailed(message: String) {
+            queue += "failed $message"
+        }
+
         override fun sceneChanged(sceneName: String) {
             queue += "scene $sceneName"
         }
@@ -112,14 +116,63 @@ class ObsWebSocketTest {
             try {
                 obs.start()
                 fake.next(1)
-                val deadline = System.currentTimeMillis() + 5000
-                while (obs.connectionErrorMessage.isEmpty() && System.currentTimeMillis() < deadline) {
-                    Thread.sleep(20)
-                }
+                assertEquals("failed Authentication failed.", events.next())
                 assertEquals("Authentication failed.", obs.connectionErrorMessage)
                 assertFalse(obs.isConnected)
             } finally {
                 obs.stop()
+            }
+        }
+    }
+
+    @Test
+    fun connectionErrorIsNotStaleAndClearsOnceIdentified() {
+        lateinit var fake: FakeObs
+        var identifies = 0
+        fake = FakeObs(accept = {
+            identifies += 1
+            when (identifies) {
+                1 -> false
+                // Dropped without a close frame: no reason given.
+                2 -> {
+                    fake.socket!!.cancel()
+                    true
+                }
+                else -> true
+            }
+        })
+        fake.use {
+            val events = Events()
+            val obs = ObsWebSocket(fake.url, "", events)
+            try {
+                obs.start()
+                assertEquals("failed Authentication failed.", events.next())
+                assertEquals("failed Disconnected", events.next())
+                assertEquals("connected", events.next())
+                assertEquals("", obs.connectionErrorMessage)
+            } finally {
+                obs.stop()
+            }
+        }
+    }
+
+    @Test
+    fun stoppedSocketNeverBecomesConnected() {
+        // Stops while OBS's Identified is on its way, again and again.
+        FakeObs(connections = 300).use { fake ->
+            repeat(300) { attempt ->
+                val events = Events()
+                val obs = ObsWebSocket(fake.url, "", events)
+                obs.start()
+                fake.next(1)
+                val spinUntil = System.nanoTime() + (attempt % 30) * 20_000L
+                while (System.nanoTime() < spinUntil) {
+                    Thread.onSpinWait()
+                }
+                obs.stop()
+                Thread.sleep(5)
+                assertFalse(obs.isConnected, "attempt $attempt")
+                assertEquals("Not connected to server", await { obs.getSceneList(it) }.exceptionOrNull()?.message)
             }
         }
     }

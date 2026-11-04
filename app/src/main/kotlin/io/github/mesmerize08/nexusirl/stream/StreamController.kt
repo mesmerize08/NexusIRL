@@ -43,6 +43,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsColor
 import io.github.mesmerize08.nexusirl.settings.SettingsColorLut
 import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.settings.VideoStabilizationMode
@@ -424,11 +425,14 @@ object StreamController {
                 RtmpDestination(destination.name, destinationUrl)
             }
         }
-        return goLive(context, StreamConfig.from(stream, url, destinations))
+        return goLive(context, StreamConfig.from(stream, url, destinations), stream)
     }
 
-    /** Goes live with [requested]. Returns an error message, or null when starting. */
-    fun goLive(context: Context, requested: StreamConfig): String? {
+    /**
+     * Goes live with [requested]. Returns an error message, or null when starting. OBS is started
+     * (and later stopped) as [obsStream] says; a debug URL has no stream settings.
+     */
+    fun goLive(context: Context, requested: StreamConfig, obsStream: SettingsStream? = null): String? {
         if (session != null) {
             return null
         }
@@ -469,7 +473,9 @@ object StreamController {
             notes.forEach(newSession::note)
         })
         LocationController.onGoLive()
-        settings(context).current.selectedStream?.let(ObsController::onGoLive)
+        // The stream that went live, not whichever is selected when it ends.
+        liveObsStream = obsStream
+        obsStream?.let(ObsController::onGoLive)
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
         updateService(context)
@@ -491,7 +497,8 @@ object StreamController {
         // stopping session must not start them again before its stop runs.
         stopping?.ending()
         if (stopping != null) {
-            settings(context).current.selectedStream?.let(ObsController::onStop)
+            liveObsStream?.let(ObsController::onStop)
+            liveObsStream = null
         }
         MoblinkStreamerController.stopTunnels()
         val appContext = context.applicationContext
@@ -499,6 +506,9 @@ object StreamController {
     }
 
     private val statusLock = Any()
+
+    /** The stream settings of the live stream, for OBS auto stop. Main thread. */
+    private var liveObsStream: SettingsStream? = null
 
     /**
      * Whether [canvas] needs a new pipeline while queued work (a stop, a recording being finished)

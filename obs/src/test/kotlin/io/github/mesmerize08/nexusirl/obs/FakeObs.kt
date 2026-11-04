@@ -24,6 +24,7 @@ class FakeObs(
     private val hello: String = """{"op":0,"d":{"obsWebSocketVersion":"5.5.2","rpcVersion":1}}""",
     private val accept: (JsonObject) -> Boolean = { true },
     private val respond: (type: String, data: JsonObject?) -> String? = { _, _ -> """"requestStatus":{"result":true,"code":100}""" },
+    connections: Int = 4,
 ) : AutoCloseable {
     /** Every message from the client, parsed. */
     val received = LinkedBlockingQueue<JsonObject>()
@@ -35,7 +36,7 @@ class FakeObs(
         private set
 
     init {
-        repeat(4) { server.enqueue(MockResponse().withWebSocketUpgrade(listener())) }
+        repeat(connections) { server.enqueue(MockResponse().withWebSocketUpgrade(listener())) }
         server.start(InetAddress.getLoopbackAddress(), 0)
     }
 
