@@ -1,11 +1,15 @@
 // Port of Moblin/View/Settings/Streams/Stream/*.swift @97e26d2 (v1 subset: URL, video, SRT).
 package io.github.mesmerize08.nexusirl.ui
 
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -18,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
@@ -30,6 +35,7 @@ import io.github.mesmerize08.nexusirl.settings.SettingsStreamMultiStreamingDesti
 import io.github.mesmerize08.nexusirl.settings.SettingsTwitchAlerts
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
+import io.github.mesmerize08.nexusirl.settings.StreamKeyPaste
 import io.github.mesmerize08.nexusirl.settings.StreamResolution
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.settings.StreamUrls
@@ -83,6 +89,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
     var destinations by remember(streamId) {
         mutableStateOf(original?.multiStreaming?.destinations.orEmpty().map { it.copy(url = resolved(it.url)) })
     }
+    val context = LocalContext.current
     val hevcSupported = remember { EncoderCapabilities.supportsHevc() }
     val urlValid = StreamUrlSecrets.isValid(url)
     val scheme = url.substringBefore("://", "").lowercase()
@@ -130,6 +137,9 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 else -> stringResource(R.string.stream_url_help)
             },
         )
+        OutlinedButton(onClick = { pasteStreamKey(context, url)?.let { url = it } }) {
+            Text(stringResource(R.string.paste_stream_key))
+        }
         if (scheme == "rtmp") {
             // docs/PORT_PLAN.md §9.5: RTMP sends the stream key in cleartext.
             Text(
@@ -266,6 +276,31 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         Text(stringResource(R.string.discord_snapshots_help), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.discord_webhook_help), style = MaterialTheme.typography.bodySmall)
     }
+}
+
+/**
+ * Reads the clipboard and returns the stream URL with the pasted URL or key in it, or null (a
+ * toast says why). The toast shows the server only, never the key.
+ */
+private fun pasteStreamKey(context: Context, current: String): String? {
+    val clipboard = context.getSystemService(ClipboardManager::class.java)
+    val text = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+    val (url, message) = when (val result = StreamKeyPaste.apply(current, text)) {
+        is StreamKeyPaste.Result.Pasted -> result.url to context.getString(
+            if (result.wholeUrl) R.string.paste_stream_url_done else R.string.paste_stream_key_done,
+            StreamUrlSecrets.display(result.url),
+        )
+        is StreamKeyPaste.Result.Failed -> null to context.getString(
+            when (result.failure) {
+                StreamKeyPaste.Failure.EMPTY -> R.string.paste_stream_key_empty
+                StreamKeyPaste.Failure.NOT_A_KEY -> R.string.paste_stream_key_not_a_key
+                StreamKeyPaste.Failure.INVALID_URL -> R.string.paste_stream_key_invalid
+                StreamKeyPaste.Failure.NEEDS_SERVER -> R.string.paste_stream_key_needs_server
+            },
+        )
+    }
+    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    return url
 }
 
 /** Upstream `StreamMultiStreamingSettingsView`: more RTMP servers fed by the same encoders. */

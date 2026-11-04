@@ -26,6 +26,13 @@
     <string name="delete_stream_text">The stream and its stream key are removed from this phone.</string>
     <string name="stream_name">Name</string>
     <string name="stream_url_help">srt://, srtla://, rtmp:// or rtmps://. Includes your stream key, which is stored encrypted.</string>
+    <string name="paste_stream_key">Paste stream key or URL</string>
+    <string name="paste_stream_url_done">Stream URL pasted (%1$s).</string>
+    <string name="paste_stream_key_done">Stream key added to %1$s.</string>
+    <string name="paste_stream_key_empty">The clipboard is empty. Copy the stream key or URL first.</string>
+    <string name="paste_stream_key_not_a_key">The clipboard does not hold a stream key or URL (it contains spaces or is too long).</string>
+    <string name="paste_stream_key_invalid">The pasted stream URL is not valid. Check it on your streaming service.</string>
+    <string name="paste_stream_key_needs_server">Enter or paste the server URL (rtmp://, rtmps://, srt:// or srtla://) first, then paste the key.</string>
     <string name="stream_url_invalid">Enter an srt://, srtla://, rtmp:// or rtmps:// URL with a host name.</string>
     <string name="rtmp_unencrypted_warning">RTMP sends your stream key unencrypted. Use rtmps:// if your platform supports it.</string>
     <string name="video">Video</string>
