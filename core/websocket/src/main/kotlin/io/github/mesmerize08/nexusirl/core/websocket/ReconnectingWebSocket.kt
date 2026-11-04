@@ -27,6 +27,9 @@ class ReconnectingWebSocket(
         fun onMessage(socket: ReconnectingWebSocket, text: String)
 
         fun onDisconnected(socket: ReconnectingWebSocket) {}
+
+        /** The server closes the connection with [code] and [reason] (such as a failed login); a reconnect follows. */
+        fun onClosing(socket: ReconnectingWebSocket, code: Int, reason: String) {}
     }
 
     private val executor = Executors.newSingleThreadScheduledExecutor { Thread(it, "websocket").apply { isDaemon = true } }
@@ -106,7 +109,10 @@ class ReconnectingWebSocket(
 
                 override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                     webSocket.close(1000, null)
-                    onThread(current) { handleDisconnect() }
+                    onThread(current) {
+                        listener.onClosing(this@ReconnectingWebSocket, code, reason)
+                        handleDisconnect()
+                    }
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = onThread(current) {
