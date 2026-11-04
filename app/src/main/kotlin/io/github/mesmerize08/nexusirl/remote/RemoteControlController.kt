@@ -13,6 +13,7 @@ import androidx.core.graphics.scale
 import io.github.mesmerize08.nexusirl.BuildConfig
 import io.github.mesmerize08.nexusirl.R
 import io.github.mesmerize08.nexusirl.chat.ChatController
+import io.github.mesmerize08.nexusirl.obs.ObsController
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAssistantStreamerState
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioInfo
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlAudioLevel
@@ -390,6 +391,7 @@ object RemoteControlController {
             },
             mic = status.microphone.takeIf { it.isNotEmpty() }?.let { RemoteControlStatusItem(it) },
             zoom = RemoteControlStatusItem("%.1f".format(camera.zoom)),
+            obs = ObsController.state.value.takeIf { it.configured }?.let { RemoteControlStatusItem(it.statusText) },
         )
         val audioLevel = when {
             muted -> RemoteControlAudioLevel.Muted

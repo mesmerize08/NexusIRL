@@ -64,6 +64,7 @@ import io.github.mesmerize08.nexusirl.location.LocationController
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
 import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
+import io.github.mesmerize08.nexusirl.obs.ObsController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlController
 import io.github.mesmerize08.nexusirl.settings.MoblinSettingsUrl
@@ -82,6 +83,7 @@ import io.github.mesmerize08.nexusirl.ui.LiveStatusBar
 import io.github.mesmerize08.nexusirl.ui.LocationScreen
 import io.github.mesmerize08.nexusirl.ui.LutsScreen
 import io.github.mesmerize08.nexusirl.ui.MoblinkScreen
+import io.github.mesmerize08.nexusirl.ui.ObsScreen
 import io.github.mesmerize08.nexusirl.ui.QuickButtonBar
 import io.github.mesmerize08.nexusirl.ui.QuickButtonsScreen
 import io.github.mesmerize08.nexusirl.ui.RemoteAssistantScreen
@@ -129,6 +131,7 @@ class MainActivity : ComponentActivity() {
         RemoteControlAssistantController.start(this)
         MoblinkController.start(this)
         MoblinkStreamerController.start(this)
+        ObsController.start(this)
         Microphones.start(this)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
@@ -305,6 +308,8 @@ private sealed interface Screen {
     data object Moblink : Screen
 
     data object RemoteAssistant : Screen
+
+    data object Obs : Screen
 }
 
 @Composable
@@ -413,9 +418,11 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onRemoteControl = { screen = Screen.RemoteControl },
             onMoblink = { screen = Screen.Moblink },
             onRemoteAssistant = { screen = Screen.RemoteAssistant },
+            onObs = { screen = Screen.Obs },
         )
         Screen.RemoteAssistant -> RemoteAssistantScreen(store, onBack = { screen = Screen.Main })
         Screen.Moblink -> MoblinkScreen(store, onBack = { screen = Screen.Main })
+        Screen.Obs -> ObsScreen(store, onEditStream = { screen = Screen.EditStream(it) }, onBack = { screen = Screen.Main })
         Screen.RemoteControl -> RemoteControlScreen(store, onBack = { screen = Screen.Main })
         Screen.Location -> LocationScreen(store, onBack = { screen = Screen.Main })
         Screen.QuickButtons -> QuickButtonsScreen(store, onBack = { screen = Screen.Main })
@@ -463,11 +470,13 @@ private fun MainScreen(
     onRemoteControl: () -> Unit,
     onMoblink: () -> Unit,
     onRemoteAssistant: () -> Unit,
+    onObs: () -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
     val database by store.database.collectAsState()
     val status by StreamController.status.collectAsState()
+    val obs by ObsController.state.collectAsState()
     val stream = database.selectedStream
     // The preview canvas follows the selected stream's resolution and frame rate.
     LaunchedEffect(stream?.resolution, stream?.fps) {
@@ -514,6 +523,10 @@ private fun MainScreen(
         if (stream != null) {
             Text(stream.name, style = MaterialTheme.typography.titleMedium)
             Text(stream.summary(), style = MaterialTheme.typography.bodySmall)
+            // Upstream's OBS status line.
+            if (obs.configured) {
+                Text("OBS: ${obs.statusText}", style = MaterialTheme.typography.bodySmall)
+            }
         } else {
             Text(stringResource(R.string.no_streams))
         }
@@ -541,7 +554,7 @@ private fun MainScreen(
             OutlinedButton(onClick = onScenes, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.scenes), maxLines = 1) }
         }
         ScenePicker(store)
-        QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onEdit = onQuickButtons)
+        QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onObs = onObs, onEdit = onQuickButtons)
         ChatControls(store, onSettings = onChat)
         if (status.encoder.isNotEmpty()) {
             Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)

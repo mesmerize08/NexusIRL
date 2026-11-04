@@ -52,6 +52,7 @@ private val COMMANDS = listOf(
         { it.filter },
         { p, c -> p.copy(filter = c) },
     ),
+    BotCommand("!moblin obs fix", { it.fix }, { p, c -> p.copy(fix = c) }),
     BotCommand("!moblin snapshot", { it.snapshot }, { p, c -> p.copy(snapshot = c) }, isSnapshot = true),
     BotCommand(
         "!moblin stream start, stop, title <title> or category <category name>",

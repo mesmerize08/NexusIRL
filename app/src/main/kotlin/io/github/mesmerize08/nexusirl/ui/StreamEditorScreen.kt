@@ -86,6 +86,19 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
     }
     var snapshotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordSnapshotWebhook) }.orEmpty()) }
     var chatBotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordChatBotSnapshotWebhook) }.orEmpty()) }
+    // The OBS password, and any user info in its URL, are secret too.
+    var obsUrl by remember(streamId) { mutableStateOf(original?.let { resolved(it.obsWebSocketUrl) }.orEmpty()) }
+    var obsPassword by remember(streamId) {
+        mutableStateOf(
+            original?.let {
+                try {
+                    store.obsWebSocketPassword(it)
+                } catch (e: MissingSecretException) {
+                    ""
+                }
+            }.orEmpty(),
+        )
+    }
     // Multi streaming destinations hold stream keys: real URLs only in memory while editing.
     var destinations by remember(streamId) {
         mutableStateOf(original?.multiStreaming?.destinations.orEmpty().map { it.copy(url = resolved(it.url)) })
@@ -114,7 +127,9 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         onBack = onDone,
         actions = {
             Button(
-                enabled = stream.name.isNotBlank() && urlValid,
+                enabled = stream.name.isNotBlank() &&
+                    urlValid &&
+                    (!stream.obsWebSocketEnabled || obsUrl.isEmpty() || obsUrlProblem(obsUrl) == null),
                 onClick = {
                     // The Twitch and Kick accounts are saved by sign-in and sign-out directly; keep them.
                     val account = store.current.streams.firstOrNull { it.id == stream.id }
@@ -123,6 +138,8 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                         url = url,
                         discordSnapshotWebhook = snapshotWebhook,
                         discordChatBotSnapshotWebhook = chatBotWebhook,
+                        obsWebSocketUrl = obsUrl,
+                        obsWebSocketPassword = obsPassword,
                         multiStreaming = stream.multiStreaming.copy(destinations = destinations),
                         twitchAccessToken = account?.twitchAccessToken.orEmpty(),
                         twitchLoggedIn = account?.twitchLoggedIn ?: false,
@@ -234,6 +251,7 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 })
             }
         }
+        ObsSettingsSection(stream, obsUrl, obsPassword, { stream = it }, { obsUrl = it }, { obsPassword = it })
         HorizontalDivider()
         Text(stringResource(R.string.chat), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.chat_channels_help), style = MaterialTheme.typography.bodySmall)

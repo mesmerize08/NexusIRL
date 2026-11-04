@@ -83,6 +83,10 @@ enum class ChatBotOnOffArgument(override val rawValue: String) : ChatBotArgument
     OFF("off"),
 }
 
+enum class ChatBotObsArgument(override val rawValue: String) : ChatBotArgument {
+    FIX("fix"),
+}
+
 enum class ChatBotTorchArgument(override val rawValue: String) : ChatBotArgument {
     ON("on"),
     OFF("off"),

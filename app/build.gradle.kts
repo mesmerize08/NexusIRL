@@ -122,6 +122,7 @@ dependencies {
     implementation(project(":chat"))
     implementation(project(":remotecontrol"))
     implementation(project(":moblink"))
+    implementation(project(":obs"))
     implementation(libs.zxing.core)
     implementation(libs.maplibre)
 

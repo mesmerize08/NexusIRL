@@ -11,11 +11,13 @@ import io.github.mesmerize08.nexusirl.chat.bot.ChatBotDecision
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotFilterArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotMainArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotMessage
+import io.github.mesmerize08.nexusirl.chat.bot.ChatBotObsArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotOnOffArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotPermissionCheck
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotStreamArgument
 import io.github.mesmerize08.nexusirl.chat.bot.ChatBotTorchArgument
 import io.github.mesmerize08.nexusirl.kick.KickChannel
+import io.github.mesmerize08.nexusirl.obs.ObsController
 import io.github.mesmerize08.nexusirl.settings.ChatBotSnapshotSource
 import io.github.mesmerize08.nexusirl.settings.QuickButtonType
 import io.github.mesmerize08.nexusirl.settings.SettingsChatBotPermissionsCommand
@@ -25,8 +27,8 @@ import io.github.mesmerize08.nexusirl.twitch.TwitchChannel
 
 /**
  * Runs "!moblin" commands (and aliases) from chat: scene, mute, unmute, zoom, torch, filter,
- * snapshot, stream and help. Commands that need features NexusIRL does not have (text to speech,
- * OBS, Tesla, widgets and so on) are ignored, as upstream ignores commands it cannot run.
+ * snapshot, stream, obs fix and help. Commands that need features NexusIRL does not have (text to
+ * speech, Tesla, widgets and so on) are ignored, as upstream ignores commands it cannot run.
  *
  * Main thread.
  */
@@ -101,6 +103,15 @@ object ChatBot {
             }
             ChatBotMainArgument.STREAM -> ifAllowed(context, "stream", permissions.stream, command) { stream(context, command) }
             ChatBotMainArgument.TORCH -> ifAllowed(context, "torch", permissions.torch, command) { torch(context, command) }
+            ChatBotMainArgument.OBS -> if (command.popFirstArgument(ChatBotObsArgument.entries.toTypedArray()) == ChatBotObsArgument.FIX) {
+                ifAllowed(context, "fix", permissions.fix, command) {
+                    if (ObsController.fixSource()) {
+                        toast("Fixing OBS input")
+                    } else {
+                        toast("Cannot fix OBS input. OBS remote control is not configured.")
+                    }
+                }
+            }
             else -> Unit
         }
     }

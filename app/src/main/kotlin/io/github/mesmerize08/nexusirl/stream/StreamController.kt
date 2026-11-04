@@ -29,6 +29,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
 import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
+import io.github.mesmerize08.nexusirl.obs.ObsController
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.LutLoader
 import io.github.mesmerize08.nexusirl.scene.MapWidgets
@@ -468,6 +469,7 @@ object StreamController {
             notes.forEach(newSession::note)
         })
         LocationController.onGoLive()
+        settings(context).current.selectedStream?.let(ObsController::onGoLive)
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
         updateService(context)
@@ -488,6 +490,9 @@ object StreamController {
         // Now, not when stopped: a stream started meanwhile may already use new tunnels. The
         // stopping session must not start them again before its stop runs.
         stopping?.ending()
+        if (stopping != null) {
+            settings(context).current.selectedStream?.let(ObsController::onStop)
+        }
         MoblinkStreamerController.stopTunnels()
         val appContext = context.applicationContext
         captureControl.run({ stopping?.stop() }) { afterCaptureEnded(appContext) }

@@ -77,6 +77,13 @@ class ChatBotCommandTest {
     }
 
     @Test
+    fun obsFix() {
+        val command = ChatBotCommand.parse(message("!moblin", "obs", "fix"), emptyList())!!
+        assertEquals(ChatBotMainArgument.OBS, command.popFirstArgument(ChatBotMainArgument.entries.toTypedArray()))
+        assertEquals(ChatBotObsArgument.FIX, command.popFirstArgument(ChatBotObsArgument.entries.toTypedArray()))
+    }
+
+    @Test
     fun fuzzyMatchPattern() {
         assertEquals(0, "mute ".fuzzyMatchPattern("MUTE "))
         assertEquals(0, "mute ".fuzzyMatchPattern("mu"))

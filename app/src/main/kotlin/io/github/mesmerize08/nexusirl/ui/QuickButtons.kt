@@ -61,12 +61,13 @@ val SUPPORTED_QUICK_BUTTONS = setOf(
     QuickButtonType.PINCH,
     QuickButtonType.LUTS,
     QuickButtonType.PORTRAIT,
+    QuickButtonType.OBS,
 )
 
 /** Enabled quick buttons in their configured order (upstream pages are shown one after another). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Unit, onEdit: () -> Unit) {
+fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Unit, onObs: () -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val database by store.database.collectAsState()
@@ -88,7 +89,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                 QuickButtonType.LIVE -> status.active
                 QuickButtonType.RECORD -> recording != null
                 QuickButtonType.SNAPSHOT, QuickButtonType.WIDGETS, QuickButtonType.LUTS, QuickButtonType.MIC,
-                QuickButtonType.BITRATE,
+                QuickButtonType.BITRATE, QuickButtonType.OBS,
                 -> false
                 QuickButtonType.PORTRAIT -> database.portrait
                 else -> button.isOn
@@ -130,6 +131,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                         QuickButtonType.MIC, QuickButtonType.BITRATE -> picker = button.type
                         QuickButtonType.WIDGETS -> onWidgets()
                         QuickButtonType.LUTS -> onLuts()
+                        QuickButtonType.OBS -> onObs()
                         QuickButtonType.TORCH -> StreamController.setQuickButton(context, button.type, !camera.torch)
                         else -> StreamController.setQuickButton(context, button.type, !button.isOn)
                     }

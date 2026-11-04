@@ -77,6 +77,7 @@ fun RemoteAssistantScreen(store: SettingsStore, onBack: () -> Unit) {
         if (status.isNotEmpty()) {
             Text(status)
         }
+        current.topLeft?.obs?.message?.let { Text("OBS: $it", style = MaterialTheme.typography.bodySmall) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Going live or stopping affects a real stream: ask first.
             Button(onClick = { confirmLive = state.streaming != true }) {
