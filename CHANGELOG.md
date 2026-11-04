@@ -6,6 +6,26 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 ## [Unreleased]
 
 ### Added
+- OBS remote control, as in Moblin: connect to OBS on your computer (OBS 28+, Tools → WebSocket
+  Server Settings) from the stream's settings, then switch scenes, start and stop OBS streaming and
+  recording, mute inputs, adjust the stream source's audio sync and fix it from the new OBS quick
+  button. Going live and ending can start and stop OBS streaming or recording, and OBS switches to
+  a BRB scene while the phone's stream is reconnecting. The OBS password is kept encrypted. New
+  chat bot command `!moblin obs fix`; remote control assistants see the OBS status.
+- Opus audio for streams, as in Moblin (Streams → edit → Audio → Codec), over SRT, SRTLA and RTMP
+  when the server accepts it. Recordings are still saved with AAC.
+- Torch brightness, as in Moblin: on Android 15+ phones that support it, a slider next to the
+  Torch button; the chat bot's `!moblin torch level 1-100` sets it too. At 100 % the phone's own
+  torch level is used.
+- Twitch, as in Moblin: hype trains, polls and predictions in chat and as banners under the live
+  status (progress, votes or points, countdown; tap to make smaller, or close); watch streaks,
+  Prime subscriptions, subscription upgrades, and shared chat partners' subscriptions, gifts and
+  raids (when "Shared chat" is on); a toast when an ad break starts and a chat line for shoutouts.
+  Twitch sign-in asks for six more read-only permissions for these: sign in again in the stream's
+  settings to get them (earlier sign-ins keep their alerts and get a one-time hint).
+- Stream editor: "Paste stream key or URL" puts a pasted stream URL, or just the key, in the right
+  place for RTMP and SRT.
+- Web remote control: copy its link with one tap.
 - Kick sign-in, as in Moblin (Streams → edit → Sign in to Kick): you sign in on Kick's own page
   inside the app, then messages typed in NexusIRL and chat bot answers go to Kick chat too, and the
   stream title and category can be changed. Kick's session is kept encrypted and never exported;
@@ -64,6 +84,13 @@ From an independent pre-release audit (`docs/audit/`).
   never for look-alike names such as `127.example.com`.
 - Releases are published only from commits on main that passed CI, with every APK's signature,
   signing certificate and version checked before upload.
+- Saved stream keys, multi-stream URLs and Discord webhooks are shown or changed in the stream
+  editor only after the fingerprint, face or screen lock (never when going live).
+- Copied secrets (the web remote control link) are hidden from keyboards and clipboard previews and
+  removed from the clipboard after a minute, unless something else was copied since.
+- A remote control assistant can import settings only when "Allow settings import from the
+  assistant" is on (off by default) and the import is accepted on the phone within 30 seconds,
+  never while live. It was refused outright before.
 
 ### Fixed
 - When writing a recording fails (for example with storage full), NexusIRL no longer says
