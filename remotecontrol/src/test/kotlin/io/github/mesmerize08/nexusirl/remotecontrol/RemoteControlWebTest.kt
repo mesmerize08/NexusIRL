@@ -310,7 +310,11 @@ class RemoteControlWebTest {
         val before = webThreads()
         val port = freePorts()
         val server = web(port, requestHeadTimeoutMillis = 1_000).also { it.start() }
-        val slow = (1..60).map { Socket("127.0.0.1", port) }
+        assertTrue(waitFor(5_000) { runCatching { Socket("127.0.0.1", port).close() }.isSuccess }, "listening")
+        // More than the accept backlog: Windows refuses the excess under load, which is fine here;
+        // what matters is that the ones accepted cannot take more than the bounded workers.
+        val slow = (1..60).mapNotNull { runCatching { Socket("127.0.0.1", port) }.getOrNull() }
+        assertTrue(slow.size > 20, "enough slow clients connected: ${slow.size}")
         try {
             // Drip-feed headers: every read is well within any per-read timeout.
             val dripper = thread(isDaemon = true) {

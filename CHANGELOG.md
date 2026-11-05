@@ -109,6 +109,9 @@ From an independent pre-release audit (`docs/audit/`).
 - An RTMPS server that accepts the connection but never answers no longer hangs a stream attempt:
   connecting gives up after 10 seconds, and stopping ends the attempt at once.
 - A link with a user name and password (`ws://user:pass@host`) came back broken after being stored.
+- The remote control screen's address check now accepts local IPv6 addresses (`ws://[fe80::…]`), and
+  OBS addresses with underscores in `.local` names. The chat box no longer offers to send to Kick
+  before the Kick channel is known, when sending could not work.
 - When another app took the camera while live (for example the phone's Camera app), the stream
   showed a frozen picture until the camera was switched by hand. The camera now comes back by
   itself as soon as it is free, even with NexusIRL in the background.
