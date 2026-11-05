@@ -63,8 +63,10 @@ class RtmpInteropTest {
             MpegTsVideoConfig.Avc(streams.sps, streams.pps),
             expectedCodec = "h264",
             audioConfig = MpegTsAudioConfig.opus(48000, 2),
-            // ffmpeg's FLV muxer cannot store Opus; Matroska can.
-            container = "matroska",
+            // ffmpeg's FLV muxer cannot store Opus; NUT can. Not Matroska: ffmpeg 8.0.1 (Ubuntu
+            // 26.04, CI) reports "Error parsing Opus packet header" decoding any Opus in Matroska,
+            // even its own Ogg Opus copied in; later ffmpeg fixed it. The stream itself is fine.
+            container = "nut",
         )
     }
 
