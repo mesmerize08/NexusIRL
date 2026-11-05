@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-05
+
 ### Added
 - OBS remote control, as in Moblin: connect to OBS on your computer (OBS 28+, Tools → WebSocket
   Server Settings) from the stream's settings, then switch scenes, start and stop OBS streaming and
