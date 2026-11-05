@@ -243,11 +243,8 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                     stream = stream.copy(srt = stream.srt.copy(latency = it))
                 },
             )
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.adaptive_bitrate), modifier = Modifier.weight(1f))
-                Switch(checked = stream.srt.adaptiveBitrateEnabled, onCheckedChange = {
-                    stream = stream.copy(srt = stream.srt.copy(adaptiveBitrateEnabled = it))
-                })
+            SwitchRow(stringResource(R.string.adaptive_bitrate), stream.srt.adaptiveBitrateEnabled) {
+                stream = stream.copy(srt = stream.srt.copy(adaptiveBitrateEnabled = it))
             }
             if (stream.srt.adaptiveBitrateEnabled) {
                 ChoiceField(stringResource(R.string.algorithm), stream.srt.adaptiveBitrate.algorithm, ALGORITHMS, ::algorithmName, {
@@ -467,10 +464,7 @@ private val MINIMUM_KICKS_CHOICES = listOf(0, 100, 500, 1000, 5000, 10000)
 
 @Composable
 private fun EmoteSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.emotes_provider, label), modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
+    SwitchRow(stringResource(R.string.emotes_provider, label), checked, onChange)
 }
 
 @Composable

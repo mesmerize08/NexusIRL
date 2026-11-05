@@ -405,13 +405,10 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
                         }
                     },
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.background), modifier = Modifier.weight(1f))
-                    Switch(checked = !text.clearBackgroundColor, onCheckedChange = { on ->
-                        update {
-                            it.copy(text = it.text.copy(clearBackgroundColor = !on))
-                        }
-                    })
+                SwitchRow(stringResource(R.string.background), !text.clearBackgroundColor) { on ->
+                    update {
+                        it.copy(text = it.text.copy(clearBackgroundColor = !on))
+                    }
                 }
                 ChoiceField(
                     stringResource(
