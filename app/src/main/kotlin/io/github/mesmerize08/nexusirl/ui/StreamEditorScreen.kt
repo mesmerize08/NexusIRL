@@ -79,12 +79,9 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
         )
     }
 
-    // Discord webhook URLs hold the webhook's token: secret too.
-    fun resolved(value: String) = try {
-        store.resolve(value)
-    } catch (e: MissingSecretException) {
-        StreamUrlSecrets.publicPart(value)
-    }
+    // Discord webhook URLs hold the webhook's token: secret too. All of these are URL settings,
+    // whose secrets are always stored inside a scheme://host URL.
+    fun resolved(value: String) = store.resolveOrPublicPart(value)
     var snapshotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordSnapshotWebhook) }.orEmpty()) }
     var chatBotWebhook by remember(streamId) { mutableStateOf(original?.let { resolved(it.discordChatBotSnapshotWebhook) }.orEmpty()) }
     // The OBS password, and any user info in its URL, are secret too.
