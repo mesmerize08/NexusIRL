@@ -2,9 +2,9 @@
 // Moblin/RemoteControl/RemoteControl.swift @97e26d2.
 package io.github.mesmerize08.nexusirl.remotecontrol
 
+import io.github.mesmerize08.nexusirl.core.websocket.challengePasswordHash
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -12,10 +12,8 @@ import javax.crypto.spec.SecretKeySpec
 private fun sha256(text: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
 
 /** Upstream: base64(SHA256(base64(SHA256(password + salt)) + challenge)). */
-fun remoteControlHashPassword(challenge: String, salt: String, password: String): String {
-    val first = Base64.getEncoder().encodeToString(sha256(password + salt))
-    return Base64.getEncoder().encodeToString(sha256(first + challenge))
-}
+fun remoteControlHashPassword(challenge: String, salt: String, password: String): String =
+    challengePasswordHash(password = password, salt = salt, challenge = challenge)
 
 /**
  * Upstream `RemoteControlEncryption`: AES-256-GCM with key SHA256(password), in CryptoKit's

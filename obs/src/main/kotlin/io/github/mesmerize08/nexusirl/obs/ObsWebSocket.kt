@@ -2,6 +2,7 @@
 package io.github.mesmerize08.nexusirl.obs
 
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.core.websocket.challengePasswordHash
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -19,7 +20,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.OkHttpClient
-import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.log10
@@ -151,10 +151,8 @@ interface ObsWebSocketListener {
 }
 
 /** obs-websocket's authentication string: base64(sha256(base64(sha256(password + salt)) + challenge)). */
-fun obsAuthentication(password: String, salt: String, challenge: String): String {
-    fun sha256Base64(text: String) = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(text.toByteArray()))
-    return sha256Base64(sha256Base64(password + salt) + challenge)
-}
+fun obsAuthentication(password: String, salt: String, challenge: String): String =
+    challengePasswordHash(password = password, salt = salt, challenge = challenge)
 
 /**
  * Remote control of OBS over obs-websocket 5. Connects (and reconnects) until [stop]; it is
