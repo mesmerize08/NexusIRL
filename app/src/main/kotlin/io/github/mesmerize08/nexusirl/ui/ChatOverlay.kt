@@ -184,7 +184,8 @@ fun ChatControls(store: SettingsStore, onSettings: () -> Unit) {
     // Sending is public: only to the platforms the selected stream is signed in to.
     val stream = database.selectedStream
     val toTwitch = stream?.twitchLoggedIn == true
-    val toKick = stream?.kickLoggedIn == true && stream.kickSendMessagesTo
+    // Also needs the chatroom id, which sending to Kick posts to.
+    val toKick = ChatController.canSendToKick
     if (database.chat.enabled && (toTwitch || toKick)) {
         ChatSendField(toTwitch, toKick)
     } else if (database.chat.enabled && stream != null) {
