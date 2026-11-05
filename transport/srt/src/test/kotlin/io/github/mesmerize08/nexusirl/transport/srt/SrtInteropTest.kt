@@ -5,7 +5,9 @@ import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.media.mux.testing.Ffmpeg
 import io.github.mesmerize08.nexusirl.media.mux.testing.cutBeforeLastVideoPes
+import io.github.mesmerize08.nexusirl.media.mux.testing.freeUdpPort
 import io.github.mesmerize08.nexusirl.media.mux.testing.probeStreams
+import io.github.mesmerize08.nexusirl.media.mux.testing.waitUntil
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
@@ -15,7 +17,6 @@ import io.github.mesmerize08.nexusirl.transport.srt.net.UdpLinkFactory
 import io.github.mesmerize08.nexusirl.transport.srt.net.UdpLinkListener
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.File
-import java.net.DatagramSocket
 import java.nio.file.Files
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -32,8 +33,6 @@ import kotlin.test.assertTrue
  * into ffmpeg's libsrt listener, then checks what ffmpeg recorded. Skipped without ffmpeg.
  */
 class SrtInteropTest {
-    private fun freeUdpPort(): Int = DatagramSocket(0).use { it.localPort }
-
     /** Wraps the default link factory and records every datagram sent. */
     private class TapLinkFactory : UdpLinkFactory {
         val sent = ConcurrentLinkedQueue<ByteArray>()
@@ -96,19 +95,13 @@ class SrtInteropTest {
         // Feed in real time with host-clock timestamps, as the capture pipeline will.
         val startNanos = System.nanoTime()
         val base = MediaTime(startNanos, MediaTime.NANOSECONDS)
-        fun waitUntil(seconds: Double) {
-            val deadline = startNanos + (seconds * 1e9).toLong()
-            while (System.nanoTime() < deadline) {
-                Thread.sleep(1)
-            }
-        }
         streams.forEachInterleaved(
             video = { unit, time ->
-                waitUntil(time)
+                waitUntil(startNanos, time)
                 stream.writeVideo(unit.data, base + MediaTime.fromSeconds(time), null, unit.isIdr)
             },
             audio = { frame, time ->
-                waitUntil(time)
+                waitUntil(startNanos, time)
                 stream.writeAudio(frame, 0, frame.size, base + MediaTime.fromSeconds(time))
             },
         )

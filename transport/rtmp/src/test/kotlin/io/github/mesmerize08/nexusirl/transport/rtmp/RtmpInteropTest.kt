@@ -6,6 +6,7 @@ import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.media.mux.testing.ElementaryStreams
 import io.github.mesmerize08.nexusirl.media.mux.testing.Ffmpeg
 import io.github.mesmerize08.nexusirl.media.mux.testing.probeStreams
+import io.github.mesmerize08.nexusirl.media.mux.testing.waitUntil
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import org.junit.jupiter.api.Assumptions.assumeTrue
@@ -112,19 +113,13 @@ class RtmpInteropTest {
 
         val startNanos = System.nanoTime()
         val base = MediaTime(startNanos, MediaTime.NANOSECONDS)
-        fun waitUntil(seconds: Double) {
-            val deadline = startNanos + (seconds * 1e9).toLong()
-            while (System.nanoTime() < deadline) {
-                Thread.sleep(1)
-            }
-        }
         streams.forEachInterleaved(
             video = { unit, time ->
-                waitUntil(time)
+                waitUntil(startNanos, time)
                 stream.writeVideo(unit.data, base + MediaTime.fromSeconds(time - videoLagSeconds), null, unit.isIdr)
             },
             audio = { frame, time ->
-                waitUntil(time)
+                waitUntil(startNanos, time)
                 stream.writeAudio(frame, 0, frame.size, base + MediaTime.fromSeconds(time))
             },
         )

@@ -5,7 +5,9 @@ import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.media.mux.testing.Ffmpeg
 import io.github.mesmerize08.nexusirl.media.mux.testing.cutBeforeLastVideoPes
+import io.github.mesmerize08.nexusirl.media.mux.testing.freeUdpPort
 import io.github.mesmerize08.nexusirl.media.mux.testing.probeStreams
+import io.github.mesmerize08.nexusirl.media.mux.testing.waitUntil
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
@@ -37,8 +39,6 @@ private class LoopbackInterface(override val id: String, override val type: Inte
  * ffmpeg's libsrt listener. Skipped without ffmpeg.
  */
 class SrtlaInteropTest {
-    private fun freeUdpPort(): Int = DatagramSocket(0).use { it.localPort }
-
     /**
      * Desktop tools have no connectivity layer: with [DefaultRoute] as the only path SRTLA must
      * still connect. Without any interface it sent nothing (found streaming to a test server).
@@ -137,23 +137,20 @@ class SrtlaInteropTest {
         val startNanos = System.nanoTime()
         val base = MediaTime(startNanos, MediaTime.NANOSECONDS)
         var nextStatistics = 1.0
-        fun waitUntil(seconds: Double) {
+        fun pace(seconds: Double) {
             if (seconds >= nextStatistics) {
                 collectStatistics()
                 nextStatistics += 1.0
             }
-            val deadline = startNanos + (seconds * 1e9).toLong()
-            while (System.nanoTime() < deadline) {
-                Thread.sleep(1)
-            }
+            waitUntil(startNanos, seconds)
         }
         streams.forEachInterleaved(
             video = { unit, time ->
-                waitUntil(time)
+                pace(time)
                 stream.writeVideo(unit.data, base + MediaTime.fromSeconds(time), null, unit.isIdr)
             },
             audio = { frame, time ->
-                waitUntil(time)
+                pace(time)
                 stream.writeAudio(frame, 0, frame.size, base + MediaTime.fromSeconds(time))
             },
         )

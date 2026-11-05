@@ -15,7 +15,6 @@ kotlin {
 
 dependencies {
     api(project(":core:clock"))
-    testFixturesApi(project(":core:clock"))
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
