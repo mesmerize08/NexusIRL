@@ -172,8 +172,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - microphone selection with auto-switch to external mics
 >
 >   On a real phone (see "Real-device testing" below): 15-minute soak with A/V sync and
->   thermal checks done. Still to do: the 60-minute soak, bonding over a real mobile network, and
->   more OEMs.
+>   thermal checks done. The 60-minute soak was done on 2026-10-26 and bonding over a real mobile
+>   network (an iPhone as Moblink relay) in the field test on 2026-11-02. Still to do: more OEMs.
 > - Phase 3 is in progress. Done:
 >   - the settings document (iOS-compatible; unknown keys preserved)
 >   - saved streams with stream keys in the encrypted store
@@ -189,9 +189,10 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - manual camera controls: exposure bias, focus, shutter, ISO, white balance, stabilization
 >
->   - translations: 33 of 88 strings in 20 languages from upstream's catalog where the English
->     text matches (`tools/import-translations.py`), with a per-app language picker on Android 13+;
->     the rest falls back to English
+>   - translations: 33 of 88 strings at first; as of 2026-11-05, 1 to 122 of 416 translatable
+>     strings per language (most languages over 110) in 20 languages, from upstream's catalog
+>     where the English text matches (`tools/import-translations.py`), with a per-app language
+>     picker on Android 13+; the rest falls back to English
 >
 >   Everything in Phase 3 that the emulator can check is done.
 > - Phase 4 is in progress. Done:
@@ -203,7 +204,8 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   - global effects: gray scale, sepia, pixellate, 4:3, CRT, whirlpool, pinch (GLSL, upstream order and parameters)
 >
 >   - browser widgets (WebView on a private virtual display rendering straight into the compositor;
->     https only; the `moblin` object only with Moblin access, messages logged until Phase 5)
+>     https only; the `moblin` object only with Moblin access; messages were logged until Phase 5,
+>     which delivers chat through `moblin.subscribe`)
 >
 >   - the "Blur" scene switch transition while a new camera starts
 >
@@ -218,12 +220,13 @@ It must reproduce Swift `JSONEncoder` defaults:
 >
 >   - map widget (MapLibre, OpenFreeMap by default, hidden in privacy regions)
 >
->   Phase 4 is feature complete on the emulator. Still to do on a real phone: the checks below.
->   The release APK is now about 47 MB (MapLibre's native libraries for four CPU types); an
->   arm64-only APK next to the universal one, as §8.4 plans, would cut most of that.
->   On a real phone, check: tap-to-focus mapping, pinch zoom, and the manual controls (the
->   emulator camera accepts the requests but ignores exposure bias and focus distance).
->   Tap-to-focus point mapping and pinch zoom need checking on a real phone.
+>   Phase 4 is feature complete on the emulator.
+>   The universal release APK is about 47 MB (MapLibre's native libraries for four CPU types).
+>   As §8.4 plans, releases now also ship one APK per ABI (`arm64-v8a`, `armeabi-v7a`, `x86_64`),
+>   about a third of that size (`.github/workflows/release.yml`).
+>   Tap-to-focus mapping, pinch zoom and the manual controls (which the emulator camera accepts
+>   but ignores for exposure bias and focus distance) were to be checked on a real phone; they
+>   are verified on the Galaxy S26 Ultra (see "Camera controls" under "Real-device testing").
 >
 > **Phase 5 progress:** anonymous chat read for Twitch (IRC), Kick (Pusher) and YouTube (innertube
 > polling, video id from the channel handle), shown over the preview. Channels are set per stream.
@@ -308,9 +311,12 @@ It must reproduce Swift `JSONEncoder` defaults:
 >   page's cookies verified deleted), Twitch and Kick chat sending, `!moblin help` and
 >   `!moblin stream title` answered on both, Kick title and category read. A camera taken by the
 >   Samsung Camera app now comes back by itself (before: frozen until switched by hand).
-> - Still to do on a phone: bonding over a real mobile network and Moblink (between two phones
->   and with iOS); both need mobile coverage. The first field test is on 2026-11-01
->   ([docs/testing/field-test.md](testing/field-test.md)).
+> - 2026-11-01 and 2026-11-02, field tests ([docs/testing/field-test.md](testing/field-test.md)),
+>   streaming while driving: on 2026-11-01 the video sent 7-14 Mbps for a 5 Mbps stream; fixed
+>   (the video now stays within 1.2 times its bitrate in any second), and on 2026-11-02 it stayed
+>   at 5 Mbps with 16 late packets in 14 minutes, against 1,896 in 8 minutes before. On
+>   2026-11-02 Moblink bonding with an iPhone as relay worked over its mobile data.
+> - Still to do on a phone: Moblink between two Android phones and with an iOS streamer.
 
 
 Each phase ends with an exit gate. Each Kotlin file carries a header comment naming its upstream Swift source (`// Port of Moblin/Media/Srtla/Client/SrtlaClient.swift @97e26d2`). A `PORTING.md` table maps Swift files to Kotlin files so upstream changes can be tracked later.

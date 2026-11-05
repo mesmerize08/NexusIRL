@@ -21,6 +21,8 @@ its first sections before larger changes.
 - `./gradlew installDebug` installs a debug build on a connected phone. Debug and release builds
   are signed differently, so switching between them needs an uninstall (which deletes the app's
   settings; export them first).
+- The launcher icon layers and the store icon are generated from `docs/art/icon-source.png` with
+  `tools/make-icons.py` (needs Pillow; usage in its docstring), not edited by hand.
 
 ## Tests
 

@@ -16,7 +16,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "nexusirl"
 
-// Modules are added as their phase starts (see docs/PORT_PLAN.md §3, §5).
+// The modules of docs/PORT_PLAN.md §3, each added when its phase (§5) started, plus desktop tools.
 include(":app")
 include(":core:codable")
 include(":core:clock")

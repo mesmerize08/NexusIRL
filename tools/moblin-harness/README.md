@@ -52,6 +52,20 @@ MediaMTX or ffmpeg. Because NexusIRL speaks the same protocol, the same tests ru
    `phone` device needs the phone's current Wi-Fi address). The browser test needs
    `venv/bin/python -m playwright install --only-shell chromium`.
 
+Besides the marker file, debug builds read these `MainActivity` intent extras (release builds
+ignore them). They are read when the activity is created, so start it fresh (`am start -S`):
+
+- `debug_url` (string): go live at once to this RTMP, SRT or SRTLA URL with 1280x720 30 fps
+  3 Mbps video and 2000 ms SRT latency, without a saved stream.
+- `debug_hevc` (boolean, with `debug_url`): H.265 instead of H.264.
+- `debug_no_secure` (boolean): leave out `FLAG_SECURE`, which normally blocks screenshots and
+  screen recording because stream editors can show keys.
+
+```sh
+adb shell am start -S -n io.github.mesmerize08.nexusirl/.MainActivity \
+    --es debug_url srt://192.168.1.10:9000 --ez debug_hevc true --ez debug_no_secure true
+```
+
 ## Run
 
 ```sh
