@@ -112,9 +112,6 @@ class RemoteConnection(
             else -> relayName ?: "Any"
         }
 
-    val isRegistered: Boolean
-        get() = state == State.REGISTERED
-
     fun setPriority(priority: Float) {
         this.priority = priority
     }
@@ -229,12 +226,6 @@ class RemoteConnection(
         totalDataSentByteCount = 0
         return if (state == State.REGISTERED) delta else null
     }
-
-    internal val windowSizeForTesting: Int
-        get() = windowSize
-
-    internal val packetsInFlightForTesting: Int
-        get() = packetsInFlight.size
 
     private fun cancelAllTimers() {
         keepaliveTimer?.cancel()

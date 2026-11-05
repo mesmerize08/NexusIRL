@@ -5,9 +5,6 @@ package io.github.mesmerize08.nexusirl.settings
 import java.net.URI
 
 object StreamUrls {
-    /** Protocols the Android app can stream with today. */
-    val SUPPORTED_SCHEMES = setOf("srt", "srtla", "rtmp", "rtmps")
-
     /** Upstream protocols that are recognised but not supported on Android yet. */
     private val UPSTREAM_ONLY_SCHEMES = setOf("rist", "whip", "whips", "mobcam")
 

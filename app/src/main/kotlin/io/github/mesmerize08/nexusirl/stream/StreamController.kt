@@ -478,7 +478,7 @@ object StreamController {
         obsStream?.let(ObsController::onGoLive)
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
-        updateService(context)
+        updateForegroundService(context)
         return null
     }
 
@@ -576,7 +576,7 @@ object StreamController {
         val active = ActiveRecording()
         activeRecording = active
         mutableRecording.value = RecordingState(name, SystemClock.elapsedRealtime())
-        updateService(context)
+        updateForegroundService(context)
         val appContext = context.applicationContext
         captureControl.run({
             active.file = openRecording(appContext, name, video, encoderSettings, audio)
@@ -767,7 +767,7 @@ object StreamController {
     )
 
     private fun afterCaptureEnded(context: Context) {
-        updateService(context)
+        updateForegroundService(context)
         if (isCapturing) {
             return
         }
@@ -778,9 +778,6 @@ object StreamController {
             releasePipeline()
         }
     }
-
-    /** The foreground service runs while live or recording. */
-    private fun updateService(context: Context) = updateForegroundService(context)
 
     /**
      * Whether the camera and microphone are in use for a stream or recording, including while one

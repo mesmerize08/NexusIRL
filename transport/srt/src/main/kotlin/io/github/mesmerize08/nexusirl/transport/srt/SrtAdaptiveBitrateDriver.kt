@@ -46,10 +46,6 @@ class SrtAdaptiveBitrateDriver(
         }
     }
 
-    /** Current smoothed transport bitrate in bits per second (the "Bt" debug line upstream). */
-    val currentTransportBitrate: Long
-        get() = transportBitrate
-
     private fun update() {
         tickCount += 1
         val is200MsTick = tickCount % 10 == 0L

@@ -136,8 +136,6 @@ class ChatBotCommand private constructor(val message: ChatBotMessage, private va
 
     fun popFirstInt(range: IntRange): Int? = popFirst()?.toIntOrNull()?.takeIf { it in range }
 
-    fun peekFirst(): String? = parts.firstOrNull()
-
     fun rest(): String = parts.joinToString(" ")
 
     fun user(): String? = message.user

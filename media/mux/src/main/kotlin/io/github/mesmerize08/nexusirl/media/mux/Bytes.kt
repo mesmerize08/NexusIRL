@@ -70,9 +70,7 @@ class ByteReader(val data: ByteArray, var position: Int = 0) {
 
 /** Big-endian append-only writer, mirroring upstream `ByteWriter`. */
 class ByteWriter(initialCapacity: Int = 64) {
-    private val stream = object : ByteArrayOutputStream(initialCapacity) {
-        fun buffer(): ByteArray = buf
-    }
+    private val stream = ByteArrayOutputStream(initialCapacity)
 
     val size: Int
         get() = stream.size()

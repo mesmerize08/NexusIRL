@@ -229,11 +229,6 @@ class CameraSource(private val context: Context) {
     fun sensorOrientation(cameraId: String): Int =
         manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
 
-    /** All SurfaceTexture output sizes, for diagnostics. */
-    fun outputSizes(cameraId: String): List<Size> =
-        manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
-            .getOutputSizes(SurfaceTexture::class.java).toList()
-
     /** Picks the supported output size closest to [width]x[height] (same aspect preferred). */
     fun chooseSize(cameraId: String, width: Int, height: Int): Size {
         val map = manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!

@@ -165,10 +165,6 @@ object ChatController {
         postListeners += listener
     }
 
-    fun removePostListener(listener: (ChatPost) -> Unit) {
-        postListeners -= listener
-    }
-
     /** Upstream `reloadChats`. */
     private fun reload(config: Config) {
         generation += 1

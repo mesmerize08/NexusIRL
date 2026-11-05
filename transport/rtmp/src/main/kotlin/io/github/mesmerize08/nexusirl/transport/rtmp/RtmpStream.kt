@@ -817,9 +817,6 @@ class RtmpStream(
         return packet
     }
 
-    /** Test hook: feed raw server bytes as if received after the handshake. */
-    internal fun handleChunkDataForTesting(data: ByteArray, onMessage: (RtmpMessage) -> Unit): ByteArray = chunkReader.read(data, onMessage)
-
     companion object {
         private fun parseUri(value: String): URI = try {
             URI(value)

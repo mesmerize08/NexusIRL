@@ -15,9 +15,6 @@ data class Microphone(
     val type: Int,
     val device: AudioDeviceInfo,
 ) {
-    val isExternal: Boolean
-        get() = type != AudioDeviceInfo.TYPE_BUILTIN_MIC
-
     override fun toString(): String = name
 }
 
