@@ -14,9 +14,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-/** Upstream `DefaultTcpPorts.remoteControlAssistant`. */
-const val REMOTE_CONTROL_DEFAULT_PORT = 2345
-
 /** What the assistant shows (upstream `RemoteControlAssistantDelegate`). Called on the server's threads. */
 interface RemoteControlAssistantDelegate {
     fun connected() {}
@@ -67,10 +64,6 @@ class RemoteControlAssistant(
     @Volatile
     var isConnected = false
         private set
-
-    /** The port actually listened on (useful with port 0 in tests). */
-    val boundPort: Int
-        get() = server?.port ?: port
 
     fun start() = startServer()
 

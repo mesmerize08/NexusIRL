@@ -14,9 +14,6 @@ import kotlinx.serialization.Serializable
 /** Upstream `moblinkBonjourType`: streamers advertise this service with a TXT record `name`. */
 const val MOBLINK_SERVICE_TYPE = "_moblink._tcp"
 
-/** Upstream `DefaultTcpPorts.moblinkStreamer`. */
-const val MOBLINK_DEFAULT_PORT = 7777
-
 /** Upstream `MoblinkThermalState`. */
 @Serializable(with = MoblinkThermalState.Serializer::class)
 enum class MoblinkThermalState(override val rawValue: String) : SwiftRawValueEnum {
