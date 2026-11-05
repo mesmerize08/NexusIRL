@@ -30,6 +30,12 @@ class ReconnectingWebSocket(
 
         /** The server closes the connection with [code] and [reason] (such as a failed login); a reconnect follows. */
         fun onClosing(socket: ReconnectingWebSocket, code: Int, reason: String) {}
+
+        /**
+         * An attempt failed before connecting ([error]: timed out, refused, no route, TLS); a
+         * reconnect follows. Without it a server a firewall blocks just looks like "connecting".
+         */
+        fun onConnectFailed(socket: ReconnectingWebSocket, error: Throwable) {}
     }
 
     private val executor = Executors.newSingleThreadScheduledExecutor { Thread(it, "websocket").apply { isDaemon = true } }
@@ -116,7 +122,7 @@ class ReconnectingWebSocket(
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = onThread(current) {
-                    handleDisconnect()
+                    handleDisconnect(t)
                 }
             },
         )
@@ -135,11 +141,13 @@ class ReconnectingWebSocket(
         }
     }
 
-    private fun handleDisconnect() {
+    private fun handleDisconnect(error: Throwable? = null) {
         val wasConnected = isConnected
         disconnect()
         if (wasConnected) {
             listener.onDisconnected(this)
+        } else if (error != null) {
+            listener.onConnectFailed(this, error)
         }
         reconnect = executor.schedule({ connect() }, delayMillis, TimeUnit.MILLISECONDS)
         delayMillis = (delayMillis * 2).coerceAtMost(LONGEST_DELAY_MILLIS)

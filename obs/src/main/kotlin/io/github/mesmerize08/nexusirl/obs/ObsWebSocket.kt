@@ -213,6 +213,13 @@ class ObsWebSocket(
                 }
                 handleDisconnected()
             }
+
+            override fun onConnectFailed(socket: ReconnectingWebSocket, error: Throwable) {
+                // Upstream: "Unable to connect the OBS server (…)". A timeout is usually the
+                // computer's firewall; a refusal, OBS's WebSocket server being off.
+                connectionErrorMessage = "Unable to connect (${error.message ?: error.javaClass.simpleName})"
+                handleDisconnected()
+            }
         },
         client,
     )

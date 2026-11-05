@@ -126,6 +126,23 @@ class ObsWebSocketTest {
     }
 
     @Test
+    fun anUnreachableServerIsReported() {
+        // Nothing listens on this port (as with a firewall dropping or refusing the connection):
+        // the app must say so instead of showing "Connecting" for ever.
+        val port = java.net.ServerSocket(0, 0, java.net.InetAddress.getLoopbackAddress()).use { it.localPort }
+        val events = Events()
+        val obs = ObsWebSocket("ws://127.0.0.1:$port", "", events)
+        try {
+            obs.start()
+            val event = events.next() ?: "nothing within 5 s (still \"Connecting\")"
+            assertTrue(event.startsWith("failed ") && event.length > "failed ".length, event)
+            assertFalse(obs.isConnected)
+        } finally {
+            obs.stop()
+        }
+    }
+
+    @Test
     fun connectionErrorIsNotStaleAndClearsOnceIdentified() {
         lateinit var fake: FakeObs
         var identifies = 0
