@@ -36,32 +36,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.R
-import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
 import io.github.mesmerize08.nexusirl.obs.ObsController
 import io.github.mesmerize08.nexusirl.obs.ObsOutputState
 import io.github.mesmerize08.nexusirl.obs.ObsSceneMediaSource
-import io.github.mesmerize08.nexusirl.settings.SettingsMoblinkRelay
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
+import io.github.mesmerize08.nexusirl.settings.WebSocketUrlProblem
+import io.github.mesmerize08.nexusirl.settings.webSocketUrlProblem
 import io.github.mesmerize08.nexusirl.stream.StreamController
-import java.net.URI
 import java.util.UUID
 
 /** What is wrong with an OBS WebSocket URL, as a string resource, or null. */
-fun obsUrlProblem(url: String): Int? {
-    if (!SettingsMoblinkRelay.isValidWebSocketUrl(url)) {
-        return R.string.obs_url_invalid
-    }
-    val host = try {
-        URI(url).host
-    } catch (e: Exception) {
-        null
-    } ?: return R.string.obs_url_invalid
-    return if (url.startsWith("ws:", ignoreCase = true) && !CleartextPolicy.isAllowed(host, allowLocalNetwork = true)) {
-        R.string.obs_url_not_local
-    } else {
-        null
-    }
+fun obsUrlProblem(url: String): Int? = when (webSocketUrlProblem(url)) {
+    WebSocketUrlProblem.INVALID -> R.string.obs_url_invalid
+    WebSocketUrlProblem.NOT_LOCAL_CLEARTEXT -> R.string.obs_url_not_local
+    null -> null
 }
 
 /**

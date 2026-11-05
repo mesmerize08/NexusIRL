@@ -8,10 +8,10 @@ import android.os.Looper
 import android.os.SystemClock
 import io.github.mesmerize08.nexusirl.chat.ChatController
 import io.github.mesmerize08.nexusirl.core.secrets.MissingSecretException
-import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
-import io.github.mesmerize08.nexusirl.settings.SettingsMoblinkRelay
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
+import io.github.mesmerize08.nexusirl.settings.WebSocketUrlProblem
+import io.github.mesmerize08.nexusirl.settings.webSocketUrlProblem
 import io.github.mesmerize08.nexusirl.stream.StreamController
 import io.github.mesmerize08.nexusirl.stream.StreamState
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.net.URI
 
 /**
  * OBS remote control for the selected stream: while it has OBS remote control on, stays
@@ -105,15 +104,17 @@ object ObsController {
                 ObsState(configured = true, error = "The OBS password is missing. Enter it again in the stream's settings.")
             return
         }
-        if (!SettingsMoblinkRelay.isValidWebSocketUrl(url)) {
-            mutableState.value = ObsState(configured = true, error = "Enter a ws:// or wss:// URL in the stream's settings")
-            return
-        }
-        // The client would refuse it on every attempt; say why instead (docs/PORT_PLAN.md §9.5).
-        val host = runCatching { URI(url).host }.getOrNull()
-        if (url.startsWith("ws:", ignoreCase = true) && (host == null || !CleartextPolicy.isAllowed(host, allowLocalNetwork = true))) {
-            mutableState.value = ObsState(configured = true, error = "ws:// is only allowed to the local network; use wss://")
-            return
+        when (webSocketUrlProblem(url)) {
+            WebSocketUrlProblem.INVALID -> {
+                mutableState.value = ObsState(configured = true, error = "Enter a ws:// or wss:// URL in the stream's settings")
+                return
+            }
+            // The client would refuse it on every attempt; say why instead (docs/PORT_PLAN.md §9.5).
+            WebSocketUrlProblem.NOT_LOCAL_CLEARTEXT -> {
+                mutableState.value = ObsState(configured = true, error = "ws:// is only allowed to the local network; use wss://")
+                return
+            }
+            null -> {}
         }
         mutableState.value = ObsState(configured = true)
         lateinit var socket: ObsWebSocket

@@ -26,7 +26,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.mesmerize08.nexusirl.R
-import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
 import io.github.mesmerize08.nexusirl.remote.RemoteControlAssistantController
 import io.github.mesmerize08.nexusirl.remote.RemoteControlConnection
 import io.github.mesmerize08.nexusirl.remote.RemoteControlController
@@ -35,6 +34,8 @@ import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControlStreamer
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControlWeb
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.settings.WebSocketUrlProblem
+import io.github.mesmerize08.nexusirl.settings.webSocketUrlProblem
 
 private val PREVIEW_FPS_CHOICES = listOf(0f, 0.5f, 1f, 2f, 5f)
 
@@ -80,7 +81,7 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (url.startsWith("ws://", ignoreCase = true) && !isLocalAddress(url)) {
+        if (webSocketUrlProblem(url) == WebSocketUrlProblem.NOT_LOCAL_CLEARTEXT) {
             // docs/PORT_PLAN.md §9.6: the password hash can be sniffed and brute forced over plain ws://.
             Text(
                 stringResource(R.string.assistant_url_unencrypted),
@@ -121,12 +122,6 @@ fun RemoteControlScreen(store: SettingsStore, onBack: () -> Unit) {
         HorizontalDivider()
         WebRemoteControlSection(store)
     }
-}
-
-/** Whether plain ws:// may be used: loopback, LAN and Tailscale addresses (CleartextPolicy). */
-private fun isLocalAddress(url: String): Boolean {
-    val host = url.substringAfter("://").substringBefore('/').substringBeforeLast(':')
-    return CleartextPolicy.isLoopback(host) || CleartextPolicy.isLocalNetwork(host)
 }
 
 /**
