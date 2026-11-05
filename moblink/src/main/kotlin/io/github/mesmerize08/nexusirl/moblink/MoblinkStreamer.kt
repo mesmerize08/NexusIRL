@@ -5,7 +5,9 @@ package io.github.mesmerize08.nexusirl.moblink
 
 import io.github.mesmerize08.nexusirl.core.websocket.CleartextPolicy
 import io.github.mesmerize08.nexusirl.remotecontrol.LimitedDraft
+import io.github.mesmerize08.nexusirl.remotecontrol.PasswordLockout
 import io.github.mesmerize08.nexusirl.remotecontrol.REMOTE_CONTROL_API_VERSION
+import io.github.mesmerize08.nexusirl.remotecontrol.newChallenge
 import io.github.mesmerize08.nexusirl.remotecontrol.remoteControlHashPassword
 import org.java_websocket.WebSocket
 import org.java_websocket.handshake.ClientHandshake
@@ -13,8 +15,6 @@ import org.java_websocket.server.WebSocketServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
 import java.util.UUID
 
 /** A relay's tunnel: send SRTLA to [host]:[port] (the relay), which forwards over its mobile data. */
@@ -51,15 +51,14 @@ class MoblinkStreamer(
     private val bindAddress: InetAddress? = null,
 ) {
     private val lock = Any()
-    private val random = SecureRandom()
     private val relays = LinkedHashMap<WebSocket, Relay>()
-    private val failures = HashMap<String, Pair<Int, Long>>()
+    private val lockout = PasswordLockout(clock)
     private var server: Server? = null
     private var destination: Pair<String, Int>? = null
 
     private inner class Relay(val socket: WebSocket) {
-        val challenge = randomString()
-        val salt = randomString()
+        val challenge = newChallenge()
+        val salt = newChallenge()
         var identified = false
         var relayId: UUID? = null
         var name = ""
@@ -152,8 +151,6 @@ class MoblinkStreamer(
         }
     }
 
-    private fun randomString(): String = ByteArray(32).also(random::nextBytes).let { Base64.getEncoder().encodeToString(it) }
-
     private fun startTunnel(relay: Relay) {
         val (address, destinationPort) = synchronized(lock) { destination } ?: return
         val old = synchronized(lock) { relay.tunnel.also { relay.tunnel = null } }
@@ -178,22 +175,11 @@ class MoblinkStreamer(
         }
     }
 
-    private fun isLockedOut(host: String): Boolean = synchronized(lock) {
-        val (count, lockedUntil) = failures[host] ?: return false
-        count >= MAXIMUM_FAILURES && clock() < lockedUntil
-    }
-
-    private fun recordFailure(host: String) = synchronized(lock) {
-        val (count, lockedUntil) = failures[host] ?: (0 to 0L)
-        val newCount = if (count >= MAXIMUM_FAILURES && clock() >= lockedUntil) 1 else count + 1
-        failures[host] = newCount to if (newCount >= MAXIMUM_FAILURES) clock() + LOCKOUT_MILLIS else 0L
-    }
-
     private fun handleIdentify(relay: Relay, message: MoblinkMessageToStreamer.Identify) {
         val host = relay.socket.remoteSocketAddress?.address?.hostAddress.orEmpty()
         val expected = remoteControlHashPassword(relay.challenge, relay.salt, password)
         if (!MessageDigest.isEqual(expected.toByteArray(), message.authentication.toByteArray())) {
-            recordFailure(host)
+            lockout.recordFailure(host)
             listener.log("Relay ${message.name.take(30)} at $host: wrong password")
             relay.send(MoblinkMessageToRelay.Identified(MoblinkResult.WRONG_PASSWORD))
             relay.socket.close()
@@ -201,7 +187,7 @@ class MoblinkStreamer(
         }
         // Upstream: a relay that reconnects replaces its old connection.
         val replaced = synchronized(lock) {
-            failures.remove(host)
+            lockout.recordSuccess(host)
             val previous = relays.values.firstOrNull { it !== relay && it.relayId == message.id }
             previous?.let { relays.remove(it.socket) }
             relay.relayId = message.id
@@ -225,9 +211,9 @@ class MoblinkStreamer(
             val local = socket.localSocketAddress?.address
             val remote = socket.remoteSocketAddress?.address
             val host = remote?.hostAddress.orEmpty()
-            if (local == null || !acceptLocalAddress(local, remote) || isLockedOut(host)) {
-                val reason = if (local != null && acceptLocalAddress(local, remote)) "too many wrong passwords" else "not the local network"
-                listener.log("Refused $host on ${local?.hostAddress}: $reason")
+            val refusal = lockout.refusal(local, remote, acceptLocalAddress)
+            if (local == null || refusal != null) {
+                listener.log("Refused $host on ${local?.hostAddress}: $refusal")
                 socket.close()
                 return
             }
@@ -266,9 +252,6 @@ class MoblinkStreamer(
     }
 
     companion object {
-        const val MAXIMUM_FAILURES = 5
-        const val LOCKOUT_MILLIS = 60_000L
-
         /** The largest message (or frame) a relay may send: real ones are a few hundred bytes. */
         const val MAXIMUM_MESSAGE_SIZE = 64 * 1024
     }

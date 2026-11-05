@@ -10,8 +10,6 @@ import org.java_websocket.server.WebSocketServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -53,7 +51,6 @@ class RemoteControlAssistant(
     private val bindAddress: InetAddress? = null,
 ) {
     private val lock = Any()
-    private val random = SecureRandom()
     private val timer = Executors.newSingleThreadScheduledExecutor { Thread(it, "remote-control-assistant").apply { isDaemon = true } }
     private var server: Server? = null
     private var streamer: WebSocket? = null
@@ -65,7 +62,7 @@ class RemoteControlAssistant(
     private var retry: ScheduledFuture<*>? = null
     private var nextId = 0
     private val requests = HashMap<Int, (RemoteControlResult, RemoteControlResponse?) -> Unit>()
-    private val failures = HashMap<String, Pair<Int, Long>>()
+    private val lockout = PasswordLockout(clock)
 
     @Volatile
     var isConnected = false
@@ -121,8 +118,6 @@ class RemoteControlAssistant(
         }
     }
 
-    private fun randomString(): String = ByteArray(32).also(random::nextBytes).let { Base64.getEncoder().encodeToString(it) }
-
     private fun send(socket: WebSocket?, message: RemoteControlMessageToStreamer) {
         try {
             socket?.send(SwiftJson.encodeToString(RemoteControlMessageToStreamer.Serializer, message))
@@ -149,17 +144,6 @@ class RemoteControlAssistant(
             requests[id] = onResult
         }
         send(socket, RemoteControlMessageToStreamer.Request(id, data))
-    }
-
-    private fun isLockedOut(host: String): Boolean = synchronized(lock) {
-        val (count, lockedUntil) = failures[host] ?: return false
-        count >= MAXIMUM_FAILURES && clock() < lockedUntil
-    }
-
-    private fun recordFailure(host: String) = synchronized(lock) {
-        val (count, lockedUntil) = failures[host] ?: (0 to 0L)
-        val newCount = if (count >= MAXIMUM_FAILURES && clock() >= lockedUntil) 1 else count + 1
-        failures[host] = newCount to if (newCount >= MAXIMUM_FAILURES) clock() + LOCKOUT_MILLIS else 0L
     }
 
     private fun startKeepAlive(socket: WebSocket) {
@@ -224,12 +208,12 @@ class RemoteControlAssistant(
         if (MessageDigest.isEqual(expected.toByteArray(), authentication.toByteArray())) {
             synchronized(lock) {
                 identified = true
-                failures.remove(host)
+                lockout.recordSuccess(host)
             }
             send(socket, RemoteControlMessageToStreamer.Identified(RemoteControlResult.OK))
             setConnected(true)
         } else {
-            recordFailure(host)
+            lockout.recordFailure(host)
             send(socket, RemoteControlMessageToStreamer.Identified(RemoteControlResult.WRONG_PASSWORD))
             socket.close()
         }
@@ -241,10 +225,7 @@ class RemoteControlAssistant(
         }
 
         override fun onOpen(socket: WebSocket, handshake: ClientHandshake) {
-            val local = socket.localSocketAddress?.address
-            val remote = socket.remoteSocketAddress?.address
-            val host = remote?.hostAddress.orEmpty()
-            if (local == null || !acceptLocalAddress(local, remote) || isLockedOut(host)) {
+            if (lockout.refusal(socket.localSocketAddress?.address, socket.remoteSocketAddress?.address, acceptLocalAddress) != null) {
                 socket.close()
                 return
             }
@@ -255,8 +236,8 @@ class RemoteControlAssistant(
                 streamer = socket
                 identified = false
                 requests.clear()
-                challenge = randomString()
-                salt = randomString()
+                challenge = newChallenge()
+                salt = newChallenge()
             }
             if (previous != null) {
                 previous.close()
@@ -296,8 +277,8 @@ class RemoteControlAssistant(
     }
 
     companion object {
-        const val MAXIMUM_FAILURES = 5
-        const val LOCKOUT_MILLIS = 60_000L
+        const val MAXIMUM_FAILURES = PasswordLockout.MAXIMUM_FAILURES
+        const val LOCKOUT_MILLIS = PasswordLockout.LOCKOUT_MILLIS
 
         /**
          * The largest message (or frame) a streamer may send. Previews are the largest legitimate
