@@ -36,7 +36,6 @@
     <string name="text_format">Texto</string>
     <string name="font_size">Tamanho da fonte</string>
     <string name="background">Fundo</string>
-    <string name="browser_url">URL</string>
     <string name="width">Largura</string>
     <string name="height">Altura</string>
     <string name="moblin_access">Acesso a Moblin</string>

@@ -41,7 +41,6 @@
     <string name="text_format">Text</string>
     <string name="font_size">Teckenstorlek</string>
     <string name="background">Bakgrund</string>
-    <string name="browser_url">URL</string>
     <string name="width">Bredd</string>
     <string name="height">Höjd</string>
     <string name="style_sheet">Style sheet</string>

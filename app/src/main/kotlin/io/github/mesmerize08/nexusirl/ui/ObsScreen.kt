@@ -174,7 +174,7 @@ private fun ObsConnected(sourceName: String, live: Boolean) {
     StartStopButton(
         obs.recordingState,
         stringResource(R.string.obs_start_recording),
-        stringResource(R.string.obs_stop_recording),
+        stringResource(R.string.stop_recording),
         ObsController::startRecording,
         ObsController::stopRecording,
     )
@@ -187,7 +187,7 @@ private fun ObsConnected(sourceName: String, live: Boolean) {
         Text(stringResource(R.string.obs_no_snapshot))
     }
     HorizontalDivider()
-    Text(stringResource(R.string.obs_scenes), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.scenes), style = MaterialTheme.typography.titleMedium)
     for (scene in obs.scenes) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

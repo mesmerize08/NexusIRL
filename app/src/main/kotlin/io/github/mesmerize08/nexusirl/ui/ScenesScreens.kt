@@ -440,7 +440,7 @@ fun WidgetEditorScreen(store: SettingsStore, widgetId: UUID, onBack: () -> Unit)
                     // The page's address may hold an access token: secret on disk, shown in full here.
                     value = store.resolveOrPublicPart(browser.url),
                     onValueChange = { url -> update { it.copy(browser = it.browser.copy(url = url.trim())) } },
-                    label = { Text(stringResource(R.string.browser_url)) },
+                    label = { Text(stringResource(R.string.url)) },
                     supportingText = { Text(stringResource(R.string.browser_url_help)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
                     singleLine = true,

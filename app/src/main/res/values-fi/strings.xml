@@ -40,7 +40,6 @@
     <string name="text_format">Teksti</string>
     <string name="font_size">Fonttikoko</string>
     <string name="background">Tausta</string>
-    <string name="browser_url">URL</string>
     <string name="width">Leveys</string>
     <string name="height">Korkeus</string>
     <string name="style_sheet">Tyylitiedosto</string>

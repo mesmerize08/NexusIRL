@@ -39,7 +39,6 @@
     <string name="text_format">텍스트</string>
     <string name="font_size">폰트 크기</string>
     <string name="background">배경</string>
-    <string name="browser_url">URL</string>
     <string name="width">폭</string>
     <string name="height">높이</string>
     <string name="style_sheet">스타일 시트</string>

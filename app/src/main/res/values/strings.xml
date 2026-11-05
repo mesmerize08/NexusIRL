@@ -140,7 +140,6 @@
     <string name="image_set">An image is set.</string>
     <string name="image_missing">No image chosen yet.</string>
     <string name="qr_message">QR code text</string>
-    <string name="browser_url">URL</string>
     <string name="browser_url_help">An https:// page, e.g. a chat or alerts overlay. Plain http:// is not allowed.</string>
     <string name="width">Width</string>
     <string name="height">Height</string>
@@ -232,7 +231,6 @@
     <string name="moblink_password_needed">Enter the password shown in the streamer\'s Moblink settings.</string>
     <string name="moblink_found_streamer">Found streamer: %1$s</string>
     <string name="moblink_relay_name">Relay name (shown on the streamer)</string>
-    <string name="moblink_password_help">The same password as on the streamer. Stored encrypted on this device.</string>
     <string name="moblink_manual">Enter the streamer address manually</string>
     <string name="moblink_streamer_url">Streamer URL</string>
     <string name="moblink_streamer_url_help">For example ws://192.168.1.10:7777</string>
@@ -403,13 +401,11 @@
     <string name="obs_start_streaming">Start streaming</string>
     <string name="obs_stop_streaming">Stop streaming</string>
     <string name="obs_start_recording">Start recording</string>
-    <string name="obs_stop_recording">Stop recording</string>
     <string name="obs_starting">Starting…</string>
     <string name="obs_stopping">Stopping…</string>
     <string name="obs_confirm">%1$s in OBS?</string>
     <string name="obs_snapshot">Current scene snapshot</string>
     <string name="obs_no_snapshot">No snapshot received yet.</string>
-    <string name="obs_scenes">Scenes</string>
     <string name="obs_audio_inputs">Scene audio inputs</string>
     <string name="obs_media_sources">Scene media sources</string>
     <string name="obs_media_source_input">%1$s input</string>
