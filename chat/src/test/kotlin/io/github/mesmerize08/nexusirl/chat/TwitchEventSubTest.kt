@@ -14,6 +14,7 @@ import io.github.mesmerize08.nexusirl.chat.twitch.TwitchPredictionState
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchUnauthorizedException
 import io.github.mesmerize08.nexusirl.chat.twitch.formatShortDuration
 import io.github.mesmerize08.nexusirl.chat.twitch.formatTwitchCountdown
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import io.github.mesmerize08.nexusirl.settings.RgbColor
 import okhttp3.Response
 import okhttp3.WebSocket

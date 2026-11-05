@@ -22,6 +22,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(testFixtures(project(":core:websocket")))
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

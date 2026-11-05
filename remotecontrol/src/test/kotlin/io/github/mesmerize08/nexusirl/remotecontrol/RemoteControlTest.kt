@@ -5,6 +5,7 @@
 package io.github.mesmerize08.nexusirl.remotecontrol
 
 import io.github.mesmerize08.nexusirl.core.codable.SwiftJson
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener

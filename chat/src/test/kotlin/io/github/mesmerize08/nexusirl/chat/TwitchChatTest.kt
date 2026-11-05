@@ -9,6 +9,7 @@ import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChatCommand
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChatMessage
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchMessageEmote
 import io.github.mesmerize08.nexusirl.chat.twitch.createTwitchSegments
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import io.github.mesmerize08.nexusirl.settings.RgbColor
 import okhttp3.Response
 import okhttp3.WebSocket

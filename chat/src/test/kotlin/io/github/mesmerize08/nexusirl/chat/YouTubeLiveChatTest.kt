@@ -5,6 +5,7 @@ package io.github.mesmerize08.nexusirl.chat
 
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeChatException
 import io.github.mesmerize08.nexusirl.chat.youtube.YouTubeLiveChat
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import kotlin.test.Test

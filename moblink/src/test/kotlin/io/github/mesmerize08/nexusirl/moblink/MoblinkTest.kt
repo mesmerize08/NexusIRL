@@ -5,6 +5,7 @@
 package io.github.mesmerize08.nexusirl.moblink
 
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import io.github.mesmerize08.nexusirl.remotecontrol.remoteControlHashPassword
 import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
 import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType

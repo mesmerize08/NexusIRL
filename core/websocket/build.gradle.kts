@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    `java-test-fixtures`
 }
 
 java {
@@ -14,6 +15,7 @@ kotlin {
 
 dependencies {
     api(libs.okhttp)
+    testFixturesApi(libs.okhttp.mockwebserver)
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.okhttp.mockwebserver)

@@ -7,6 +7,7 @@ import io.github.mesmerize08.nexusirl.chat.twitch.TWITCH_SCOPES
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchAuth
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchAuthException
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchTokens
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import kotlin.test.Test

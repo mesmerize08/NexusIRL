@@ -4,6 +4,7 @@
 package io.github.mesmerize08.nexusirl.chat
 
 import io.github.mesmerize08.nexusirl.chat.twitch.TwitchChat
+import io.github.mesmerize08.nexusirl.core.websocket.testing.loopbackUrl
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamChat
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
