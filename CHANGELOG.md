@@ -5,6 +5,16 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Fixed
+- After another app used the camera while live (for example the phone's Camera app), the picture
+  stuttered for several seconds once the camera was back, at about 2 frames a second. With the
+  picture standing still, the video encoder saved up bitrate (keyframes of about 1 MB instead of
+  0.1 MB) and spent it at once when the camera returned. While the picture really stands still
+  (no camera image, no camera switch, nothing moving on screen), streams with constant bitrate now
+  run at a tenth of their bitrate (at least 500 kbps), and adaptive bitrate does not climb
+  meanwhile. Measured on a Galaxy S26 Ultra: 30 fps throughout, the largest frame after the camera
+  returns 0.35 MB instead of up to 1.3 MB. Recordings and VBR streams are not affected.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added
