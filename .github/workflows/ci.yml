@@ -67,12 +67,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # Caches the Gradle distribution and dependencies, as in the other jobs: without it every run
+      # downloads Gradle, and failed whenever that download did (HTTP 504 on 2026-11-08).
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: java-kotlin
           build-mode: manual
       - name: Build
-        run: ./gradlew assembleDebug --console=plain
+        # No build cache: CodeQL only analyses what it sees being compiled.
+        run: ./gradlew assembleDebug --no-build-cache --console=plain
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
 
   ui-tests:
