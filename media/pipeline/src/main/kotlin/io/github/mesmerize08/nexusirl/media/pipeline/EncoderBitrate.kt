@@ -16,18 +16,25 @@ package io.github.mesmerize08.nexusirl.media.pipeline
  *
  * The minimum keeps the limiter's allowance above such a keyframe or two: a tenth of 2 Mbps would
  * let a frame through every few seconds while still.
+ *
+ * Only [reduceWhenStill] encoders (CBR): VBR (recordings, VBR streams) does not spend unused bits
+ * on a still picture.
  */
-internal class EncoderBitrate(requested: Long) {
+internal class EncoderBitrate(requested: Long, private val reduceWhenStill: Boolean) {
     @Volatile
     var requested = requested
 
     @Volatile
     var still = false
 
+    /** Whether the target is below the requested bitrate for a still picture. */
+    val reduced: Boolean
+        get() = still && reduceWhenStill
+
     val target: Long
         get() {
             val requested = requested
-            return if (still) maxOf(requested / STILL_DIVISOR, minOf(requested, STILL_MINIMUM)) else requested
+            return if (reduced) maxOf(requested / STILL_DIVISOR, minOf(requested, STILL_MINIMUM)) else requested
         }
 
     companion object {

@@ -24,15 +24,21 @@ data class StreamStats(
     val latency: Int?,
     val mbpsSendRate: Double?,
     val relaxed: Boolean?,
+    /**
+     * Not upstream: no higher than this, e.g. while the encoder makes a still picture at a fraction
+     * of its bitrate and the link only looks idle. Decreases still apply.
+     */
+    val maximumBitrate: Long? = null,
 ) {
     /**
      * Do not push a much higher bitrate than the transport actually carries (e.g. after a static
      * scene the encoder may output far less than configured).
      */
     fun limitByTransportBitrate(bitrate: Long): Long {
-        val transportBitrate = transportBitrate ?: return bitrate
-        val maximumBitrate = maxOf(transportBitrate + ADAPTIVE_BITRATE_TRANSPORT_MINIMUM, (17 * transportBitrate) / 10)
-        return minOf(bitrate, maximumBitrate)
+        val limited = maximumBitrate?.let { minOf(bitrate, it) } ?: bitrate
+        val transportBitrate = transportBitrate ?: return limited
+        val transportMaximum = maxOf(transportBitrate + ADAPTIVE_BITRATE_TRANSPORT_MINIMUM, (17 * transportBitrate) / 10)
+        return minOf(limited, transportMaximum)
     }
 }
 

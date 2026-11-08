@@ -60,6 +60,9 @@ class SrtAdaptiveBitrateDriver internal constructor(
     }
 
     private var tickCount = 0L
+
+    /** The bitrate when the still picture began, the most until it ends. */
+    private var stillMaximumBitrate: Long? = null
     private var transportBitrate = targetBitrate
     private var previousTotalByteCount = 0L
     private var tick20ms: Cancellable? = null
@@ -87,9 +90,15 @@ class SrtAdaptiveBitrateDriver internal constructor(
     internal fun update() {
         tickCount += 1
         val is200MsTick = tickCount % 10 == 0L
-        // The still picture's low output makes the link look idle: adapting to that would climb,
-        // and apply the climbed bitrate all at once when the camera is back.
-        if (!stream.isConnected || isEncoderStill()) {
+        // The still picture's low output makes the link look idle: climbing on that would apply
+        // the climbed bitrate all at once when the camera is back. Decreases still apply.
+        val still = isEncoderStill()
+        if (!still) {
+            stillMaximumBitrate = null
+        } else if (stillMaximumBitrate == null) {
+            stillMaximumBitrate = maxOf(adaptiveBitrate.getCurrentBitrate(), adaptiveBitrate.getCurrentMaximumBitrateInKbps() * 1000)
+        }
+        if (!stream.isConnected) {
             return
         }
         if (adaptiveBitrate !is AdaptiveBitrateSrtBelabox && !is200MsTick) {
@@ -104,6 +113,7 @@ class SrtAdaptiveBitrateDriver internal constructor(
                 latency = stream.latency,
                 mbpsSendRate = stats.mbpsSendRate,
                 relaxed = false,
+                maximumBitrate = stillMaximumBitrate,
             ),
         )
     }

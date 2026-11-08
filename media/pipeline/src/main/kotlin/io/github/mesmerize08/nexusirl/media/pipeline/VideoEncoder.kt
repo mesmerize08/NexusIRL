@@ -10,6 +10,7 @@ import io.github.mesmerize08.nexusirl.media.mux.nal.getNalUnits
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
 
 /** How the encoder spends its bitrate (upstream `SettingsStreamRateControl`, minus ABR; see [VideoEncoderSettings.rateControl]). */
 enum class VideoRateControl { CBR, VBR }
@@ -54,15 +55,13 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     @Volatile
     private var running = true
 
-    private val encoderBitrate = EncoderBitrate(settings.bitrate)
-
     /** The bitrate set ([setBitrate]); while the picture is still the encoder runs at less ([appliedBitrate]). */
     val currentBitrate: Long
         get() = encoderBitrate.requested
 
-    /** Whether the picture is a repeated still ([setStillPicture]). */
+    /** Whether the encoder runs below [currentBitrate] for a still picture ([setStillPicture]). */
     val stillPicture: Boolean
-        get() = encoderBitrate.still
+        get() = encoderBitrate.reduced
 
     /** The bitrate the encoder was last given successfully. */
     @Volatile
@@ -94,6 +93,9 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     } else {
         VideoRateControl.VBR
     }
+
+    // Declared after [rateControl], which it reads.
+    private val encoderBitrate = EncoderBitrate(settings.bitrate, reduceWhenStill = rateControl == VideoRateControl.CBR)
 
     init {
         val format = MediaFormat.createVideoFormat(mimeType, settings.width, settings.height).apply {
@@ -134,8 +136,8 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     }
 
     /**
-     * Whether the picture is a repeated still ([StillPicture]); the encoder then runs at a fraction
-     * of its bitrate ([EncoderBitrate]). Does not wait for the encoder.
+     * Whether the picture is a repeated still ([StillPicture]); a CBR encoder then runs at a
+     * fraction of its bitrate ([EncoderBitrate]). Does not wait for the encoder.
      */
     fun setStillPicture(still: Boolean) {
         encoderBitrate.still = still
@@ -254,7 +256,9 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
             // Not running.
         }
         running = false
+        // A bitrate change under way must finish before the codec stops.
         parameterExecutor.shutdown()
+        parameterExecutor.awaitTermination(500, TimeUnit.MILLISECONDS)
         outputThread.join(1_000)
         try {
             codec.stop()

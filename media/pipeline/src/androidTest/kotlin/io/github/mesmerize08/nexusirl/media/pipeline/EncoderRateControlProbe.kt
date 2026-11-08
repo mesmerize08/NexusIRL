@@ -173,7 +173,7 @@ class EncoderRateControlProbe {
         private val random = Random(1)
 
         /** How strong the fine detail is in "pan" and "shake" (0-255, `-e detail`). */
-        private val detail = args.getString("detail")?.toInt() ?: 90
+        private val detail = (args.getString("detail")?.toInt() ?: 90).coerceIn(0, 255)
         private val tile: Bitmap
 
         init {
@@ -462,7 +462,7 @@ class EncoderRateControlProbe {
         fun setParameter(key: String, value: Int) = codec?.setParameters(Bundle().apply { putInt(key, value) })
         val picture = Picture(args.getString("content") ?: "pan")
         // "encoder": the pipeline's decision, from frame times without a new camera image.
-        val stillPicture = StillPicture(maxOf(fps / 2, 1))
+        val stillPicture = StillPicture(maxOf(fps / 2, 1), fps, maxOf(fps / 4, 1))
         var tick = 0
         var panFrame = 0
         var phase = 0
@@ -505,7 +505,7 @@ class EncoderRateControlProbe {
                 if (!still) {
                     stillPicture.cameraImage()?.let { encoder.setStillPicture(it) }
                 }
-                stillPicture.tick()?.let { encoder.setStillPicture(it) }
+                stillPicture.tick(contentChanged = false, switching = false)?.let { encoder.setStillPicture(it) }
             }
             val feed = if (still) {
                 when (mitigation) {

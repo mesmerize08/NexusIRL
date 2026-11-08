@@ -108,6 +108,7 @@ class VideoPipeline(
             val keep = updated.map { it.textureId }.toSet()
             luts.filter { it.textureId !in keep }.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
             luts = updated
+            contentChanged = true
         }
     }
 
@@ -377,9 +378,16 @@ class VideoPipeline(
             }
             overlays.clear()
             overlays.putAll(ordered)
-            drawOrder = list.map { Overlay(it.id, null, it.x, it.y, it.width, it.height) }
+            val order = list.map { Overlay(it.id, null, it.x, it.y, it.width, it.height) }
+            if (list.any { it.bitmap != null } || !sameLayout(order, drawOrder)) {
+                contentChanged = true
+            }
+            drawOrder = order
         }
     }
+
+    private fun sameLayout(a: List<Overlay>, b: List<Overlay>) = a.size == b.size &&
+        a.zip(b).all { (x, y) -> x.id == y.id && x.x == y.x && x.y == y.y && x.width == y.width && x.height == y.height }
 
     /**
      * Creates a [width]x[height] surface whose content is drawn as overlay [id] wherever
@@ -630,7 +638,10 @@ class VideoPipeline(
      * Whether the frame timer repeats one camera image (camera gone): the encoders then run at a
      * fraction of their bitrate ([EncoderBitrate]). GL thread only.
      */
-    private val stillPicture = StillPicture(maxOf(settings.fps / 2, 1))
+    private val stillPicture = StillPicture(maxOf(settings.fps / 2, 1), settings.fps, maxOf(settings.fps / 4, 1))
+
+    /** Widgets drew something new since the last frame time (GL thread only). */
+    private var contentChanged = false
 
     private fun setStillPicture(still: Boolean?) {
         still ?: return
@@ -772,7 +783,8 @@ class VideoPipeline(
             return
         }
         val now = System.nanoTime()
-        setStillPicture(stillPicture.tick())
+        setStillPicture(stillPicture.tick(contentChanged, switching = transitionStartNanos != null))
+        contentChanged = false
         if (!hasFrame) {
             // Camera frames arrive some time after capture (about 85 ms on a Galaxy S26 Ultra) and
             // keep their capture time; stamping black frames "now" would make every camera frame
@@ -892,6 +904,7 @@ class VideoPipeline(
         for (overlay in surfaceOverlays.values) {
             if (overlay.frameAvailable) {
                 overlay.frameAvailable = false
+                contentChanged = true
                 overlay.surfaceTexture.updateTexImage()
                 overlay.surfaceTexture.getTransformMatrix(overlay.matrix)
             }
