@@ -47,7 +47,8 @@ class MainScreenSmokeTest {
     val rules: RuleChain = RuleChain.outerRule(permissions).around(compose)
 
     private fun waitForMainScreen() {
-        compose.waitUntil(10_000) { compose.onAllNodes(hasText(GO_LIVE)).fetchSemanticsNodes().isNotEmpty() }
+        // No screen yet throws on a slow emulator: keep waiting then.
+        compose.waitUntil(10_000) { runCatching { compose.onAllNodes(hasText(GO_LIVE)).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) }
     }
 
     private fun back() {

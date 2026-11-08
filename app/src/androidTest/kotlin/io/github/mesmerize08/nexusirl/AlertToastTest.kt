@@ -24,14 +24,17 @@ class AlertToastTest {
         compose.waitForIdle()
         toasts.tryEmit("Cool_User just followed!")
         toasts.tryEmit("Other_User raided with a party of 12!")
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("Cool_User just followed!")).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { shown("Cool_User just followed!") == true }
         compose.onNodeWithText("Other_User raided with a party of 12!").assertDoesNotExist()
         // The second one follows once the first has had its time.
-        compose.waitUntil(10_000) {
-            compose.onAllNodes(hasText("Other_User raided with a party of 12!")).fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.waitUntil(10_000) {
-            compose.onAllNodes(hasText("Other_User raided with a party of 12!")).fetchSemanticsNodes().isEmpty()
-        }
+        compose.waitUntil(10_000) { shown("Other_User raided with a party of 12!") == true }
+        compose.waitUntil(10_000) { shown("Other_User raided with a party of 12!") == false }
+    }
+
+    /** Null while there is no screen to look at (briefly, on a slow emulator): keep waiting then. */
+    private fun shown(text: String): Boolean? = try {
+        compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty()
+    } catch (e: IllegalStateException) {
+        null
     }
 }
