@@ -11,8 +11,12 @@ import android.util.Log
 import android.view.Surface
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.mesmerize08.nexusirl.core.clock.MediaTime
+import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
+import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 
 /**
@@ -251,16 +255,16 @@ class EncoderRateControlProbe {
         val bytesPerSecond = LongArray(14)
         val began = System.nanoTime()
         val sink = object : MediaSink {
-            override fun setAudioConfig(config: io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig, sampleRate: Int) = Unit
+            override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = Unit
 
-            override fun setVideoConfig(config: io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig) = Unit
+            override fun setVideoConfig(config: MpegTsVideoConfig) = Unit
 
-            override fun writeAudio(frame: ByteArray, presentationTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime) = Unit
+            override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) = Unit
 
             override fun writeVideo(
                 accessUnit: ByteArray,
-                presentationTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime,
-                decodeTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime?,
+                presentationTimeStamp: MediaTime,
+                decodeTimeStamp: MediaTime?,
                 isSync: Boolean,
             ) {
                 val second = ((System.nanoTime() - began) / 1_000_000_000).toInt()
@@ -325,8 +329,8 @@ class EncoderRateControlProbe {
      *
      * On the S26 that reproduces the field test: keyframes of 0.8 MB while still, then (in about
      * half the runs) frames of 0.7-1.3 MB at 2 a second for up to 7 s after the return. Told about
-     * the still picture, the encoder makes 130-170 kB keyframes, its largest frame after the
-     * return is about 0.3 MB, and it keeps 30 fps.
+     * the still picture ([StillPicture], half a second without a new image), its keyframes are at
+     * most 0.26 MB, its largest frame after the return about 0.3 MB, and it keeps 30 fps.
      */
     @Test
     fun stillPicture() {
@@ -347,17 +351,17 @@ class EncoderRateControlProbe {
      * (PARAMETER_KEY_SUSPEND), "nofeed" (no frames), "nofeedsync" (no frames, a sync frame at the
      * return), "slow" (one frame a second), "keyonly" (one sync frame every 2 s), "lower" (a tenth
      * of the bitrate, restored at the return); "encoder" and "encoderoff" run [VideoEncoder] told,
-     * or not, about the still picture as the pipeline tells it.
+     * or not, about the still picture as the pipeline tells it ([StillPicture]).
      */
     private fun stillRun(codecName: String, mime: String, mitigation: String) {
         val bitrate = args.getString("bitrate")?.toInt() ?: 5_000_000
         val panSeconds = args.getString("pan")?.toInt() ?: 6
         // In seconds, with a fraction to time the camera's return against the keyframes.
         val stillNanos = ((args.getString("still")?.toDouble() ?: 15.0) * 1e9).toLong()
-        val stillSeconds = ((stillNanos + 999_999_999) / 1_000_000_000).toInt()
+        val returnNanos = panSeconds * 1_000_000_000L + stillNanos
         val afterSeconds = args.getString("after")?.toInt() ?: 10
         val limit = args.getString("limit") != "false"
-        val seconds = panSeconds + stillSeconds + afterSeconds
+        val seconds = ((returnNanos + 999_999_999) / 1_000_000_000).toInt() + afterSeconds
         val extra = args.keySet().filter { it.startsWith("int.") }.associate { it.removePrefix("int.") to args.getString(it)!!.toInt() }
         val bytes = LongArray(seconds)
         val frames = IntArray(seconds)
@@ -370,14 +374,15 @@ class EncoderRateControlProbe {
         val lock = Any()
 
         fun record(size: Int, key: Boolean) = synchronized(lock) {
-            val second = ((System.nanoTime() - start) / 1_000_000_000).toInt()
+            val elapsed = System.nanoTime() - start
+            val second = (elapsed / 1_000_000_000).toInt()
             if (second !in bytes.indices) {
                 return@synchronized
             }
             bytes[second] += size.toLong()
             frames[second]++
             maxFrame[second] = maxOf(maxFrame[second], size)
-            if (second in panSeconds + stillSeconds - 1 until panSeconds + stillSeconds + 2) {
+            if (elapsed - returnNanos in -1_000_000_000L until 2_000_000_000L) {
                 resumeFrames.append(" $second:${size / 1000}${if (key) "K" else ""}")
             }
             if (key) {
@@ -387,16 +392,16 @@ class EncoderRateControlProbe {
 
         val encoder = if (mitigation.startsWith("encoder")) {
             val sink = object : MediaSink {
-                override fun setAudioConfig(config: io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig, sampleRate: Int) = Unit
+                override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = Unit
 
-                override fun setVideoConfig(config: io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig) = Unit
+                override fun setVideoConfig(config: MpegTsVideoConfig) = Unit
 
-                override fun writeAudio(frame: ByteArray, presentationTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime) = Unit
+                override fun writeAudio(frame: ByteArray, presentationTimeStamp: MediaTime) = Unit
 
                 override fun writeVideo(
                     accessUnit: ByteArray,
-                    presentationTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime,
-                    decodeTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime?,
+                    presentationTimeStamp: MediaTime,
+                    decodeTimeStamp: MediaTime?,
                     isSync: Boolean,
                 ) = record(accessUnit.size, isSync)
             }
@@ -429,7 +434,7 @@ class EncoderRateControlProbe {
         val surface = encoder?.inputSurface ?: codec!!.createInputSurface()
         codec?.start()
         val limiter = DataRateLimiter()
-        val currentBitrate = java.util.concurrent.atomic.AtomicLong(bitrate.toLong())
+        val currentBitrate = AtomicLong(bitrate.toLong())
         val drain = codec?.let {
             Thread {
                 val bufferInfo = MediaCodec.BufferInfo()
@@ -456,6 +461,8 @@ class EncoderRateControlProbe {
 
         fun setParameter(key: String, value: Int) = codec?.setParameters(Bundle().apply { putInt(key, value) })
         val picture = Picture(args.getString("content") ?: "pan")
+        // "encoder": the pipeline's decision, from frame times without a new camera image.
+        val stillPicture = StillPicture(maxOf(fps / 2, 1))
         var tick = 0
         var panFrame = 0
         var phase = 0
@@ -470,7 +477,6 @@ class EncoderRateControlProbe {
                 phase = 1
                 when (mitigation) {
                     "suspend" -> setParameter(MediaCodec.PARAMETER_KEY_SUSPEND, 1)
-                    "encoder" -> encoder?.setStillPicture(true)
                     "lower" -> {
                         currentBitrate.set(bitrate / 10L)
                         setParameter(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate / 10)
@@ -488,13 +494,18 @@ class EncoderRateControlProbe {
                         setParameter(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
                     }
                     "suspend" -> setParameter(MediaCodec.PARAMETER_KEY_SUSPEND, 0)
-                    "encoder" -> encoder?.setStillPicture(false)
                     "nofeedsync" -> setParameter(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
                     "lower" -> {
                         currentBitrate.set(bitrate.toLong())
                         setParameter(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
                     }
                 }
+            }
+            if (mitigation == "encoder" && encoder != null) {
+                if (!still) {
+                    stillPicture.cameraImage()?.let { encoder.setStillPicture(it) }
+                }
+                stillPicture.tick()?.let { encoder.setStillPicture(it) }
             }
             val feed = if (still) {
                 when (mitigation) {
@@ -541,7 +552,8 @@ class EncoderRateControlProbe {
         for (second in 0 until seconds) {
             val phaseName = when {
                 second < panSeconds -> "pan"
-                second < panSeconds + stillSeconds -> "still"
+                // The second the camera returns in counts as after.
+                (second + 1) * 1_000_000_000L <= returnNanos -> "still"
                 else -> "after"
             }
             Log.i(

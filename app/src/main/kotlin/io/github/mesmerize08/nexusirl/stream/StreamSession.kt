@@ -341,6 +341,7 @@ class StreamSession(
                 executor,
                 targetBitrate,
                 limitByTransportBitrate = config.limitAdaptiveBitrateByTransportBitrate,
+                isEncoderStill = { encoder?.stillPicture == true },
             )
         }
         // SRTLA bonds every available network (cellular, Wi-Fi, Ethernet) at once.
@@ -546,6 +547,12 @@ class StreamSession(
         update(status.copy(detail = REDACTOR.redact(message)))
     }
 
+    /** While the camera is gone the encoder runs at less than its bitrate ([VideoEncoder.setStillPicture]). */
+    private fun stillMarker(): String {
+        val encoder = encoder?.takeIf { it.stillPicture } ?: return ""
+        return " (still: ${encoder.appliedBitrate / 1000}kbps)"
+    }
+
     private fun publishStatus() {
         // Read once: each read returns the data since the previous one.
         val bonding = destination?.bonding().orEmpty()
@@ -555,7 +562,7 @@ class StreamSession(
         val line =
             "Encoded ${encoded - lastEncodedFrames} frames/s limited=${limited - lastLimitedFrames} " +
                 "state=${status.state} encoder=${status.encoder} " +
-                "bitrate=${(encoder?.currentBitrate ?: 0) / 1000}kbps rtt=${destination?.rttMs()?.toInt() ?: 0}ms " +
+                "bitrate=${(encoder?.currentBitrate ?: 0) / 1000}kbps${stillMarker()} rtt=${destination?.rttMs()?.toInt() ?: 0}ms " +
                 "mic=${status.microphone} thermal=${status.thermal} ${destination?.debugStats(bonding) ?: ""}"
         android.util.Log.d("StreamSession", line)
         log.line(line)

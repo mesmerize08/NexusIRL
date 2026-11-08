@@ -8,6 +8,8 @@ import android.view.Surface
 import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.media.mux.nal.getNalUnits
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /** How the encoder spends its bitrate (upstream `SettingsStreamRateControl`, minus ABR; see [VideoEncoderSettings.rateControl]). */
 enum class VideoRateControl { CBR, VBR }
@@ -54,10 +56,24 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
 
     private val encoderBitrate = EncoderBitrate(settings.bitrate)
 
-    /** The bitrate the encoder runs at: the one set, or less while the picture is still ([setStillPicture]). */
+    /** The bitrate set ([setBitrate]); while the picture is still the encoder runs at less ([appliedBitrate]). */
+    val currentBitrate: Long
+        get() = encoderBitrate.requested
+
+    /** Whether the picture is a repeated still ([setStillPicture]). */
+    val stillPicture: Boolean
+        get() = encoderBitrate.still
+
+    /** The bitrate the encoder was last given successfully. */
     @Volatile
-    var currentBitrate: Long = settings.bitrate
+    var appliedBitrate: Long = settings.bitrate
         private set
+
+    /**
+     * Parameter changes, in order: MediaCodec.setParameters is a binder call, which callers on the
+     * GL thread (still picture) must not wait for.
+     */
+    private val parameterExecutor = Executors.newSingleThreadExecutor { Thread(it, "video-encoder-parameters") }
 
     @Volatile
     var encodedFrames = 0L
@@ -112,27 +128,36 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     }
 
     /** Changes the bitrate on the fly (adaptive bitrate). */
-    fun setBitrate(bitrate: Long) = synchronized(encoderBitrate) {
-        applyBitrate(encoderBitrate.request(bitrate))
+    fun setBitrate(bitrate: Long) {
+        encoderBitrate.requested = bitrate
+        updateBitrate()
     }
 
     /**
-     * Whether the picture is a repeated still because the camera is gone; the encoder then runs at
-     * a fraction of its bitrate ([EncoderBitrate]).
+     * Whether the picture is a repeated still ([StillPicture]); the encoder then runs at a fraction
+     * of its bitrate ([EncoderBitrate]). Does not wait for the encoder.
      */
-    fun setStillPicture(still: Boolean) = synchronized(encoderBitrate) {
-        applyBitrate(encoderBitrate.setStill(still))
+    fun setStillPicture(still: Boolean) {
+        encoderBitrate.still = still
+        updateBitrate()
     }
 
-    private fun applyBitrate(bitrate: Long?) {
-        if (bitrate == null || !running) {
-            return
-        }
-        currentBitrate = bitrate
+    private fun updateBitrate() {
         try {
-            codec.setParameters(Bundle().apply { putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate.toInt()) })
-        } catch (e: IllegalStateException) {
-            // Encoder released concurrently.
+            parameterExecutor.execute {
+                val bitrate = encoderBitrate.target
+                if (bitrate == appliedBitrate || !running) {
+                    return@execute
+                }
+                try {
+                    codec.setParameters(Bundle().apply { putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate.toInt()) })
+                    appliedBitrate = bitrate
+                } catch (e: IllegalStateException) {
+                    // Encoder released concurrently.
+                }
+            }
+        } catch (e: RejectedExecutionException) {
+            // Released.
         }
     }
 
@@ -142,7 +167,7 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
      */
     fun wantsFrame(): Boolean {
         val limiter = dataRateLimiter ?: return true
-        if (limiter.allows(System.nanoTime(), currentBitrate)) {
+        if (limiter.allows(System.nanoTime(), appliedBitrate)) {
             return true
         }
         limitedFrames++
@@ -181,7 +206,7 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
                     sink.setVideoConfig(parseConfig(data))
                 } else {
                     encodedFrames++
-                    dataRateLimiter?.add(System.nanoTime(), currentBitrate, info.size)
+                    dataRateLimiter?.add(System.nanoTime(), appliedBitrate, info.size)
                     sink.writeVideo(
                         data,
                         MediaTime(info.presentationTimeUs, 1_000_000),
@@ -229,6 +254,7 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
             // Not running.
         }
         running = false
+        parameterExecutor.shutdown()
         outputThread.join(1_000)
         try {
             codec.stop()

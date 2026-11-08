@@ -13,14 +13,52 @@ import io.github.mesmerize08.nexusirl.transport.abr.StreamStats
  * Feeds [SrtStream] statistics to an [AdaptiveBitrate] algorithm: Belabox every 20 ms, the others
  * every 200 ms, with the transport bitrate smoothed every second. Runs on the stream's executor.
  */
-class SrtAdaptiveBitrateDriver(
-    private val stream: SrtStream,
+class SrtAdaptiveBitrateDriver internal constructor(
+    private val stream: Source,
     private val adaptiveBitrate: AdaptiveBitrate,
     private val executor: SerialExecutor,
     targetBitrate: Long,
     /** Upstream disables the transport bitrate limit in CBR mode. */
     private val limitByTransportBitrate: Boolean = true,
+    private val isEncoderStill: () -> Boolean = { false },
 ) {
+    constructor(
+        stream: SrtStream,
+        adaptiveBitrate: AdaptiveBitrate,
+        executor: SerialExecutor,
+        targetBitrate: Long,
+        limitByTransportBitrate: Boolean = true,
+        /**
+         * Whether the video encoder makes a still picture at a fraction of its bitrate (camera
+         * gone; VideoEncoder.stillPicture). Not upstream.
+         */
+        isEncoderStill: () -> Boolean = { false },
+    ) : this(
+        object : Source {
+            override val isConnected get() = stream.isConnected
+            override val latency get() = stream.latency
+
+            override fun getPerformanceData() = stream.getPerformanceData()
+
+            override fun getTotalByteCount() = stream.getTotalByteCount()
+        },
+        adaptiveBitrate,
+        executor,
+        targetBitrate,
+        limitByTransportBitrate,
+        isEncoderStill,
+    )
+
+    /** What the driver reads from [SrtStream]. */
+    internal interface Source {
+        val isConnected: Boolean
+        val latency: Int
+
+        fun getPerformanceData(): SrtPerformanceData?
+
+        fun getTotalByteCount(): Long
+    }
+
     private var tickCount = 0L
     private var transportBitrate = targetBitrate
     private var previousTotalByteCount = 0L
@@ -46,10 +84,12 @@ class SrtAdaptiveBitrateDriver(
         }
     }
 
-    private fun update() {
+    internal fun update() {
         tickCount += 1
         val is200MsTick = tickCount % 10 == 0L
-        if (!stream.isConnected) {
+        // The still picture's low output makes the link look idle: adapting to that would climb,
+        // and apply the climbed bitrate all at once when the camera is back.
+        if (!stream.isConnected || isEncoderStill()) {
             return
         }
         if (adaptiveBitrate !is AdaptiveBitrateSrtBelabox && !is200MsTick) {
@@ -68,10 +108,14 @@ class SrtAdaptiveBitrateDriver(
         )
     }
 
-    private fun updateTransportBitrate() {
+    internal fun updateTransportBitrate() {
         val total = stream.getTotalByteCount()
         val byteCount = maxOf(total - previousTotalByteCount, 0)
-        transportBitrate = (transportBitrate * 0.7 + 8.0 * byteCount * 0.3).toLong()
         previousTotalByteCount = total
+        if (isEncoderStill()) {
+            // Nor is the still picture's output what the link can carry.
+            return
+        }
+        transportBitrate = (transportBitrate * 0.7 + 8.0 * byteCount * 0.3).toLong()
     }
 }

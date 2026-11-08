@@ -2,43 +2,48 @@ package io.github.mesmerize08.nexusirl.media.pipeline
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class EncoderBitrateTest {
     @Test
-    fun appliesTheRequestedBitrate() {
+    fun theTargetIsTheRequestedBitrate() {
         val bitrate = EncoderBitrate(5_000_000)
-        assertEquals(5_000_000, bitrate.applied)
-        assertEquals(3_000_000, bitrate.request(3_000_000))
-        assertEquals(3_000_000, bitrate.applied)
+        assertEquals(5_000_000, bitrate.target)
+        bitrate.requested = 3_000_000
+        assertEquals(3_000_000, bitrate.target)
     }
 
     @Test
     fun aStillPictureGetsATenthUntilTheCameraIsBack() {
         // Field test 2026-11-08: 1 MB keyframes while the camera was away, 2 fps once it was back.
         val bitrate = EncoderBitrate(5_000_000)
-        assertEquals(500_000, bitrate.setStill(true))
-        assertEquals(500_000, bitrate.applied)
-        assertEquals(5_000_000, bitrate.setStill(false))
-        assertEquals(5_000_000, bitrate.applied)
+        bitrate.still = true
+        assertEquals(500_000, bitrate.target)
+        bitrate.still = false
+        assertEquals(5_000_000, bitrate.target)
     }
 
     @Test
-    fun aBitrateRequestedDuringAStillPictureAppliesWhenTheCameraIsBack() {
-        val bitrate = EncoderBitrate(5_000_000)
-        bitrate.setStill(true)
-        // Adaptive bitrate lowers it meanwhile: a tenth of that now, all of it later.
-        assertEquals(200_000, bitrate.request(2_000_000))
-        assertEquals(2_000_000, bitrate.setStill(false))
+    fun aStillPictureGetsAtLeastHalfAMegabit() {
+        // A tenth of 2 Mbps would let the data rate limiter through a frame every few seconds.
+        val bitrate = EncoderBitrate(2_000_000)
+        bitrate.still = true
+        assertEquals(500_000, bitrate.target)
     }
 
     @Test
-    fun nothingToApplyWhenNothingChanges() {
-        val bitrate = EncoderBitrate(5_000_000)
-        assertNull(bitrate.request(5_000_000))
-        assertNull(bitrate.setStill(false))
-        bitrate.setStill(true)
-        assertNull(bitrate.setStill(true))
-        assertNull(bitrate.request(5_000_000))
+    fun aStillPictureNeverGetsMoreThanRequested() {
+        val bitrate = EncoderBitrate(300_000)
+        bitrate.still = true
+        assertEquals(300_000, bitrate.target)
+    }
+
+    @Test
+    fun aBitrateRequestedDuringAStillPictureIsTheTargetOnceTheCameraIsBack() {
+        val bitrate = EncoderBitrate(8_000_000)
+        bitrate.still = true
+        bitrate.requested = 6_000_000
+        assertEquals(600_000, bitrate.target)
+        bitrate.still = false
+        assertEquals(6_000_000, bitrate.target)
     }
 }

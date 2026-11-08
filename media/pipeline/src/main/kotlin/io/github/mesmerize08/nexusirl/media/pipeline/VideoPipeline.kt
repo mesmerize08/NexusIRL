@@ -242,7 +242,7 @@ class VideoPipeline(
         val ran = runOnGlThread {
             val egl = egl ?: return@runOnGlThread
             encoders += encoder to egl.createWindowSurface(encoder.inputSurface)
-            encoder.setStillPicture(stillPicture)
+            encoder.setStillPicture(stillPicture.isStill)
             attached = true
         }
         // Not run (the GL thread was stalled or gone) means never attached: safe to release.
@@ -602,7 +602,6 @@ class VideoPipeline(
         }
         android.util.Log.i(TAG, "Camera $cameraId lost, reopening when it is free again")
         lostCameraId = cameraId
-        setStillPicture(true)
         if (!availabilityRegistered) {
             // Reports the cameras that are free at once, then each change.
             cameraManager.registerAvailabilityCallback(availability, glHandler)
@@ -628,16 +627,14 @@ class VideoPipeline(
     }
 
     /**
-     * The camera is gone and the frame timer repeats its last image: the encoders run at a fraction
-     * of their bitrate until a camera image arrives ([EncoderBitrate]). GL thread only.
+     * Whether the frame timer repeats one camera image (camera gone): the encoders then run at a
+     * fraction of their bitrate ([EncoderBitrate]). GL thread only.
      */
-    private var stillPicture = false
+    private val stillPicture = StillPicture(maxOf(settings.fps / 2, 1))
 
-    private fun setStillPicture(still: Boolean) {
-        if (still == stillPicture) {
-            return
-        }
-        stillPicture = still
+    private fun setStillPicture(still: Boolean?) {
+        still ?: return
+        android.util.Log.i(TAG, if (still) "Still picture, encoders at a lower bitrate" else "Camera image again")
         for ((encoder, _) in encoders) {
             encoder.setStillPicture(still)
         }
@@ -745,7 +742,7 @@ class VideoPipeline(
             return
         }
         lastCaptureNanos = captureNanos
-        setStillPicture(false)
+        setStillPicture(stillPicture.cameraImage())
         val latency = (System.nanoTime() - captureNanos).coerceAtLeast(0)
         cameraLatencyNanos = if (hasFrame) (cameraLatencyNanos * 7 + latency) / 8 else latency
         // The new camera delivered a frame: the transition ends.
@@ -775,6 +772,7 @@ class VideoPipeline(
             return
         }
         val now = System.nanoTime()
+        setStillPicture(stillPicture.tick())
         if (!hasFrame) {
             // Camera frames arrive some time after capture (about 85 ms on a Galaxy S26 Ultra) and
             // keep their capture time; stamping black frames "now" would make every camera frame
