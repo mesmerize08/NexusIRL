@@ -147,14 +147,14 @@ certificate's SHA-256), and F-Droid publishes our signed APK. Users can move bet
 F-Droid installs. `fdroid build` with a reference binary checks exactly that ("compared built
 binary to supplied reference binary successfully"), so run it before changing the build.
 
-**From the next release on, F-Droid builds one APK per ABI** (2026-10-29: F-Droid's builds of
-`-Pabi=armeabi-v7a`, `arm64-v8a` and `x86_64` at ad7e701 matched a signed release dry run byte for
-byte, and lint is clean). When updating the recipe for that release:
+**Since v0.5.0, F-Droid builds one APK per ABI.** On 2026-11-08 F-Droid's builds of v0.5.0
+(`291b97d`) for `armeabi-v7a`, `arm64-v8a` and `x86_64` each "compared built binary to supplied
+reference binary successfully" against the published release APKs, with the allowed signer. The
+v0.4.0 build keeps its universal APK as `binary`. For each new release:
 
-- remove the app-level `Binaries` field;
-- replace the single build with three, one per ABI, each with `versionCode` 10 × `versionCode`
-  plus 1, 2 or 3, the tag's full commit hash, `gradleprops: [abi=<abi>]` and
+- add three builds, one per ABI, each with `versionCode` 10 × `versionCode` plus 1, 2 or 3, the
+  tag's full commit hash, `gradleprops: [abi=<abi>]` and
   `binary: https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-<abi>.apk`;
-- add `VercodeOperation: ['10*%c+1', '10*%c+2', '10*%c+3']` after `UpdateCheckMode`, and set
-  `CurrentVersionCode` to the highest code;
-- run `fdroid rewritemeta` (it wraps each `binary` URL onto its own line), lint and build.
+- set `CurrentVersion` and `CurrentVersionCode` (the highest code; `VercodeOperation` gives the
+  three codes for automatic updates);
+- run `fdroid rewritemeta`, lint and build as above.

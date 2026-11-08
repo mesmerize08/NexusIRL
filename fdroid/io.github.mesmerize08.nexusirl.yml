@@ -15,9 +15,6 @@ AutoName: NexusIRL
 
 RepoType: git
 Repo: https://github.com/mesmerize08/NexusIRL.git
-Binaries: 
-  https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-universal.apk
-
 Builds:
   - versionName: 0.4.0
     versionCode: 6
@@ -27,10 +24,45 @@ Builds:
       - yes
     gradleprops:
       - noAbiSplits
+    binary: https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-universal.apk
+
+  - versionName: 0.5.0
+    versionCode: 71
+    commit: 291b97d606eb61e919863e02c9eb7ed74295114f
+    subdir: app
+    gradle:
+      - yes
+    gradleprops:
+      - abi=armeabi-v7a
+    binary: https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-armeabi-v7a.apk
+
+  - versionName: 0.5.0
+    versionCode: 72
+    commit: 291b97d606eb61e919863e02c9eb7ed74295114f
+    subdir: app
+    gradle:
+      - yes
+    gradleprops:
+      - abi=arm64-v8a
+    binary: https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-arm64-v8a.apk
+
+  - versionName: 0.5.0
+    versionCode: 73
+    commit: 291b97d606eb61e919863e02c9eb7ed74295114f
+    subdir: app
+    gradle:
+      - yes
+    gradleprops:
+      - abi=x86_64
+    binary: https://github.com/mesmerize08/NexusIRL/releases/download/v%v/NexusIRL-v%v-x86_64.apk
 
 AllowedAPKSigningKeys: 00179e11f876bea2cf2189b9c04c91190cb58c6e17f56c7792e989a0038e6329
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.4.0
-CurrentVersionCode: 6
+VercodeOperation:
+  - 10*%c+1
+  - 10*%c+2
+  - 10*%c+3
+CurrentVersion: 0.5.0
+CurrentVersionCode: 73
