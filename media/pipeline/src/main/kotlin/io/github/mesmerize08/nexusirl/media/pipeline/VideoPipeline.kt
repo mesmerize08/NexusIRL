@@ -242,6 +242,7 @@ class VideoPipeline(
         val ran = runOnGlThread {
             val egl = egl ?: return@runOnGlThread
             encoders += encoder to egl.createWindowSurface(encoder.inputSurface)
+            encoder.setStillPicture(stillPicture)
             attached = true
         }
         // Not run (the GL thread was stalled or gone) means never attached: safe to release.
@@ -601,6 +602,7 @@ class VideoPipeline(
         }
         android.util.Log.i(TAG, "Camera $cameraId lost, reopening when it is free again")
         lostCameraId = cameraId
+        setStillPicture(true)
         if (!availabilityRegistered) {
             // Reports the cameras that are free at once, then each change.
             cameraManager.registerAvailabilityCallback(availability, glHandler)
@@ -623,6 +625,22 @@ class VideoPipeline(
         nextRecoveryNanos = now + CAMERA_RECOVERY_INTERVAL_NANOS
         android.util.Log.i(TAG, "Reopening camera $cameraId")
         replaceCamera(texture, cameraId)
+    }
+
+    /**
+     * The camera is gone and the frame timer repeats its last image: the encoders run at a fraction
+     * of their bitrate until a camera image arrives ([EncoderBitrate]). GL thread only.
+     */
+    private var stillPicture = false
+
+    private fun setStillPicture(still: Boolean) {
+        if (still == stillPicture) {
+            return
+        }
+        stillPicture = still
+        for ((encoder, _) in encoders) {
+            encoder.setStillPicture(still)
+        }
     }
 
     private fun stopCameraRecovery() {
@@ -727,6 +745,7 @@ class VideoPipeline(
             return
         }
         lastCaptureNanos = captureNanos
+        setStillPicture(false)
         val latency = (System.nanoTime() - captureNanos).coerceAtLeast(0)
         cameraLatencyNanos = if (hasFrame) (cameraLatencyNanos * 7 + latency) / 8 else latency
         // The new camera delivered a frame: the transition ends.

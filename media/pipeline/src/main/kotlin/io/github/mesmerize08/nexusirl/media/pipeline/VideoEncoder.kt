@@ -52,6 +52,9 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     @Volatile
     private var running = true
 
+    private val encoderBitrate = EncoderBitrate(settings.bitrate)
+
+    /** The bitrate the encoder runs at: the one set, or less while the picture is still ([setStillPicture]). */
     @Volatile
     var currentBitrate: Long = settings.bitrate
         private set
@@ -109,8 +112,20 @@ class VideoEncoder(private val settings: VideoEncoderSettings, private val sink:
     }
 
     /** Changes the bitrate on the fly (adaptive bitrate). */
-    fun setBitrate(bitrate: Long) {
-        if (bitrate == currentBitrate || !running) {
+    fun setBitrate(bitrate: Long) = synchronized(encoderBitrate) {
+        applyBitrate(encoderBitrate.request(bitrate))
+    }
+
+    /**
+     * Whether the picture is a repeated still because the camera is gone; the encoder then runs at
+     * a fraction of its bitrate ([EncoderBitrate]).
+     */
+    fun setStillPicture(still: Boolean) = synchronized(encoderBitrate) {
+        applyBitrate(encoderBitrate.setStill(still))
+    }
+
+    private fun applyBitrate(bitrate: Long?) {
+        if (bitrate == null || !running) {
             return
         }
         currentBitrate = bitrate

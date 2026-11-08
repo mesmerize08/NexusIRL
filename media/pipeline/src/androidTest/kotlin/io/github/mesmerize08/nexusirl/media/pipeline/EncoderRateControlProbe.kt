@@ -167,6 +167,9 @@ class EncoderRateControlProbe {
     /** The test picture, drawn with a fixed seed so runs compare. */
     private inner class Picture(private val content: String) {
         private val random = Random(1)
+
+        /** How strong the fine detail is in "pan" and "shake" (0-255, `-e detail`). */
+        private val detail = args.getString("detail")?.toInt() ?: 90
         private val tile: Bitmap
 
         init {
@@ -194,7 +197,7 @@ class EncoderRateControlProbe {
                 val fine = Bitmap.createScaledBitmap(
                     Bitmap.createBitmap(
                         IntArray(1440 * 270) {
-                            Color.argb(90, random.nextInt(256), random.nextInt(256), random.nextInt(256))
+                            Color.argb(detail, random.nextInt(256), random.nextInt(256), random.nextInt(256))
                         },
                         1440,
                         270,
@@ -214,10 +217,11 @@ class EncoderRateControlProbe {
             }
         }
 
-        fun draw(surface: Surface, frame: Int) {
+        /** Draws [frame]; [still] draws the same picture every time (no random movement). */
+        fun draw(surface: Surface, frame: Int, still: Boolean = false) {
             val canvas = surface.lockHardwareCanvas()
-            val dx = random.nextInt(64)
-            val dy = random.nextInt(64)
+            val dx = if (still) 0 else random.nextInt(64)
+            val dy = if (still) 0 else random.nextInt(64)
             if (content == "pan") {
                 canvas.drawBitmap(tile, -((frame * 12) % (width * 2)).toFloat(), 0f, null)
             } else if (content == "shake") {
@@ -305,6 +309,247 @@ class EncoderRateControlProbe {
                 6,
             )} low:${kbps.drop(6)} held back/s ${limitedPerSecond.toList()}",
         )
+    }
+
+    /**
+     * The camera taken away while live (field test 2026-11-08): the pipeline repeats the last
+     * camera image, then the camera comes back. Pans for `pan` s (`-e content` for another
+     * picture), holds one picture for `still` s, pans again for `after` s (`-e cut <frames>` jumps
+     * ahead, a new view), at `bitrate` in CBR, holding frames back as [DataRateLimiter] does for
+     * streams (`-e limit false` to not). `-e mitigation none,sync,...` runs each in turn (see
+     * [stillRun]). Logs one row per second: bytes, frames, keyframe sizes, largest frame and frames
+     * held back, and each frame around the camera's return.
+     *
+     *     adb shell am instrument -w -e probe still -e content shake -e cut 160 -e pan 4
+     *         -e still 8.3 -e after 6 -e mitigation encoderoff,encoder ...
+     *
+     * On the S26 that reproduces the field test: keyframes of 0.8 MB while still, then (in about
+     * half the runs) frames of 0.7-1.3 MB at 2 a second for up to 7 s after the return. Told about
+     * the still picture, the encoder makes 130-170 kB keyframes, its largest frame after the
+     * return is about 0.3 MB, and it keeps 30 fps.
+     */
+    @Test
+    fun stillPicture() {
+        if (args.getString("probe") != "still") {
+            return
+        }
+        val mime = if (args.getString("mime") == "avc") MediaFormat.MIMETYPE_VIDEO_AVC else MediaFormat.MIMETYPE_VIDEO_HEVC
+        val info = EncoderCapabilities.best(mime) ?: return
+        val mitigations = args.getString("mitigation")?.split(',') ?: listOf("none")
+        for (mitigation in mitigations) {
+            stillRun(info.name, mime, mitigation)
+        }
+    }
+
+    /**
+     * One still-picture run. [mitigation]: "none"; at the camera's return "bitrate" (sets the same
+     * bitrate again), "sync" (requests a sync frame), "both" (the two); while still "suspend"
+     * (PARAMETER_KEY_SUSPEND), "nofeed" (no frames), "nofeedsync" (no frames, a sync frame at the
+     * return), "slow" (one frame a second), "keyonly" (one sync frame every 2 s), "lower" (a tenth
+     * of the bitrate, restored at the return); "encoder" and "encoderoff" run [VideoEncoder] told,
+     * or not, about the still picture as the pipeline tells it.
+     */
+    private fun stillRun(codecName: String, mime: String, mitigation: String) {
+        val bitrate = args.getString("bitrate")?.toInt() ?: 5_000_000
+        val panSeconds = args.getString("pan")?.toInt() ?: 6
+        // In seconds, with a fraction to time the camera's return against the keyframes.
+        val stillNanos = ((args.getString("still")?.toDouble() ?: 15.0) * 1e9).toLong()
+        val stillSeconds = ((stillNanos + 999_999_999) / 1_000_000_000).toInt()
+        val afterSeconds = args.getString("after")?.toInt() ?: 10
+        val limit = args.getString("limit") != "false"
+        val seconds = panSeconds + stillSeconds + afterSeconds
+        val extra = args.keySet().filter { it.startsWith("int.") }.associate { it.removePrefix("int.") to args.getString(it)!!.toInt() }
+        val bytes = LongArray(seconds)
+        val frames = IntArray(seconds)
+        val maxFrame = IntArray(seconds)
+        val keyFrames = Array(seconds) { mutableListOf<Int>() }
+        val heldBack = IntArray(seconds)
+        // Each frame from a second before the camera's return to two seconds after (kB, K = keyframe).
+        val resumeFrames = StringBuilder()
+        val start = System.nanoTime()
+        val lock = Any()
+
+        fun record(size: Int, key: Boolean) = synchronized(lock) {
+            val second = ((System.nanoTime() - start) / 1_000_000_000).toInt()
+            if (second !in bytes.indices) {
+                return@synchronized
+            }
+            bytes[second] += size.toLong()
+            frames[second]++
+            maxFrame[second] = maxOf(maxFrame[second], size)
+            if (second in panSeconds + stillSeconds - 1 until panSeconds + stillSeconds + 2) {
+                resumeFrames.append(" $second:${size / 1000}${if (key) "K" else ""}")
+            }
+            if (key) {
+                keyFrames[second] += size
+            }
+        }
+
+        val encoder = if (mitigation.startsWith("encoder")) {
+            val sink = object : MediaSink {
+                override fun setAudioConfig(config: io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig, sampleRate: Int) = Unit
+
+                override fun setVideoConfig(config: io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig) = Unit
+
+                override fun writeAudio(frame: ByteArray, presentationTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime) = Unit
+
+                override fun writeVideo(
+                    accessUnit: ByteArray,
+                    presentationTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime,
+                    decodeTimeStamp: io.github.mesmerize08.nexusirl.core.clock.MediaTime?,
+                    isSync: Boolean,
+                ) = record(accessUnit.size, isSync)
+            }
+            val settings = VideoEncoderSettings(
+                width,
+                height,
+                fps,
+                bitrate.toLong(),
+                hevc = mime == MediaFormat.MIMETYPE_VIDEO_HEVC,
+                rateControl = VideoRateControl.CBR,
+                limitDataRate = limit,
+            )
+            VideoEncoder(settings, sink)
+        } else {
+            null
+        }
+        val codec = if (encoder == null) MediaCodec.createByCodecName(codecName) else null
+        val format = MediaFormat.createVideoFormat(mime, width, height).apply {
+            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+            setInteger(MediaFormat.KEY_FRAME_RATE, fps)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+            setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+            setInteger(MediaFormat.KEY_PRIORITY, 0)
+            setInteger(MediaFormat.KEY_OPERATING_RATE, fps)
+            setInteger("max-bframes", 0)
+            extra.forEach { (key, value) -> setInteger(key, value) }
+        }
+        codec?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        val surface = encoder?.inputSurface ?: codec!!.createInputSurface()
+        codec?.start()
+        val limiter = DataRateLimiter()
+        val currentBitrate = java.util.concurrent.atomic.AtomicLong(bitrate.toLong())
+        val drain = codec?.let {
+            Thread {
+                val bufferInfo = MediaCodec.BufferInfo()
+                while (true) {
+                    val index = try {
+                        codec.dequeueOutputBuffer(bufferInfo, 10_000)
+                    } catch (e: IllegalStateException) {
+                        return@Thread
+                    }
+                    if (index < 0) {
+                        continue
+                    }
+                    if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0 && bufferInfo.size > 0) {
+                        limiter.add(System.nanoTime(), currentBitrate.get(), bufferInfo.size)
+                        record(bufferInfo.size, bufferInfo.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0)
+                    }
+                    codec.releaseOutputBuffer(index, false)
+                    if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        return@Thread
+                    }
+                }
+            }.apply { start() }
+        }
+
+        fun setParameter(key: String, value: Int) = codec?.setParameters(Bundle().apply { putInt(key, value) })
+        val picture = Picture(args.getString("content") ?: "pan")
+        var tick = 0
+        var panFrame = 0
+        var phase = 0
+        while (true) {
+            val elapsed = System.nanoTime() - start
+            val second = (elapsed / 1_000_000_000).toInt()
+            if (second >= seconds) {
+                break
+            }
+            val still = elapsed - panSeconds * 1_000_000_000L in 0 until stillNanos
+            if (phase == 0 && still) {
+                phase = 1
+                when (mitigation) {
+                    "suspend" -> setParameter(MediaCodec.PARAMETER_KEY_SUSPEND, 1)
+                    "encoder" -> encoder?.setStillPicture(true)
+                    "lower" -> {
+                        currentBitrate.set(bitrate / 10L)
+                        setParameter(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate / 10)
+                    }
+                }
+            } else if (phase == 1 && !still) {
+                phase = 2
+                // The camera rarely comes back to the same view: `-e cut <frames>` jumps the pan ahead.
+                panFrame += args.getString("cut")?.toInt() ?: 0
+                when (mitigation) {
+                    "bitrate" -> setParameter(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
+                    "sync" -> setParameter(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+                    "both" -> {
+                        setParameter(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
+                        setParameter(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+                    }
+                    "suspend" -> setParameter(MediaCodec.PARAMETER_KEY_SUSPEND, 0)
+                    "encoder" -> encoder?.setStillPicture(false)
+                    "nofeedsync" -> setParameter(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+                    "lower" -> {
+                        currentBitrate.set(bitrate.toLong())
+                        setParameter(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
+                    }
+                }
+            }
+            val feed = if (still) {
+                when (mitigation) {
+                    "nofeed", "nofeedsync" -> false
+                    "slow" -> tick % fps == 0
+                    "keyonly" -> (tick % (2 * fps) == 0).also { if (it) setParameter(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0) }
+                    else -> true
+                }
+            } else {
+                true
+            }
+            if (feed) {
+                val wanted = encoder?.wantsFrame() ?: (!limit || limiter.allows(System.nanoTime(), currentBitrate.get()))
+                if (wanted) {
+                    // The still picture is the same image again, as the pipeline repeats the last camera image.
+                    picture.draw(surface, panFrame, still)
+                } else {
+                    heldBack[second]++
+                }
+            }
+            if (!still) {
+                panFrame++
+            }
+            tick++
+            val wait = start + tick * 1_000_000_000L / fps - System.nanoTime()
+            if (wait > 0) {
+                Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
+            }
+        }
+        if (codec != null) {
+            codec.signalEndOfInputStream()
+            drain?.join(2_000)
+            codec.stop()
+            codec.release()
+            surface.release()
+        }
+        encoder?.release()
+        Log.i(
+            TAG,
+            "still $codecName $mitigation ${bitrate / 1000} kbps limit=$limit $extra pan=$panSeconds still=${stillNanos / 1e9} " +
+                "after=$afterSeconds detail=${args.getString("detail")} cut=${args.getString("cut")}",
+        )
+        Log.i(TAG, "still $mitigation frames around the return:$resumeFrames")
+        for (second in 0 until seconds) {
+            val phaseName = when {
+                second < panSeconds -> "pan"
+                second < panSeconds + stillSeconds -> "still"
+                else -> "after"
+            }
+            Log.i(
+                TAG,
+                "still $mitigation s=$second $phaseName kB=${bytes[second] / 1000} frames=${frames[second]} " +
+                    "keyKB=${keyFrames[second].map { it / 1000 }} maxKB=${maxFrame[second] / 1000} held=${heldBack[second]}",
+            )
+        }
     }
 
     private companion object {
