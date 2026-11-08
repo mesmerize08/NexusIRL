@@ -48,7 +48,9 @@ class MainScreenSmokeTest {
 
     private fun waitForMainScreen() {
         // No screen yet throws on a slow emulator: keep waiting then.
-        compose.waitUntil(10_000) { runCatching { compose.onAllNodes(hasText(GO_LIVE)).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) }
+        compose.waitUntil(10_000) {
+            runCatching { compose.onAllNodes(hasText(GO_LIVE)).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
+        }
     }
 
     private fun back() {
