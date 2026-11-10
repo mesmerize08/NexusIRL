@@ -91,9 +91,9 @@ class AudioPipeline(
     /**
      * Starts a [key] encoder whose output goes to [sink]. An Opus encoder that cannot be
      * created falls back to AAC, so the stream keeps its audio; [sink] then gets the AAC config.
-     * Returns the format encoded. Throws when AAC fails too.
+     * Returns the format and bitrate encoded. Throws when AAC fails too.
      */
-    fun addEncoder(key: AudioEncoderKey, sink: MediaSink): AudioEncoderFormat {
+    fun addEncoder(key: AudioEncoderKey, sink: MediaSink): AudioEncoderKey {
         val encoder = try {
             Encoder(key.format, key.bitrate, sink)
         } catch (e: Exception) {
@@ -104,7 +104,7 @@ class AudioPipeline(
             Encoder(AudioEncoderFormat.AAC, key.bitrate, sink, requested = key)
         }
         encoders.add(encoder)
-        return encoder.format
+        return AudioEncoderKey(encoder.format, encoder.bitrate)
     }
 
     fun removeEncoder(key: AudioEncoderKey) {
@@ -223,10 +223,10 @@ class AudioPipeline(
     /** One MediaCodec encoder with its output thread, fed from the capture thread. */
     private inner class Encoder(
         val format: AudioEncoderFormat,
-        bitrate: Int,
+        requestedBitrate: Int,
         private val sink: MediaSink,
         /** What the consumers asked for ([format] differs after a fallback to AAC). */
-        val requested: AudioEncoderKey = AudioEncoderKey(format, bitrate),
+        val requested: AudioEncoderKey = AudioEncoderKey(format, requestedBitrate),
     ) {
         private val rechunker = PcmRechunker(channels, format.framesPerChunk, sampleRate)
         private val codec: MediaCodec
@@ -239,7 +239,17 @@ class AudioPipeline(
         var droppedChunks = 0
             private set
 
+        /** What the codec can take, like upstream's clamp to the applicable encode bitrates. */
+        val bitrate: Int
+
         init {
+            val codec = MediaCodec.createEncoderByType(format.mimeType)
+            val supported = try {
+                codec.codecInfo.getCapabilitiesForType(format.mimeType).audioCapabilities?.bitrateRange?.let { it.lower..it.upper }
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+            bitrate = format.bitrate(requestedBitrate, channels, supported)
             val mediaFormat = MediaFormat.createAudioFormat(format.mimeType, sampleRate, channels).apply {
                 if (format == AudioEncoderFormat.AAC) {
                     setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
@@ -248,7 +258,6 @@ class AudioPipeline(
                 setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, format.framesPerChunk * channels * 2 * 4)
             }
             // Opus: c2.android.opus.encoder, on every phone since Android 10.
-            val codec = MediaCodec.createEncoderByType(format.mimeType)
             try {
                 codec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
                 codec.start()

@@ -11,6 +11,17 @@ enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int) {
     OPUS(MediaFormat.MIMETYPE_AUDIO_OPUS, 960),
     ;
 
+    /**
+     * The bitrate to configure for [requested]: at most what the format carries for [channels]
+     * (AAC-LC: 6144 bits per channel per 1024 frames, 288 kbps mono at 48 kHz; 256 kbps leaves
+     * headroom), then within the encoder's [supported] range like upstream `AudioEncoder.setBitrate`.
+     */
+    fun bitrate(requested: Int, channels: Int, supported: IntRange? = null): Int {
+        val limit = if (this == AAC && channels == 1) 256_000 else 320_000
+        val bitrate = requested.coerceAtMost(limit)
+        return supported?.let { bitrate.coerceIn(it) } ?: bitrate
+    }
+
     /** What the muxers expect; they build the OpusHead / AudioSpecificConfig themselves. */
     fun config(sampleRate: Int, channels: Int): MpegTsAudioConfig = when (this) {
         AAC -> MpegTsAudioConfig.aacLc(sampleRate, channels)
@@ -32,46 +43,49 @@ data class AudioEncoderKey(val format: AudioEncoderFormat, val bitrate: Int)
  */
 class AudioConsumers(
     /**
-     * Returns the format actually encoded (AAC when Opus is unavailable), or null when the
-     * encoder could not start: that key is tried again next time.
+     * Returns what the encoder actually produces (AAC when Opus is unavailable, a lower bitrate
+     * than asked when the codec cannot do more), or null when it could not start: that key is
+     * tried again next time.
      */
-    private val startEncoder: (AudioEncoderKey, MediaSink) -> AudioEncoderFormat?,
+    private val startEncoder: (AudioEncoderKey, MediaSink) -> AudioEncoderKey?,
     private val stopEncoder: (AudioEncoderKey) -> Unit,
 ) {
-    private val fanOuts = mutableMapOf<AudioEncoderKey, FanOutSink>()
-    private val encoded = mutableMapOf<AudioEncoderKey, AudioEncoderFormat>()
-    private val consumers = mutableMapOf<MediaSink, AudioEncoderKey>()
+    /** A running encoder: started for [requested], producing [encoded]. */
+    private class Running(val requested: AudioEncoderKey, val encoded: AudioEncoderKey, val fanOut: FanOutSink)
+
+    private val running = mutableListOf<Running>()
+
+    /** Null for consumers whose encoder could not start. */
+    private val consumers = mutableMapOf<MediaSink, Running?>()
 
     val isEmpty: Boolean
         get() = consumers.isEmpty()
 
     /** Whether any encoder is running; without one, capturing the microphone is pointless. */
     val hasEncoder: Boolean
-        get() = fanOuts.isNotEmpty()
+        get() = running.isNotEmpty()
 
-    /** Returns the format [consumer] gets (AAC after an Opus fallback), or null for no audio. */
-    fun add(consumer: MediaSink, format: AudioEncoderFormat, bitrate: Int): AudioEncoderFormat? {
+    /** Returns what [consumer] gets (e.g. AAC after an Opus fallback), or null for no audio. */
+    fun add(consumer: MediaSink, format: AudioEncoderFormat, bitrate: Int): AudioEncoderKey? {
         remove(consumer)
         val key = AudioEncoderKey(format, bitrate)
-        if (key !in fanOuts) {
+        // An encoder already producing what is asked for is shared, whatever it was started for.
+        val encoder = running.firstOrNull { it.requested == key } ?: running.firstOrNull { it.encoded == key } ?: run {
             val fanOut = FanOutSink()
-            startEncoder(key, fanOut)?.let {
-                fanOuts[key] = fanOut
-                encoded[key] = it
-            }
+            startEncoder(key, fanOut)?.let { Running(key, it, fanOut) }?.also { running += it }
         }
         // The current audio format is replayed to the new consumer.
-        fanOuts[key]?.add(consumer)
-        consumers[consumer] = key
-        return encoded[key]
+        encoder?.fanOut?.add(consumer)
+        consumers[consumer] = encoder
+        return encoder?.encoded
     }
 
     fun remove(consumer: MediaSink) {
-        val key = consumers.remove(consumer) ?: return
-        fanOuts[key]?.remove(consumer)
-        if (key !in consumers.values && fanOuts.remove(key) != null) {
-            encoded.remove(key)
-            stopEncoder(key)
+        val encoder = consumers.remove(consumer) ?: return
+        encoder.fanOut.remove(consumer)
+        if (consumers.values.none { it === encoder }) {
+            running.remove(encoder)
+            stopEncoder(encoder.requested)
         }
     }
 }

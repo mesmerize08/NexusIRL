@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioConsumers
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderFormat
+import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderKey
 import io.github.mesmerize08.nexusirl.media.pipeline.AudioPipeline
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
 import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
@@ -72,9 +73,10 @@ class SharedAudio(
 
     /**
      * Attaches [consumer] to a [format] encoder at [bitrate] (bits/s); recordings use AAC. Returns
-     * the format [consumer] gets (AAC when this phone cannot encode Opus), or null for no audio.
+     * what [consumer] gets (AAC when this phone cannot encode Opus, the bitrate the codec allows),
+     * or null for no audio.
      */
-    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC, bitrate: Int = DEFAULT_BITRATE): AudioEncoderFormat? {
+    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC, bitrate: Int = DEFAULT_BITRATE): AudioEncoderKey? {
         if (pipeline == null) {
             start()
         }

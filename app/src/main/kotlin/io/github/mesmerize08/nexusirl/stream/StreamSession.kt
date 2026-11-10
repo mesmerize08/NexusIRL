@@ -176,7 +176,9 @@ class StreamSession(
             // Keep going (audio still streams) but say why there is no picture.
             status = status.copy(detail = "The video encoder could not start. Try a lower resolution or H.264.")
         }
-        config.audioFallbackMessage(audio.add(fanOut, config.audioFormat, config.audioBitrate))?.let {
+        val encoded = audio.add(fanOut, config.audioFormat, config.audioBitrate)
+        encoded?.let { audioBitrate = it.bitrate }
+        config.audioFallbackMessage(encoded?.format)?.let {
             log.line(it)
             onMessage(it)
         }
@@ -187,6 +189,10 @@ class StreamSession(
         }
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
     }
+
+    /** What the audio encoder runs at, for RTMP metadata (the codec may allow less than asked). */
+    @Volatile
+    private var audioBitrate = config.audioBitrate
 
     /** Target video bitrate; starts at the stream's and follows bitrate presets picked while live. */
     @Volatile
@@ -419,9 +425,7 @@ class StreamSession(
                 override fun onConnected() = handleConnected(eventGeneration)
             },
         )
-        stream.setMetadata(
-            RtmpMetadata(settings.width, settings.height, settings.fps.toDouble(), settings.hevc, settings.bitrate, 128_000, 48_000.0),
-        )
+        stream.setMetadata(rtmpMetadata())
         stream.connect()
         return object : Destination {
             override fun setAudioConfig(config: MpegTsAudioConfig, sampleRate: Int) = stream.setAudioConfig(config, sampleRate)
@@ -479,9 +483,7 @@ class StreamSession(
                     override fun onConnected() = connected(current)
                 },
             )
-            stream.setMetadata(
-                RtmpMetadata(settings.width, settings.height, settings.fps.toDouble(), settings.hevc, settings.bitrate, 128_000, 48_000.0),
-            )
+            stream.setMetadata(rtmpMetadata())
             this.stream = stream
             stream.connect()
         }
@@ -545,6 +547,16 @@ class StreamSession(
             disconnect()
         }
     }
+
+    private fun rtmpMetadata() = RtmpMetadata(
+        width = settings.width,
+        height = settings.height,
+        frameRate = settings.fps.toDouble(),
+        isHevc = settings.hevc,
+        videoBitrate = settings.bitrate,
+        audioBitrate = audioBitrate.toLong(),
+        audioSampleRate = 48_000.0,
+    )
 
     private fun report(message: String) {
         update(status.copy(detail = REDACTOR.redact(message)))

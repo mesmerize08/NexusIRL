@@ -43,7 +43,7 @@ class AudioConsumersTest {
                 val actual = if (key.format == AudioEncoderFormat.OPUS && noOpus) AudioEncoderFormat.AAC else key.format
                 running[key] = sink
                 sink.setAudioConfig(actual.config(48_000, 1), 48_000)
-                actual
+                AudioEncoderKey(actual, actual.bitrate(key.bitrate, channels = 1))
             }
         },
         stopEncoder = { key ->
@@ -91,14 +91,44 @@ class AudioConsumersTest {
         noOpus = true
         val stream = RecordingSink()
         val second = RecordingSink()
-        assertEquals(AudioEncoderFormat.AAC, consumers.add(stream, AudioEncoderFormat.OPUS))
+        assertEquals(AudioEncoderKey(AudioEncoderFormat.AAC, BITRATE), consumers.add(stream, AudioEncoderFormat.OPUS))
         // A consumer joining the running encoder is told too.
-        assertEquals(AudioEncoderFormat.AAC, consumers.add(second, AudioEncoderFormat.OPUS))
+        assertEquals(AudioEncoderFormat.AAC, consumers.add(second, AudioEncoderFormat.OPUS)?.format)
         assertEquals(listOf("start OPUS"), events)
         // The muxers get the AAC config, not Opus.
         assertFalse(stream.configs.single().isOpus)
         assertFalse(second.configs.single().isOpus)
-        assertEquals(AudioEncoderFormat.AAC, consumers.add(RecordingSink(), AudioEncoderFormat.AAC))
+    }
+
+    @Test
+    fun anAacRecordingJoinsTheAacEncoderAnOpusStreamFellBackTo() {
+        noOpus = true
+        val stream = RecordingSink()
+        val recording = RecordingSink()
+        consumers.add(stream, AudioEncoderFormat.OPUS)
+        assertEquals(AudioEncoderFormat.AAC, consumers.add(recording, AudioEncoderFormat.AAC)?.format)
+        // One AAC encoder, not two identical ones.
+        assertEquals(listOf("start OPUS"), events)
+        encode(AudioEncoderFormat.OPUS, "aac")
+        assertEquals(listOf("aac"), recording.frames)
+        consumers.remove(stream)
+        assertEquals(1, events.size, "the recording still uses it")
+        consumers.remove(recording)
+        assertEquals("stop OPUS", events.last())
+        assertTrue(consumers.isEmpty)
+        assertFalse(consumers.hasEncoder)
+    }
+
+    @Test
+    fun theEncoderBitrateStaysWithinWhatTheCodecCanDo() {
+        // AAC-LC carries at most 6144 bits per channel per 1024 frames: 288 kbps mono at 48 kHz.
+        assertEquals(256_000, AudioEncoderFormat.AAC.bitrate(320_000, channels = 1))
+        assertEquals(320_000, AudioEncoderFormat.AAC.bitrate(320_000, channels = 2))
+        assertEquals(128_000, AudioEncoderFormat.AAC.bitrate(128_000, channels = 1))
+        assertEquals(320_000, AudioEncoderFormat.OPUS.bitrate(320_000, channels = 1))
+        // Upstream AudioEncoder.setBitrate: clamped to the encoder's applicable bitrates.
+        assertEquals(192_000, AudioEncoderFormat.AAC.bitrate(256_000, channels = 1, supported = 8_000..192_000))
+        assertEquals(64_000, AudioEncoderFormat.OPUS.bitrate(32_000, channels = 1, supported = 64_000..510_000))
     }
 
     @Test
