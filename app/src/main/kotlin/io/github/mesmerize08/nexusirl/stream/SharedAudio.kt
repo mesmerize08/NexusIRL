@@ -34,14 +34,11 @@ class SharedAudio(
     private val consumers = AudioConsumers(
         startEncoder = { key, sink ->
             try {
-                pipeline?.run {
-                    addEncoder(key, sink)
-                    true
-                } ?: false
+                pipeline?.addEncoder(key, sink)
             } catch (e: Exception) {
                 // The encoder failed: stream and record without audio rather than crash.
                 android.util.Log.w("SharedAudio", "Audio encoder $key failed: $e")
-                false
+                null
             }
         },
         stopEncoder = { key -> pipeline?.removeEncoder(key) },
@@ -73,16 +70,20 @@ class SharedAudio(
     val levelDbfs: Float
         get() = pipeline?.levelDbfs ?: -160f
 
-    /** Attaches [consumer] to a [format] encoder at [bitrate] (bits/s); recordings use AAC. */
-    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC, bitrate: Int = DEFAULT_BITRATE) {
+    /**
+     * Attaches [consumer] to a [format] encoder at [bitrate] (bits/s); recordings use AAC. Returns
+     * the format [consumer] gets (AAC when this phone cannot encode Opus), or null for no audio.
+     */
+    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC, bitrate: Int = DEFAULT_BITRATE): AudioEncoderFormat? {
         if (pipeline == null) {
             start()
         }
-        consumers.add(consumer, format, bitrate)
+        val encoded = consumers.add(consumer, format, bitrate)
         if (!consumers.hasEncoder) {
             // No encoder could start: keep the microphone (and its privacy indicator) off.
             stopCapture()
         }
+        return encoded
     }
 
     fun remove(consumer: MediaSink) {

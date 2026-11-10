@@ -42,6 +42,18 @@ data class StreamConfig(
      */
     val audioBitrate: Int = SharedAudio.DEFAULT_BITRATE,
 ) {
+    /**
+     * What to tell the streamer when the audio encoder runs [encoded] instead of [audioFormat]
+     * (no Opus encoder on this phone; upstream's always exists), or null when nothing changed.
+     */
+    fun audioFallbackMessage(encoded: AudioEncoderFormat?): String? {
+        if (encoded == null || encoded == audioFormat) {
+            return null
+        }
+        val names = mapOf(AudioEncoderFormat.AAC to "AAC", AudioEncoderFormat.OPUS to "Opus")
+        return "This phone cannot encode ${names[audioFormat]}; streaming ${names[encoded]} instead"
+    }
+
     override fun toString(): String =
         "StreamConfig(url=***, video=$video, audio=$audioFormat ${audioBitrate / 1000}kbps, srtLatency=$srtLatency, rtmpDestinations=${rtmpDestinations.size})"
 

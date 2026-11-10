@@ -86,6 +86,16 @@ class StreamConfigTest {
     }
 
     @Test
+    fun theStreamerIsToldWhenOpusFallsBackToAac() {
+        val opus = StreamConfig.from(stream("""{"audioCodec":"OPUS"}"""), "srt://h")
+        assertEquals("This phone cannot encode Opus; streaming AAC instead", opus.audioFallbackMessage(AudioEncoderFormat.AAC))
+        assertNull(opus.audioFallbackMessage(AudioEncoderFormat.OPUS))
+        // No audio at all is not a fallback (the encoder failure is logged elsewhere).
+        assertNull(opus.audioFallbackMessage(null))
+        assertNull(StreamConfig.from(stream("{}"), "srt://h").audioFallbackMessage(AudioEncoderFormat.AAC))
+    }
+
+    @Test
     fun recordingAudioBitrateIsTheRecordingsOwn() {
         // Upstream ModelRecording: recording.audioBitrate, 0 leaves it to the encoder (128 kbps here).
         assertEquals(128_000, StreamConfig.recordingAudioBitrate(null))

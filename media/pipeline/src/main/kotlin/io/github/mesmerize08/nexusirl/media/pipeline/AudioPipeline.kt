@@ -90,9 +90,10 @@ class AudioPipeline(
 
     /**
      * Starts a [key] encoder whose output goes to [sink]. An Opus encoder that cannot be
-     * created falls back to AAC, so the stream keeps its audio. Throws when AAC fails too.
+     * created falls back to AAC, so the stream keeps its audio; [sink] then gets the AAC config.
+     * Returns the format encoded. Throws when AAC fails too.
      */
-    fun addEncoder(key: AudioEncoderKey, sink: MediaSink) {
+    fun addEncoder(key: AudioEncoderKey, sink: MediaSink): AudioEncoderFormat {
         val encoder = try {
             Encoder(key.format, key.bitrate, sink)
         } catch (e: Exception) {
@@ -103,6 +104,7 @@ class AudioPipeline(
             Encoder(AudioEncoderFormat.AAC, key.bitrate, sink, requested = key)
         }
         encoders.add(encoder)
+        return encoder.format
     }
 
     fun removeEncoder(key: AudioEncoderKey) {

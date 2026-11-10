@@ -6,6 +6,7 @@ import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AudioConsumersTest {
@@ -30,16 +31,19 @@ class AudioConsumersTest {
     private val running = LinkedHashMap<AudioEncoderKey, MediaSink>()
     private val events = ArrayList<String>()
     private var failNextStart = false
+    private var noOpus = false
     private val consumers = AudioConsumers(
         startEncoder = { key, sink ->
             events += "start ${key.format}" + if (key.bitrate == BITRATE) "" else " ${key.bitrate}"
             if (failNextStart) {
                 failNextStart = false
-                false
+                null
             } else {
+                // Like AudioPipeline: a phone without an Opus encoder gets AAC instead.
+                val actual = if (key.format == AudioEncoderFormat.OPUS && noOpus) AudioEncoderFormat.AAC else key.format
                 running[key] = sink
-                sink.setAudioConfig(key.format.config(48_000, 1), 48_000)
-                true
+                sink.setAudioConfig(actual.config(48_000, 1), 48_000)
+                actual
             }
         },
         stopEncoder = { key ->
@@ -83,10 +87,25 @@ class AudioConsumersTest {
     }
 
     @Test
+    fun consumersLearnWhenOpusFellBackToAac() {
+        noOpus = true
+        val stream = RecordingSink()
+        val second = RecordingSink()
+        assertEquals(AudioEncoderFormat.AAC, consumers.add(stream, AudioEncoderFormat.OPUS))
+        // A consumer joining the running encoder is told too.
+        assertEquals(AudioEncoderFormat.AAC, consumers.add(second, AudioEncoderFormat.OPUS))
+        assertEquals(listOf("start OPUS"), events)
+        // The muxers get the AAC config, not Opus.
+        assertFalse(stream.configs.single().isOpus)
+        assertFalse(second.configs.single().isOpus)
+        assertEquals(AudioEncoderFormat.AAC, consumers.add(RecordingSink(), AudioEncoderFormat.AAC))
+    }
+
+    @Test
     fun anEncoderThatFailedToStartIsTriedAgainForTheNextConsumer() {
         failNextStart = true
         val stream = RecordingSink()
-        consumers.add(stream, AudioEncoderFormat.AAC)
+        assertNull(consumers.add(stream, AudioEncoderFormat.AAC))
         assertFalse(consumers.hasEncoder)
         val recording = RecordingSink()
         consumers.add(recording, AudioEncoderFormat.AAC)

@@ -176,7 +176,10 @@ class StreamSession(
             // Keep going (audio still streams) but say why there is no picture.
             status = status.copy(detail = "The video encoder could not start. Try a lower resolution or H.264.")
         }
-        audio.add(fanOut, config.audioFormat, config.audioBitrate)
+        config.audioFallbackMessage(audio.add(fanOut, config.audioFormat, config.audioBitrate))?.let {
+            log.line(it)
+            onMessage(it)
+        }
         powerManager.addThermalStatusListener({ task -> executor.execute { task.run() } }, thermalListener)
         executor.execute {
             startDestination()

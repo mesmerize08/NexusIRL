@@ -31,11 +31,15 @@ data class AudioEncoderKey(val format: AudioEncoderFormat, val bitrate: Int)
  * Not thread safe; SharedAudio calls it from the capture-control thread.
  */
 class AudioConsumers(
-    /** Returns false when the encoder could not start: that key is tried again next time. */
-    private val startEncoder: (AudioEncoderKey, MediaSink) -> Boolean,
+    /**
+     * Returns the format actually encoded (AAC when Opus is unavailable), or null when the
+     * encoder could not start: that key is tried again next time.
+     */
+    private val startEncoder: (AudioEncoderKey, MediaSink) -> AudioEncoderFormat?,
     private val stopEncoder: (AudioEncoderKey) -> Unit,
 ) {
     private val fanOuts = mutableMapOf<AudioEncoderKey, FanOutSink>()
+    private val encoded = mutableMapOf<AudioEncoderKey, AudioEncoderFormat>()
     private val consumers = mutableMapOf<MediaSink, AudioEncoderKey>()
 
     val isEmpty: Boolean
@@ -45,19 +49,28 @@ class AudioConsumers(
     val hasEncoder: Boolean
         get() = fanOuts.isNotEmpty()
 
-    fun add(consumer: MediaSink, format: AudioEncoderFormat, bitrate: Int) {
+    /** Returns the format [consumer] gets (AAC after an Opus fallback), or null for no audio. */
+    fun add(consumer: MediaSink, format: AudioEncoderFormat, bitrate: Int): AudioEncoderFormat? {
         remove(consumer)
         val key = AudioEncoderKey(format, bitrate)
-        val fanOut = fanOuts[key] ?: FanOutSink().takeIf { startEncoder(key, it) }?.also { fanOuts[key] = it }
+        if (key !in fanOuts) {
+            val fanOut = FanOutSink()
+            startEncoder(key, fanOut)?.let {
+                fanOuts[key] = fanOut
+                encoded[key] = it
+            }
+        }
         // The current audio format is replayed to the new consumer.
-        fanOut?.add(consumer)
+        fanOuts[key]?.add(consumer)
         consumers[consumer] = key
+        return encoded[key]
     }
 
     fun remove(consumer: MediaSink) {
         val key = consumers.remove(consumer) ?: return
         fanOuts[key]?.remove(consumer)
         if (key !in consumers.values && fanOuts.remove(key) != null) {
+            encoded.remove(key)
             stopEncoder(key)
         }
     }
