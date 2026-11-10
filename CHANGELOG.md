@@ -6,6 +6,14 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 ## [Unreleased]
 
 ### Fixed
+- The stream's audio bitrate setting (Moblin's "Audio bitrate", from imported settings) was ignored:
+  audio always went out at 128 kbps. Streams now use their own audio bitrate and recordings theirs,
+  within what the phone's encoder can do (at most 256 kbps for mono AAC). RTMP servers are told
+  the real audio bitrate, and no audio track at all when the stream has no sound.
+- If a phone cannot encode Opus, NexusIRL now says it is streaming AAC instead; and if audio cannot
+  start at all, it says the stream has no sound. Both were silent before.
+- With an Opus stream falling back to AAC next to a recording, two identical audio encoders ran;
+  now they share one. The microphone indicator turns off when the last working audio output stops.
 - After another app used the camera while live (for example the phone's Camera app), the picture
   stuttered for several seconds once the camera was back, at about 2 frames a second. With the
   picture standing still, the video encoder saved up bitrate (keyframes of about 1 MB instead of
