@@ -14,12 +14,13 @@ enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int, val
     /**
      * The bitrate to configure for [requested]: at most what the format carries for [channels]
      * (AAC-LC: 6144 bits per channel per 1024 frames, 288 kbps mono at 48 kHz; 256 kbps leaves
-     * headroom), then within the encoder's [supported] range like upstream `AudioEncoder.setBitrate`.
+     * headroom), then within the encoder's [supported] range like upstream `AudioEncoder.setBitrate`;
+     * the codec's minimum wins, as it cannot be configured lower. An empty range is ignored.
      */
     fun bitrate(requested: Int, channels: Int, supported: IntRange? = null): Int {
         val limit = if (this == AAC && channels == 1) 256_000 else 320_000
-        val bitrate = requested.coerceAtMost(limit)
-        return supported?.let { bitrate.coerceIn(it) } ?: bitrate
+        val range = supported?.takeUnless { it.isEmpty() } ?: return requested.coerceAtMost(limit)
+        return requested.coerceAtMost(minOf(limit, range.last)).coerceAtLeast(range.first)
     }
 
     /** What the muxers expect; they build the OpusHead / AudioSpecificConfig themselves. */
@@ -50,14 +51,22 @@ class AudioConsumers(
     private val startEncoder: (AudioEncoderKey, MediaSink) -> AudioEncoderKey?,
     private val stopEncoder: (AudioEncoderKey) -> Unit,
 ) {
-    /** A running encoder: started for [requested], producing [encoded]. */
-    private class Running(val requested: AudioEncoderKey, val encoded: AudioEncoderKey, val fanOut: FanOutSink)
+    /**
+     * A running encoder: started for [started], producing [encoded]; [aliases] are other requests
+     * that turned out to produce the same and share it.
+     */
+    private class Running(val started: AudioEncoderKey, val encoded: AudioEncoderKey, val fanOut: FanOutSink) {
+        val aliases = mutableSetOf<AudioEncoderKey>()
+
+        fun serves(key: AudioEncoderKey) = key == started || key == encoded || key in aliases
+    }
 
     private val running = mutableListOf<Running>()
 
-    /** Null for consumers whose encoder could not start. */
-    private val consumers = mutableMapOf<MediaSink, Running?>()
+    /** Consumers with a running encoder; those whose encoder failed get no audio and are not kept. */
+    private val consumers = mutableMapOf<MediaSink, Running>()
 
+    /** True when nothing is encoding, so capture can stop. */
     val isEmpty: Boolean
         get() = consumers.isEmpty()
 
@@ -69,15 +78,27 @@ class AudioConsumers(
     fun add(consumer: MediaSink, format: AudioEncoderFormat, bitrate: Int): AudioEncoderKey? {
         remove(consumer)
         val key = AudioEncoderKey(format, bitrate)
-        // An encoder already producing what is asked for is shared, whatever it was started for.
-        val encoder = running.firstOrNull { it.requested == key } ?: running.firstOrNull { it.encoded == key } ?: run {
-            val fanOut = FanOutSink()
-            startEncoder(key, fanOut)?.let { Running(key, it, fanOut) }?.also { running += it }
-        }
+        val encoder = running.firstOrNull { it.serves(key) } ?: start(key) ?: return null
         // The current audio format is replayed to the new consumer.
-        encoder?.fanOut?.add(consumer)
+        encoder.fanOut.add(consumer)
         consumers[consumer] = encoder
-        return encoder?.encoded
+        return encoder.encoded
+    }
+
+    /**
+     * Starts an encoder for [key]. Whether Opus falls back or the bitrate is clamped is only known
+     * once it runs: one that duplicates a running encoder is released and that one shared.
+     */
+    private fun start(key: AudioEncoderKey): Running? {
+        val fanOut = FanOutSink()
+        val encoded = startEncoder(key, fanOut) ?: return null
+        val existing = running.firstOrNull { it.encoded == encoded }
+        if (existing != null) {
+            stopEncoder(key)
+            existing.aliases += key
+            return existing
+        }
+        return Running(key, encoded, fanOut).also { running += it }
     }
 
     fun remove(consumer: MediaSink) {
@@ -85,7 +106,7 @@ class AudioConsumers(
         encoder.fanOut.remove(consumer)
         if (consumers.values.none { it === encoder }) {
             running.remove(encoder)
-            stopEncoder(encoder.requested)
+            stopEncoder(encoder.started)
         }
     }
 }

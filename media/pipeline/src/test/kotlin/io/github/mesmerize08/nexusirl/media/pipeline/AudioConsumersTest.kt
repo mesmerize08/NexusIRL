@@ -120,6 +120,57 @@ class AudioConsumersTest {
     }
 
     @Test
+    fun anOpusStreamFallingBackJoinsTheRunningAacRecording() {
+        noOpus = true
+        val recording = RecordingSink()
+        val stream = RecordingSink()
+        consumers.add(recording, AudioEncoderFormat.AAC)
+        assertEquals(AudioEncoderFormat.AAC, consumers.add(stream, AudioEncoderFormat.OPUS)?.format)
+        // The fallback encoder duplicated the recording's, so it was released again.
+        assertEquals(listOf("start AAC", "start OPUS", "stop OPUS"), events)
+        encode(AudioEncoderFormat.AAC, "aac")
+        assertEquals(listOf("aac"), stream.frames)
+        // Asking for Opus again goes straight to the shared encoder.
+        consumers.add(RecordingSink(), AudioEncoderFormat.OPUS)
+        assertEquals(3, events.size)
+        consumers.remove(recording)
+        assertEquals(3, events.size, "the stream still uses it")
+    }
+
+    @Test
+    fun aClampedBitrateJoinsTheEncoderAlreadyRunningAtIt() {
+        val first = RecordingSink()
+        val second = RecordingSink()
+        consumers.add(first, AudioEncoderFormat.AAC, 256_000)
+        // 320 kbps is more than mono AAC carries: clamped to 256 kbps, the same as the running one.
+        assertEquals(AudioEncoderKey(AudioEncoderFormat.AAC, 256_000), consumers.add(second, AudioEncoderFormat.AAC, 320_000))
+        assertEquals(listOf("start AAC 256000", "start AAC 320000", "stop AAC 320000"), events)
+        encode(AudioEncoderFormat.AAC, "x", 256_000)
+        assertEquals(listOf("x"), second.frames)
+    }
+
+    @Test
+    fun theMicrophoneCanStopWhileAConsumerWhoseEncoderFailedIsAttached() {
+        failNextStart = true
+        val failed = RecordingSink()
+        val working = RecordingSink()
+        consumers.add(failed, AudioEncoderFormat.OPUS)
+        consumers.add(working, AudioEncoderFormat.AAC)
+        consumers.remove(working)
+        assertTrue(consumers.isEmpty, "nothing is encoding, so capture can stop")
+        assertFalse(consumers.hasEncoder)
+        consumers.remove(failed)
+        assertEquals(listOf("start OPUS", "start AAC", "stop AAC"), events)
+    }
+
+    @Test
+    fun aDegenerateCodecRangeIsIgnored() {
+        assertEquals(128_000, AudioEncoderFormat.AAC.bitrate(128_000, channels = 1, supported = 10..1))
+        // The codec's own minimum wins over the format's limit: it cannot be configured lower.
+        assertEquals(300_000, AudioEncoderFormat.AAC.bitrate(320_000, channels = 1, supported = 300_000..500_000))
+    }
+
+    @Test
     fun theEncoderBitrateStaysWithinWhatTheCodecCanDo() {
         // AAC-LC carries at most 6144 bits per channel per 1024 frames: 288 kbps mono at 48 kHz.
         assertEquals(256_000, AudioEncoderFormat.AAC.bitrate(320_000, channels = 1))

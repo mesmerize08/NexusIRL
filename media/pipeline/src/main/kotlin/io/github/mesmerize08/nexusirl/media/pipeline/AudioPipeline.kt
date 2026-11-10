@@ -205,7 +205,7 @@ class AudioPipeline(
     /** One MediaCodec encoder with its output thread, fed from the capture thread. */
     private inner class Encoder(
         val format: AudioEncoderFormat,
-        requestedBitrate: Int,
+        private val requestedBitrate: Int,
         private val sink: MediaSink,
         /** What the consumers asked for ([format] differs after a fallback to AAC). */
         val requested: AudioEncoderKey = AudioEncoderKey(format, requestedBitrate),
@@ -225,24 +225,11 @@ class AudioPipeline(
         val bitrate: Int
 
         init {
-            val codec = MediaCodec.createEncoderByType(format.mimeType)
-            val supported = try {
-                codec.codecInfo.getCapabilitiesForType(format.mimeType).audioCapabilities?.bitrateRange?.let { it.lower..it.upper }
-            } catch (e: IllegalArgumentException) {
-                null
-            }
-            bitrate = format.bitrate(requestedBitrate, channels, supported)
-            val mediaFormat = MediaFormat.createAudioFormat(format.mimeType, sampleRate, channels).apply {
-                if (format == AudioEncoderFormat.AAC) {
-                    setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-                }
-                setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, format.framesPerChunk * channels * 2 * 4)
-            }
             // Opus: c2.android.opus.encoder, on every phone since Android 10.
-            try {
-                codec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-                codec.start()
+            val codec = MediaCodec.createEncoderByType(format.mimeType)
+            // Released on any failure after creation, or it leaks until the process ends.
+            bitrate = try {
+                configure(codec)
             } catch (e: Exception) {
                 codec.release()
                 throw e
@@ -252,6 +239,26 @@ class AudioPipeline(
             // codec config buffers are not needed.
             sink.setAudioConfig(format.config(sampleRate, channels), sampleRate)
             outputThread = Thread({ drain() }, "audio-encoder-$format").apply { start() }
+        }
+
+        /** Configures and starts [codec]; returns the bitrate it got. */
+        private fun configure(codec: MediaCodec): Int {
+            val supported = try {
+                codec.codecInfo.getCapabilitiesForType(format.mimeType).audioCapabilities?.bitrateRange?.let { it.lower..it.upper }
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+            val bitrate = format.bitrate(requestedBitrate, channels, supported)
+            val mediaFormat = MediaFormat.createAudioFormat(format.mimeType, sampleRate, channels).apply {
+                if (format == AudioEncoderFormat.AAC) {
+                    setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+                }
+                setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+                setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, format.framesPerChunk * channels * 2 * 4)
+            }
+            codec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            codec.start()
+            return bitrate
         }
 
         /** Capture thread. The lock keeps [release] from freeing buffers being filled. */
