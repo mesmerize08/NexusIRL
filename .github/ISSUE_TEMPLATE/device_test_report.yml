@@ -1,0 +1,59 @@
+name: Device test report
+description: You tried NexusIRL on your phone; tell us what worked and what did not.
+labels: [device-test]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing on a phone we do not have. The checklist is in
+        [docs/testing/community-testing.md](https://github.com/mesmerize08/NexusIRL/blob/main/docs/testing/community-testing.md).
+        **Never paste stream keys, stream URLs with keys, tokens or passwords** here. A diagnostics
+        report from the app (main screen → Share diagnostics) has them removed; attach it if you can.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: From the release you installed, e.g. v0.5.0.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone, chipset and Android version
+      description: Settings → About phone. The chipset is often listed as "Processor".
+      placeholder: e.g. Google Pixel 9, Tensor G4, Android 16
+    validations:
+      required: true
+  - type: dropdown
+    id: apk
+    attributes:
+      label: Which APK
+      options: [arm64-v8a, armeabi-v7a, x86_64, universal, F-Droid, built from source]
+    validations:
+      required: true
+  - type: checkboxes
+    id: results
+    attributes:
+      label: What worked
+      description: Tick what you tried and what worked; leave the rest. Explain anything that did not work below.
+      options:
+        - label: "1. Installs and opens; the camera preview shows"
+        - label: "2. Back and front camera switch, zoom and torch"
+        - label: "3. Recording: saved, plays, sound in sync"
+        - label: "4. Streaming over SRT or SRTLA for 5 minutes without freezing"
+        - label: "5. Streaming over RTMP or RTMPS for 5 minutes without freezing"
+        - label: "6. H.265 (HEVC) streaming"
+        - label: "7. Bonding: mobile data and Wi-Fi together (SRTLA)"
+        - label: "8. Another app (the Camera app) takes the camera while live; the picture comes back"
+        - label: "9. 30 minutes live without overheating warnings"
+        - label: "10. Bluetooth or USB microphone"
+  - type: textarea
+    id: problems
+    attributes:
+      label: What did not work, and what happened instead
+      description: The settings you used (resolution, fps, codec, bitrate) help.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics report (optional)
+      description: Drag the file shared from the app here.

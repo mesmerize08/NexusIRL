@@ -81,6 +81,10 @@ shows:
 Moblin's own system-test harness runs against NexusIRL too; see
 [tools/moblin-harness](tools/moblin-harness/README.md) for what passes.
 
+**Have a different phone?** Reports from other phones are the most useful help: see
+[docs/testing/community-testing.md](docs/testing/community-testing.md) for a short checklist and
+the device test report form.
+
 ## Documentation
 
 | For | Document |
