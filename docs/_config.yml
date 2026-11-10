@@ -1,4 +1,14 @@
 # GitHub Pages site for the docs folder: https://mesmerize08.github.io/NexusIRL/
 title: NexusIRL
-description: Free, open-source IRL live streaming for Android, ported from Moblin.
+description: >-
+  NexusIRL is a free, open-source IRL live streaming app for Android: SRTLA bonding of mobile data
+  and Wi-Fi, adaptive bitrate, SRT and RTMP, Twitch and Kick chat, OBS remote control. An Android
+  port of Moblin.
+url: https://mesmerize08.github.io
+baseurl: /NexusIRL
+lang: en
 theme: jekyll-theme-minimal
+# Both are on GitHub Pages' allowed plugin list: page meta tags, and a sitemap for search engines.
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
