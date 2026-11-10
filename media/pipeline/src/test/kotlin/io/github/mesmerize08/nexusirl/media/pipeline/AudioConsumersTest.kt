@@ -166,8 +166,10 @@ class AudioConsumersTest {
     @Test
     fun aDegenerateCodecRangeIsIgnored() {
         assertEquals(128_000, AudioEncoderFormat.AAC.bitrate(128_000, channels = 1, supported = 10..1))
-        // The codec's own minimum wins over the format's limit: it cannot be configured lower.
-        assertEquals(300_000, AudioEncoderFormat.AAC.bitrate(320_000, channels = 1, supported = 300_000..500_000))
+        // A codec minimum above what the format carries is not used: configuring the format's limit
+        // may fail, and then the encoder falls back or there is no audio, rather than out-of-spec AAC.
+        assertEquals(256_000, AudioEncoderFormat.AAC.bitrate(320_000, channels = 1, supported = 300_000..500_000))
+        assertEquals(256_000, AudioEncoderFormat.AAC.bitrate(64_000, channels = 1, supported = 300_000..500_000))
     }
 
     @Test

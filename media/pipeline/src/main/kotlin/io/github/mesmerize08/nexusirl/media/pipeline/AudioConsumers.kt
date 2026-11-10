@@ -14,13 +14,17 @@ enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int, val
     /**
      * The bitrate to configure for [requested]: at most what the format carries for [channels]
      * (AAC-LC: 6144 bits per channel per 1024 frames, 288 kbps mono at 48 kHz; 256 kbps leaves
-     * headroom), then within the encoder's [supported] range like upstream `AudioEncoder.setBitrate`;
-     * the codec's minimum wins, as it cannot be configured lower. An empty range is ignored.
+     * headroom), then within the encoder's [supported] range like upstream `AudioEncoder.setBitrate`.
+     * An empty range is ignored. A codec minimum above the format's limit gives the limit: if the
+     * codec then refuses it, the usual fallback applies rather than an out-of-spec stream.
      */
     fun bitrate(requested: Int, channels: Int, supported: IntRange? = null): Int {
         val limit = if (this == AAC && channels == 1) 256_000 else 320_000
         val range = supported?.takeUnless { it.isEmpty() } ?: return requested.coerceAtMost(limit)
-        return requested.coerceAtMost(minOf(limit, range.last)).coerceAtLeast(range.first)
+        if (range.first > limit) {
+            return limit
+        }
+        return requested.coerceIn(range.first, minOf(limit, range.last))
     }
 
     /** What the muxers expect; they build the OpusHead / AudioSpecificConfig themselves. */

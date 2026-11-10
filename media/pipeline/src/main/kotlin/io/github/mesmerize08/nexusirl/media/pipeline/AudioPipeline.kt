@@ -245,18 +245,22 @@ class AudioPipeline(
         init {
             // Opus: c2.android.opus.encoder, on every phone since Android 10.
             val codec = MediaCodec.createEncoderByType(format.mimeType)
-            // Released on any failure after creation, or it leaks until the process ends.
-            bitrate = try {
-                configure(codec)
-            } catch (e: Exception) {
+            this.codec = codec
+            // Everything after creation can fail (configure, start, the sink, the thread): the
+            // codec is released then, or it leaks until the process ends.
+            val (bitrate, thread) = try {
+                val bitrate = configure(codec)
+                // The muxers build the OpusHead / AudioSpecificConfig from this, so the encoder's
+                // own codec config buffers are not needed.
+                sink.setAudioConfig(format.config(sampleRate, channels), sampleRate)
+                bitrate to Thread({ drain() }, "audio-encoder-$format").apply { start() }
+            } catch (e: Throwable) {
+                // Throwable: a thread that cannot start throws OutOfMemoryError.
                 codec.release()
                 throw e
             }
-            this.codec = codec
-            // The muxers build the OpusHead / AudioSpecificConfig from this, so the encoder's own
-            // codec config buffers are not needed.
-            sink.setAudioConfig(format.config(sampleRate, channels), sampleRate)
-            outputThread = Thread({ drain() }, "audio-encoder-$format").apply { start() }
+            this.bitrate = bitrate
+            outputThread = thread
         }
 
         /** Configures and starts [codec]; returns the bitrate it got. */
