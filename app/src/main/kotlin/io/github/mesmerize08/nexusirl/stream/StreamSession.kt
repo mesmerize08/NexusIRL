@@ -178,7 +178,7 @@ class StreamSession(
         }
         val encoded = audio.add(fanOut, config.audioFormat, config.audioBitrate)
         encoded?.let { audioBitrate = it.bitrate }
-        config.audioFallbackMessage(encoded?.format)?.let {
+        config.audioMessage(encoded?.format)?.let {
             log.line(it)
             onMessage(it)
         }

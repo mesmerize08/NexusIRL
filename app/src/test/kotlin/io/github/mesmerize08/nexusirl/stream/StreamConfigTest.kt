@@ -88,11 +88,16 @@ class StreamConfigTest {
     @Test
     fun theStreamerIsToldWhenOpusFallsBackToAac() {
         val opus = StreamConfig.from(stream("""{"audioCodec":"OPUS"}"""), "srt://h")
-        assertEquals("This phone cannot encode Opus; streaming AAC instead", opus.audioFallbackMessage(AudioEncoderFormat.AAC))
-        assertNull(opus.audioFallbackMessage(AudioEncoderFormat.OPUS))
-        // No audio at all is not a fallback (the encoder failure is logged elsewhere).
-        assertNull(opus.audioFallbackMessage(null))
-        assertNull(StreamConfig.from(stream("{}"), "srt://h").audioFallbackMessage(AudioEncoderFormat.AAC))
+        assertEquals("This phone cannot encode Opus; streaming AAC instead", opus.audioMessage(AudioEncoderFormat.AAC))
+        assertNull(opus.audioMessage(AudioEncoderFormat.OPUS))
+        assertNull(StreamConfig.from(stream("{}"), "srt://h").audioMessage(AudioEncoderFormat.AAC))
+    }
+
+    @Test
+    fun theStreamerIsToldWhenThereIsNoAudioAtAll() {
+        val message = "Audio could not start; streaming without sound"
+        assertEquals(message, StreamConfig.from(stream("{}"), "srt://h").audioMessage(null))
+        assertEquals(message, StreamConfig.from(stream("""{"audioCodec":"OPUS"}"""), "srt://h").audioMessage(null))
     }
 
     @Test

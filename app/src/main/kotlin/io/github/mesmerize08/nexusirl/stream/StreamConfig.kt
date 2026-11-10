@@ -43,15 +43,14 @@ data class StreamConfig(
     val audioBitrate: Int = SharedAudio.DEFAULT_BITRATE,
 ) {
     /**
-     * What to tell the streamer when the audio encoder runs [encoded] instead of [audioFormat]
-     * (no Opus encoder on this phone; upstream's always exists), or null when nothing changed.
+     * What to tell the streamer about the audio encoder actually running ([encoded], null when
+     * none could start), or null when it is what was asked for. Upstream's Opus encoder always
+     * exists; Android phones may lack one, and then stream AAC.
      */
-    fun audioFallbackMessage(encoded: AudioEncoderFormat?): String? {
-        if (encoded == null || encoded == audioFormat) {
-            return null
-        }
-        val names = mapOf(AudioEncoderFormat.AAC to "AAC", AudioEncoderFormat.OPUS to "Opus")
-        return "This phone cannot encode ${names[audioFormat]}; streaming ${names[encoded]} instead"
+    fun audioMessage(encoded: AudioEncoderFormat?): String? = when (encoded) {
+        null -> "Audio could not start; streaming without sound"
+        audioFormat -> null
+        else -> "This phone cannot encode ${audioFormat.displayName}; streaming ${encoded.displayName} instead"
     }
 
     override fun toString(): String =

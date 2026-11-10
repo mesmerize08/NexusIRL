@@ -4,11 +4,11 @@ import android.media.MediaFormat
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 
 /** Upstream `AudioEncoderSettings.Format`. */
-enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int) {
-    AAC(MediaFormat.MIMETYPE_AUDIO_AAC, 1024),
+enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int, val displayName: String) {
+    AAC(MediaFormat.MIMETYPE_AUDIO_AAC, 1024, "AAC"),
 
     /** 20 ms frames at 48 kHz (upstream `mFramesPerPacket: 960`). */
-    OPUS(MediaFormat.MIMETYPE_AUDIO_OPUS, 960),
+    OPUS(MediaFormat.MIMETYPE_AUDIO_OPUS, 960, "Opus"),
     ;
 
     /**

@@ -195,6 +195,11 @@ class AudioConsumersTest {
     }
 
     @Test
+    fun formatsHaveNamesForTheStreamer() {
+        assertEquals(listOf("AAC", "Opus"), AudioEncoderFormat.entries.map { it.displayName })
+    }
+
+    @Test
     fun opusFramesAre20Milliseconds() {
         // Upstream AudioEncoder.samplesPerBuffer: 1024 for AAC, 960 for Opus.
         assertEquals(1024, AudioEncoderFormat.AAC.framesPerChunk)
