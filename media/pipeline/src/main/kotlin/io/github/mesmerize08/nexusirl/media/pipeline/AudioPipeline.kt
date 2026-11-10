@@ -130,7 +130,6 @@ class AudioPipeline(
         val chunkFrames = 1024
         val pcm = ShortArray(chunkFrames * channels)
         val timestamp = AudioTimestamp()
-        var framesRead = 0L
         val timeline = CaptureTimeline(sampleRate)
         var windowStart = System.nanoTime()
         var windowFrames = 0L
@@ -145,9 +144,8 @@ class AudioPipeline(
                 continue
             }
             val frames = read / channels
-            val pts = timeline.next(presentationTimeNanos(record, timestamp, framesRead), frames)
+            val pts = timeline.next(presentationTimeNanos(record, timestamp, timeline.framesRead), frames)
             val resync = timeline.resync
-            framesRead += frames
             windowFrames += frames
             val now = System.nanoTime()
             if (now - windowStart >= 1_000_000_000) {

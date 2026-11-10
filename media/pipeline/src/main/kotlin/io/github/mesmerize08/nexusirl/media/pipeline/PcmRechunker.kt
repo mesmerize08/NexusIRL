@@ -6,9 +6,10 @@ package io.github.mesmerize08.nexusirl.media.pipeline
  * (1024 for AAC, 960 for Opus), each timed from where its first frame was captured.
  *
  * When the capture loop says its times re-anchored (a device change), a partly filled chunk is
- * dropped and the next one starts on the new timeline. Times never overlap or go backwards: a new
- * timeline less than a chunk behind skips those frames; one further behind is shifted to start
- * where the last chunk ended, rather than dropping seconds of audio.
+ * dropped and the next one starts on the new timeline, which stays on the capture clock so audio
+ * stays aligned with video. A timeline behind the last chunk's end skips the overlapping frames,
+ * so times do not overlap or go backwards; beyond [MAX_SKIP_NANOS] one step back is accepted
+ * rather than seconds of silence.
  */
 class PcmRechunker(private val channels: Int, private val framesPerChunk: Int, private val sampleRate: Int) {
     private val output = ShortArray(framesPerChunk * channels)
@@ -22,9 +23,6 @@ class PcmRechunker(private val channels: Int, private val framesPerChunk: Int, p
 
     /** Frames still to skip after a resync less than a chunk behind. */
     private var skipFrames = 0L
-
-    /** Added to incoming times after a resync far behind, until the next resync. */
-    private var offsetNanos = 0L
 
     /**
      * Appends [count] samples of [pcm] whose first frame was captured at [ptsNanos]; [resync]
@@ -43,7 +41,7 @@ class PcmRechunker(private val channels: Int, private val framesPerChunk: Int, p
         }
         while (index < count) {
             if (outputSamples == 0) {
-                outputPtsNanos = ptsNanos + offsetNanos + nanos(index / channels)
+                outputPtsNanos = ptsNanos + nanos(index / channels)
             }
             val samples = minOf(output.size - outputSamples, count - index)
             System.arraycopy(pcm, index, output, outputSamples, samples)
@@ -59,19 +57,15 @@ class PcmRechunker(private val channels: Int, private val framesPerChunk: Int, p
 
     private fun restart(ptsNanos: Long) {
         outputSamples = 0
-        skipFrames = 0
-        offsetNanos = 0
-        val behind = emittedEndNanos?.let { it - ptsNanos } ?: return
-        if (behind <= 0) {
-            return
-        }
-        if (behind <= nanos(framesPerChunk)) {
-            // Ceiling: the first frame at or after the previous chunk's end.
-            skipFrames = (behind * sampleRate + 999_999_999) / 1_000_000_000
-        } else {
-            offsetNanos = behind
-        }
+        val behind = emittedEndNanos?.let { it - ptsNanos } ?: 0
+        // Ceiling: the first frame at or after the previous chunk's end.
+        skipFrames = if (behind in 1..MAX_SKIP_NANOS) (behind * sampleRate + 999_999_999) / 1_000_000_000 else 0
     }
 
     private fun nanos(frames: Int): Long = frames * 1_000_000_000L / sampleRate
+
+    private companion object {
+        /** A capture timeline further behind than this is pathological: not worth the silence. */
+        const val MAX_SKIP_NANOS = 2_000_000_000L
+    }
 }

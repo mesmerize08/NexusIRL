@@ -44,4 +44,36 @@ class CaptureTimelineTest {
         assertEquals(nanos(2048) + shift + 2_000_000 + nanos(1024), timeline.next(nanos(3072) + shift, 1024))
         assertFalse(timeline.resync)
     }
+
+    @Test
+    fun inconsistentOffsetsStillReanchorAfterAFewReads() {
+        // getTimestamp failing now and then: fallback estimates disagree with each other by 25 ms,
+        // but all say the count is 30-55 ms off. After four reads, re-anchor to their median.
+        val timeline = CaptureTimeline(48_000)
+        timeline.next(0, 1024)
+        val offsets = listOf(30_000_000L, 55_000_000L, 30_000_000L, 55_000_000L)
+        offsets.forEachIndexed { index, offset ->
+            val frames = (index + 1) * 1024L
+            val pts = timeline.next(nanos(frames) + offset, 1024)
+            if (index < 3) {
+                assertEquals(nanos(frames), pts)
+                assertFalse(timeline.resync)
+            } else {
+                assertTrue(timeline.resync)
+                assertEquals(nanos(frames) + 42_500_000, pts)
+            }
+        }
+        assertEquals(5 * 1024L, timeline.framesRead)
+    }
+
+    @Test
+    fun jitterAroundTheCountDoesNotReanchor() {
+        val timeline = CaptureTimeline(48_000)
+        timeline.next(0, 1024)
+        (1..12).forEach {
+            val offset = if (it % 2 == 0) 25_000_000L else -25_000_000L
+            assertEquals(nanos(it * 1024L), timeline.next(nanos(it * 1024L) + offset, 1024))
+            assertFalse(timeline.resync)
+        }
+    }
 }

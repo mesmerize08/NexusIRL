@@ -128,20 +128,53 @@ class PcmRechunkerTest {
     }
 
     @Test
-    fun oneBadStampSecondsAheadAndBackSilencesAtMostAChunk() {
-        // The capture loop briefly re-anchors 5 s ahead, then back to the real clock.
+    fun aLastingBackwardStepRealignsWithTheClockAfterABoundedSkip() {
+        // E.g. a Bluetooth microphone switch: the clock says capture is 300 ms earlier than counted.
+        val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
+        val jump = -300_000_000L
+        // Under 32 reads: sample values (the frame index) must fit a Short.
+        val reads = (0 until 30).map {
+            if (it < 8) Read(nanos(it * 1024L), it * 1024) else Read(nanos(it * 1024L) + jump, it * 1024, resync = it == 8)
+        }
+        val chunks = feed(rechunker, reads)
+        assertMonotonic(chunks)
+        // Back on the clock: no lasting offset, so audio stays aligned with video.
+        val after = chunks.filter { it.samples[0] >= 8 * 1024 }
+        assertTrue(after.size > 3)
+        after.forEach { chunk -> assertNear(nanos(chunk.samples[0].toLong()) + jump, chunk.ptsNanos) }
+        // Only the overlap (300 ms) and the partial chunk are skipped.
+        assertTrue(chunks.size >= 30 * 1024 / 960 - 300 / 20 - 2, "${chunks.size}")
+    }
+
+    @Test
+    fun driftResyncsNeverAccumulateAnOffset() {
+        // A microphone clock running fast: every 8 reads the count is 25 ms ahead of the clock.
+        val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
+        val step = -25_000_000L
+        val reads = (0 until 30).map { Read(nanos(it * 1024L) + (it / 8) * step, it * 1024, resync = it > 0 && it % 8 == 0) }
+        val chunks = feed(rechunker, reads)
+        assertMonotonic(chunks)
+        chunks.forEach { chunk ->
+            val sample = chunk.samples[0].toLong()
+            assertNear(nanos(sample) + (sample / (8 * 1024)) * step, chunk.ptsNanos)
+        }
+    }
+
+    @Test
+    fun aJumpSecondsBackIsOneDiscontinuityNotSecondsOfSilence() {
+        // Pathological: the capture times move 5 s ahead, then back (CaptureTimeline ignores a single bad stamp).
         val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
         val ahead = 5_000_000_000L
-        val reads = (0 until 50).map {
+        val reads = (0 until 30).map {
             when (it) {
-                1 -> Read(nanos(1024) + ahead, 1024, resync = true)
-                2 -> Read(nanos(2048), 2048, resync = true)
+                in 1..4 -> Read(nanos(it * 1024L) + ahead, it * 1024, resync = it == 1)
+                5 -> Read(nanos(5 * 1024L), 5 * 1024, resync = true)
                 else -> Read(nanos(it * 1024L), it * 1024)
             }
         }
         val chunks = feed(rechunker, reads)
-        assertMonotonic(chunks)
-        // Audio keeps flowing: no more than a chunk or two (the partial chunks dropped at each resync) is lost.
-        assertTrue(chunks.size >= 50 * 1024 / 960 - 2, "${chunks.size} chunks")
+        // Audio keeps flowing on the clock; only the partial chunks dropped at each resync are lost.
+        assertTrue(chunks.size >= 30 * 1024 / 960 - 2, "${chunks.size} chunks")
+        chunks.filter { it.samples[0] >= 5 * 1024 }.forEach { assertNear(nanos(it.samples[0].toLong()), it.ptsNanos) }
     }
 }
