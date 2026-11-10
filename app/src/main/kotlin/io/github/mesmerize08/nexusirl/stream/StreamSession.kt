@@ -177,7 +177,7 @@ class StreamSession(
             status = status.copy(detail = "The video encoder could not start. Try a lower resolution or H.264.")
         }
         val encoded = audio.add(fanOut, config.audioFormat, config.audioBitrate)
-        encoded?.let { audioBitrate = it.bitrate }
+        audioBitrate = encoded?.bitrate
         config.audioMessage(encoded?.format)?.let {
             log.line(it)
             onMessage(it)
@@ -190,9 +190,12 @@ class StreamSession(
         executor.scheduleRepeating(1_000_000_000) { publishStatus() }
     }
 
-    /** What the audio encoder runs at, for RTMP metadata (the codec may allow less than asked). */
+    /**
+     * What the audio encoder runs at, for RTMP metadata (the codec may allow less than asked);
+     * null without audio, so no audio track is announced.
+     */
     @Volatile
-    private var audioBitrate = config.audioBitrate
+    private var audioBitrate: Int? = config.audioBitrate
 
     /** Target video bitrate; starts at the stream's and follows bitrate presets picked while live. */
     @Volatile
@@ -554,8 +557,8 @@ class StreamSession(
         frameRate = settings.fps.toDouble(),
         isHevc = settings.hevc,
         videoBitrate = settings.bitrate,
-        audioBitrate = audioBitrate.toLong(),
-        audioSampleRate = 48_000.0,
+        audioBitrate = audioBitrate?.toLong(),
+        audioSampleRate = audioBitrate?.let { 48_000.0 },
     )
 
     private fun report(message: String) {

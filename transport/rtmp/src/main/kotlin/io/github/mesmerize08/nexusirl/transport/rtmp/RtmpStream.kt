@@ -61,9 +61,26 @@ data class RtmpMetadata(
     val frameRate: Double,
     val isHevc: Boolean,
     val videoBitrate: Long,
-    val audioBitrate: Long,
+    /** Null when there is no audio track: no audio fields are sent (upstream always has audio). */
+    val audioBitrate: Long?,
     val audioSampleRate: Double?,
-)
+) {
+    /** Upstream `RtmpStream.createOnMetaData`. */
+    fun toOnMetaData(): AsObject {
+        val result = LinkedHashMap<String, AsValue>()
+        result["width"] = AsValue.Number(width.toDouble())
+        result["height"] = AsValue.Number(height.toDouble())
+        result["framerate"] = AsValue.Number(frameRate)
+        result["videocodecid"] = AsValue.Number(if (isHevc) Flv.FOURCC_HVC1.toDouble() else Flv.VIDEO_CODEC_AVC.toDouble())
+        result["videodatarate"] = AsValue.Number((videoBitrate / 1000).toDouble())
+        if (audioBitrate != null) {
+            result["audiocodecid"] = AsValue.Number(Flv.AUDIO_CODEC_AAC.toDouble())
+            result["audiodatarate"] = AsValue.Number((audioBitrate / 1000).toDouble())
+            audioSampleRate?.let { result["audiosamplerate"] = AsValue.Number(it) }
+        }
+        return result
+    }
+}
 
 /** RTMP connection status codes (upstream `RtmpConnectionCode` / `RtmpStreamCode`). */
 object RtmpCode {
@@ -317,19 +334,7 @@ class RtmpStream(
         sendVideoSequenceHeader()
     }
 
-    private fun createOnMetaData(): AsObject {
-        val metadata = this.metadata ?: return emptyMap()
-        val result = LinkedHashMap<String, AsValue>()
-        result["width"] = AsValue.Number(metadata.width.toDouble())
-        result["height"] = AsValue.Number(metadata.height.toDouble())
-        result["framerate"] = AsValue.Number(metadata.frameRate)
-        result["videocodecid"] = AsValue.Number(if (metadata.isHevc) Flv.FOURCC_HVC1.toDouble() else Flv.VIDEO_CODEC_AVC.toDouble())
-        result["videodatarate"] = AsValue.Number((metadata.videoBitrate / 1000).toDouble())
-        result["audiocodecid"] = AsValue.Number(Flv.AUDIO_CODEC_AAC.toDouble())
-        result["audiodatarate"] = AsValue.Number((metadata.audioBitrate / 1000).toDouble())
-        metadata.audioSampleRate?.let { result["audiosamplerate"] = AsValue.Number(it) }
-        return result
-    }
+    private fun createOnMetaData(): AsObject = metadata?.toOnMetaData() ?: emptyMap()
 
     private fun sendData(handlerName: String, arguments: List<AsValue>) {
         if (state != State.PUBLISHING) {
