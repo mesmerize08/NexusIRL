@@ -75,6 +75,26 @@ class StreamConfigTest {
     }
 
     @Test
+    fun audioBitrateComesFromTheStream() {
+        // Upstream ModelStream.setAudioStreamBitrate: the stream's audioBitrate, 128 kbps by default.
+        assertEquals(128_000, StreamConfig.from(stream("{}"), "srt://h").audioBitrate)
+        assertEquals(192_000, StreamConfig.from(stream("""{"audioBitrate":192000}"""), "srt://h").audioBitrate)
+        assertEquals(64_000, StreamConfig.from(stream("""{"audioCodec":"OPUS","audioBitrate":64000}"""), "rtmp://h/a/k").audioBitrate)
+        // Outside upstream's 32-320 kbps picker (a hand-edited or old import): kept within it.
+        assertEquals(32_000, StreamConfig.from(stream("""{"audioBitrate":0}"""), "srt://h").audioBitrate)
+        assertEquals(320_000, StreamConfig.from(stream("""{"audioBitrate":1000000}"""), "srt://h").audioBitrate)
+    }
+
+    @Test
+    fun recordingAudioBitrateIsTheRecordingsOwn() {
+        // Upstream ModelRecording: recording.audioBitrate, 0 leaves it to the encoder (128 kbps here).
+        assertEquals(128_000, StreamConfig.recordingAudioBitrate(null))
+        assertEquals(128_000, StreamConfig.recordingAudioBitrate(stream("{}").recording))
+        assertEquals(96_000, StreamConfig.recordingAudioBitrate(stream("""{"recording":{"audioBitrate":96000}}""").recording))
+        assertEquals(128_000, StreamConfig.recordingAudioBitrate(stream("""{"recording":{"audioBitrate":0}}""").recording))
+    }
+
+    @Test
     fun destinationsNeverPrintTheirUrls() {
         val config = StreamConfig.from(
             SettingsStream(url = "rtmp://example.com/app/fakekey-main"),

@@ -4,6 +4,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderFormat
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoRateControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
+import io.github.mesmerize08.nexusirl.settings.SettingsStreamRecording
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamAudioCodec
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
@@ -35,11 +36,28 @@ data class StreamConfig(
     val limitAdaptiveBitrateByTransportBitrate: Boolean = true,
     /** The stream's audio codec (upstream `audioCodec.toEncoder()`); recordings stay AAC. */
     val audioFormat: AudioEncoderFormat = AudioEncoderFormat.AAC,
+    /**
+     * Upstream `setAudioStreamBitrate(stream.audioBitrate)`, bits/s. Upstream also applies a change
+     * while live; Android's audio encoders cannot change bitrate mid-stream, so it applies at go-live.
+     */
+    val audioBitrate: Int = SharedAudio.DEFAULT_BITRATE,
 ) {
     override fun toString(): String =
-        "StreamConfig(url=***, video=$video, audio=$audioFormat, srtLatency=$srtLatency, rtmpDestinations=${rtmpDestinations.size})"
+        "StreamConfig(url=***, video=$video, audio=$audioFormat ${audioBitrate / 1000}kbps, srtLatency=$srtLatency, rtmpDestinations=${rtmpDestinations.size})"
 
     companion object {
+        /** Upstream's audio bitrate picker range (`isValidAudioBitrate`). */
+        private val AUDIO_BITRATES = 32_000..320_000
+
+        /** Upstream ModelRecording: the recording's own audio bitrate; 0 ("Auto") is the default. */
+        fun recordingAudioBitrate(recording: SettingsStreamRecording?): Int {
+            val bitrate = recording?.audioBitrate ?: 0
+            if (bitrate <= 0) {
+                return SharedAudio.DEFAULT_BITRATE
+            }
+            return bitrate.coerceIn(AUDIO_BITRATES.first.toLong(), AUDIO_BITRATES.last.toLong()).toInt()
+        }
+
         /**
          * Port of upstream `Model.updateAdaptiveBitrateSrt` and `Media.srtSetAdaptiveBitrateAlgorithm`:
          * settings hold kbps (and kbps factors), the algorithms take bps.
@@ -102,6 +120,7 @@ data class StreamConfig(
                     StreamAudioCodec.AAC -> AudioEncoderFormat.AAC
                     StreamAudioCodec.OPUS -> AudioEncoderFormat.OPUS
                 },
+                audioBitrate = stream.audioBitrate.coerceIn(AUDIO_BITRATES),
             )
         }
     }

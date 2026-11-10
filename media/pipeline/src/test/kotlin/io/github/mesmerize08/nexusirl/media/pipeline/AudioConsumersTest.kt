@@ -27,28 +27,60 @@ class AudioConsumersTest {
     }
 
     /** Stands in for the MediaCodec encoders: one output sink per running format. */
-    private val running = LinkedHashMap<AudioEncoderFormat, MediaSink>()
+    private val running = LinkedHashMap<AudioEncoderKey, MediaSink>()
     private val events = ArrayList<String>()
     private var failNextStart = false
     private val consumers = AudioConsumers(
-        startEncoder = { format, sink ->
-            events += "start $format"
+        startEncoder = { key, sink ->
+            events += "start ${key.format}" + if (key.bitrate == BITRATE) "" else " ${key.bitrate}"
             if (failNextStart) {
                 failNextStart = false
                 false
             } else {
-                running[format] = sink
-                sink.setAudioConfig(format.config(48_000, 1), 48_000)
+                running[key] = sink
+                sink.setAudioConfig(key.format.config(48_000, 1), 48_000)
                 true
             }
         },
-        stopEncoder = { format ->
-            events += "stop $format"
-            running.remove(format)
+        stopEncoder = { key ->
+            events += "stop ${key.format}" + if (key.bitrate == BITRATE) "" else " ${key.bitrate}"
+            running.remove(key)
         },
     )
 
-    private fun encode(format: AudioEncoderFormat, text: String) = running.getValue(format).writeAudio(text.toByteArray(), MediaTime(0, 1))
+    private fun encode(format: AudioEncoderFormat, text: String, bitrate: Int = BITRATE) =
+        running.getValue(AudioEncoderKey(format, bitrate)).writeAudio(text.toByteArray(), MediaTime(0, 1))
+
+    private fun AudioConsumers.add(consumer: MediaSink, format: AudioEncoderFormat) = add(consumer, format, BITRATE)
+
+    @Test
+    fun aStreamAndARecordingWithDifferentBitratesGetAnEncoderEach() {
+        // Upstream's stream encoder uses the stream's audio bitrate, its recorder the recording's.
+        val stream = RecordingSink()
+        val recording = RecordingSink()
+        consumers.add(stream, AudioEncoderFormat.AAC, 160_000)
+        consumers.add(recording, AudioEncoderFormat.AAC, BITRATE)
+        assertEquals(listOf("start AAC 160000", "start AAC"), events)
+        encode(AudioEncoderFormat.AAC, "stream", 160_000)
+        encode(AudioEncoderFormat.AAC, "recording")
+        assertEquals(listOf("stream"), stream.frames)
+        assertEquals(listOf("recording"), recording.frames)
+        consumers.remove(stream)
+        assertEquals("stop AAC 160000", events.last())
+    }
+
+    @Test
+    fun consumersOfOneFormatAndBitrateShareAnEncoder() {
+        val stream = RecordingSink()
+        val recording = RecordingSink()
+        consumers.add(stream, AudioEncoderFormat.AAC, 96_000)
+        consumers.add(recording, AudioEncoderFormat.AAC, 96_000)
+        assertEquals(listOf("start AAC 96000"), events)
+        consumers.remove(stream)
+        assertEquals(1, events.size)
+        consumers.remove(recording)
+        assertEquals("stop AAC 96000", events.last())
+    }
 
     @Test
     fun anEncoderThatFailedToStartIsTriedAgainForTheNextConsumer() {
@@ -120,5 +152,9 @@ class AudioConsumersTest {
         assertEquals(960, AudioEncoderFormat.OPUS.framesPerChunk)
         assertTrue(AudioEncoderFormat.OPUS.config(48_000, 2).isOpus)
         assertEquals(2, AudioEncoderFormat.AAC.config(48_000, 2).channels)
+    }
+
+    private companion object {
+        const val BITRATE = 128_000
     }
 }

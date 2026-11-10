@@ -13,7 +13,8 @@ import io.github.mesmerize08.nexusirl.media.pipeline.Microphone
  * One microphone capture shared by everything that needs audio (the stream and the recording),
  * like upstream's single audio unit feeding all encoders. Android does not reliably allow one app
  * two concurrent microphone captures, so consumers attach here instead. Consumers of one codec
- * share its encoder: an Opus stream and a recording (always AAC, as upstream's) get one each.
+ * and bitrate share its encoder: an Opus stream and a recording (always AAC, as upstream's) get
+ * one each, and so do an AAC stream and recording with different bitrates.
  *
  * Capture runs only while at least one consumer is attached. Consumers are added and removed on
  * the capture-control thread (stopping capture waits for its threads), and microphone changes
@@ -31,19 +32,19 @@ class SharedAudio(
     }
 
     private val consumers = AudioConsumers(
-        startEncoder = { format, sink ->
+        startEncoder = { key, sink ->
             try {
                 pipeline?.run {
-                    addEncoder(format, sink)
+                    addEncoder(key, sink)
                     true
                 } ?: false
             } catch (e: Exception) {
                 // The encoder failed: stream and record without audio rather than crash.
-                android.util.Log.w("SharedAudio", "Audio encoder $format failed: $e")
+                android.util.Log.w("SharedAudio", "Audio encoder $key failed: $e")
                 false
             }
         },
-        stopEncoder = { format -> pipeline?.removeEncoder(format) },
+        stopEncoder = { key -> pipeline?.removeEncoder(key) },
     )
 
     @Volatile
@@ -72,12 +73,12 @@ class SharedAudio(
     val levelDbfs: Float
         get() = pipeline?.levelDbfs ?: -160f
 
-    /** Attaches [consumer] to a [format] encoder; recordings use AAC. */
-    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC) {
+    /** Attaches [consumer] to a [format] encoder at [bitrate] (bits/s); recordings use AAC. */
+    fun add(consumer: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC, bitrate: Int = DEFAULT_BITRATE) {
         if (pipeline == null) {
             start()
         }
-        consumers.add(consumer, format)
+        consumers.add(consumer, format, bitrate)
         if (!consumers.hasEncoder) {
             // No encoder could start: keep the microphone (and its privacy indicator) off.
             stopCapture()
@@ -118,9 +119,12 @@ class SharedAudio(
         }
     }
 
-    private companion object {
+    companion object {
+        /** Upstream's default stream and recording audio bitrate. */
+        const val DEFAULT_BITRATE = 128_000
+
         /** Shown in the status line; silence is sent instead (no permission, or busy). */
-        const val NO_MICROPHONE = "No microphone (sending silence)"
+        private const val NO_MICROPHONE = "No microphone (sending silence)"
     }
 
     private val followListener: (Microphone?) -> Unit = { selected -> control { follow(selected) } }

@@ -25,7 +25,6 @@ class AudioPipeline(
     private val sampleRate: Int = 48_000,
     /** 1 (mono) or 2 (stereo). */
     val channels: Int = 1,
-    private val bitrate: Int = 128_000,
 ) {
     private val channelMask = if (channels == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
     private var record: AudioRecord? = null
@@ -90,24 +89,24 @@ class AudioPipeline(
     }
 
     /**
-     * Starts a [format] encoder whose output goes to [sink]. An Opus encoder that cannot be
+     * Starts a [key] encoder whose output goes to [sink]. An Opus encoder that cannot be
      * created falls back to AAC, so the stream keeps its audio. Throws when AAC fails too.
      */
-    fun addEncoder(format: AudioEncoderFormat, sink: MediaSink) {
+    fun addEncoder(key: AudioEncoderKey, sink: MediaSink) {
         val encoder = try {
-            Encoder(format, sink)
+            Encoder(key.format, key.bitrate, sink)
         } catch (e: Exception) {
-            if (format == AudioEncoderFormat.AAC) {
+            if (key.format == AudioEncoderFormat.AAC) {
                 throw e
             }
-            android.util.Log.w("AudioPipeline", "No $format encoder, using AAC: $e")
-            Encoder(AudioEncoderFormat.AAC, sink, requested = format)
+            android.util.Log.w("AudioPipeline", "No ${key.format} encoder, using AAC: $e")
+            Encoder(AudioEncoderFormat.AAC, key.bitrate, sink, requested = key)
         }
         encoders.add(encoder)
     }
 
-    fun removeEncoder(format: AudioEncoderFormat) {
-        encoders.filter { it.requested == format }.forEach {
+    fun removeEncoder(key: AudioEncoderKey) {
+        encoders.filter { it.requested == key }.forEach {
             encoders.remove(it)
             it.release()
         }
@@ -222,9 +221,10 @@ class AudioPipeline(
     /** One MediaCodec encoder with its output thread, fed from the capture thread. */
     private inner class Encoder(
         val format: AudioEncoderFormat,
+        bitrate: Int,
         private val sink: MediaSink,
         /** What the consumers asked for ([format] differs after a fallback to AAC). */
-        val requested: AudioEncoderFormat = format,
+        val requested: AudioEncoderKey = AudioEncoderKey(format, bitrate),
     ) {
         private val rechunker = PcmRechunker(channels, format.framesPerChunk, sampleRate)
         private val codec: MediaCodec

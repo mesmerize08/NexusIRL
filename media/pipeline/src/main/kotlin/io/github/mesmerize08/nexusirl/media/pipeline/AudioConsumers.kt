@@ -18,20 +18,25 @@ enum class AudioEncoderFormat(val mimeType: String, val framesPerChunk: Int) {
     }
 }
 
+/** What one encoder produces; consumers asking for the same key share it. */
+data class AudioEncoderKey(val format: AudioEncoderFormat, val bitrate: Int)
+
 /**
- * Which audio encoders the consumers of one capture need: one per format, shared by every
- * consumer of that format. Upstream streams Opus while its recorder (AVAssetWriter) encodes AAC
- * from the same samples; here a recording next to an Opus stream gets a second, AAC encoder.
+ * Which audio encoders the consumers of one capture need: one per format and bitrate, shared by
+ * every consumer asking for that. Upstream streams Opus while its recorder (AVAssetWriter) encodes
+ * AAC from the same samples, each at its own bitrate (`SettingsStream.audioBitrate`,
+ * `SettingsStreamRecording.audioBitrate`); here a recording next to the stream gets a second
+ * encoder unless both want the same format and bitrate.
  *
  * Not thread safe; SharedAudio calls it from the capture-control thread.
  */
 class AudioConsumers(
-    /** Returns false when the encoder could not start: that format is tried again next time. */
-    private val startEncoder: (AudioEncoderFormat, MediaSink) -> Boolean,
-    private val stopEncoder: (AudioEncoderFormat) -> Unit,
+    /** Returns false when the encoder could not start: that key is tried again next time. */
+    private val startEncoder: (AudioEncoderKey, MediaSink) -> Boolean,
+    private val stopEncoder: (AudioEncoderKey) -> Unit,
 ) {
-    private val fanOuts = mutableMapOf<AudioEncoderFormat, FanOutSink>()
-    private val consumers = mutableMapOf<MediaSink, AudioEncoderFormat>()
+    private val fanOuts = mutableMapOf<AudioEncoderKey, FanOutSink>()
+    private val consumers = mutableMapOf<MediaSink, AudioEncoderKey>()
 
     val isEmpty: Boolean
         get() = consumers.isEmpty()
@@ -40,19 +45,20 @@ class AudioConsumers(
     val hasEncoder: Boolean
         get() = fanOuts.isNotEmpty()
 
-    fun add(consumer: MediaSink, format: AudioEncoderFormat) {
+    fun add(consumer: MediaSink, format: AudioEncoderFormat, bitrate: Int) {
         remove(consumer)
-        val fanOut = fanOuts[format] ?: FanOutSink().takeIf { startEncoder(format, it) }?.also { fanOuts[format] = it }
+        val key = AudioEncoderKey(format, bitrate)
+        val fanOut = fanOuts[key] ?: FanOutSink().takeIf { startEncoder(key, it) }?.also { fanOuts[key] = it }
         // The current audio format is replayed to the new consumer.
         fanOut?.add(consumer)
-        consumers[consumer] = format
+        consumers[consumer] = key
     }
 
     fun remove(consumer: MediaSink) {
-        val format = consumers.remove(consumer) ?: return
-        fanOuts[format]?.remove(consumer)
-        if (format !in consumers.values && fanOuts.remove(format) != null) {
-            stopEncoder(format)
+        val key = consumers.remove(consumer) ?: return
+        fanOuts[key]?.remove(consumer)
+        if (key !in consumers.values && fanOuts.remove(key) != null) {
+            stopEncoder(key)
         }
     }
 }

@@ -571,6 +571,7 @@ object StreamController {
             // Like upstream's AVAssetWriter recordings: better quality for the same file size.
             bFrames = true,
         )
+        val audioBitrate = StreamConfig.recordingAudioBitrate(recording)
         val name = "NexusIRL_${SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())}.mp4"
         val audio = audio(context)
         val active = ActiveRecording()
@@ -579,7 +580,7 @@ object StreamController {
         updateForegroundService(context)
         val appContext = context.applicationContext
         captureControl.run({
-            active.file = openRecording(appContext, name, video, encoderSettings, audio)
+            active.file = openRecording(appContext, name, video, encoderSettings, audio, audioBitrate)
             active.file != null
         }) { started ->
             if (!started) {
@@ -601,6 +602,7 @@ object StreamController {
         video: VideoPipeline,
         encoderSettings: VideoEncoderSettings,
         audio: SharedAudio,
+        audioBitrate: Int,
     ): RecordingFile? {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
@@ -632,7 +634,7 @@ object StreamController {
             resolver.delete(uri, null, null)
             return null
         }
-        audio.add(recorder)
+        audio.add(recorder, bitrate = audioBitrate)
         return RecordingFile(uri, descriptor, recorder, video, encoder, audio)
     }
 
