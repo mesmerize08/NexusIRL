@@ -64,15 +64,27 @@ class PcmRechunkerTest {
 
     private fun nanos(frames: Long) = frames * 1_000_000_000L / 48_000
 
-    /** Feeds 1024-frame reads like the capture loop; returns every chunk's samples and time. */
-    private fun feed(rechunker: PcmRechunker, reads: List<Pair<Long, Int>>): List<Chunk> = reads.flatMap { (pts, first) ->
-        collect(rechunker, ShortArray(1024) { (first + it).toShort() }, 1024, pts)
+    /** One 1024-frame capture read: its time, its first sample's value, and whether capture re-anchored. */
+    private class Read(val ptsNanos: Long, val first: Int, val resync: Boolean = false)
+
+    /** Feeds reads like the capture loop; returns every chunk's samples and time. */
+    private fun feed(rechunker: PcmRechunker, reads: List<Read>): List<Chunk> = reads.flatMap { read ->
+        val chunks = ArrayList<Chunk>()
+        val pcm = ShortArray(1024) { (read.first + it).toShort() }
+        rechunker.append(pcm, 1024, read.ptsNanos, read.resync) { samples, pts -> chunks += Chunk(samples.copyOf(), pts) }
+        chunks
+    }
+
+    private fun assertMonotonic(chunks: List<Chunk>) {
+        val times = chunks.map { it.ptsNanos }
+        // Each chunk starts no earlier than the previous one ends: no overlap, nothing backwards.
+        times.zipWithNext().forEach { (a, b) -> assertTrue(b >= a + nanos(960) - 1_000, "$times") }
     }
 
     @Test
     fun continuousInputKeepsEvenlySpacedChunks() {
         val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
-        val chunks = feed(rechunker, (0 until 15).map { nanos(it * 1024L) to it * 1024 })
+        val chunks = feed(rechunker, (0 until 15).map { Read(nanos(it * 1024L), it * 1024) })
         assertEquals(16, chunks.size)
         // Within a microsecond: times are whole nanoseconds, so a 1 ns rounding step is expected.
         chunks.forEachIndexed { index, chunk -> assertNear(nanos(index * 960L), chunk.ptsNanos) }
@@ -80,11 +92,19 @@ class PcmRechunkerTest {
     }
 
     @Test
+    fun withoutAResyncSignalTheRechunkerDoesNotGuess() {
+        // Only the capture loop knows when its times re-anchored; small irregularities pass through.
+        val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
+        val chunks = feed(rechunker, listOf(Read(0, 0), Read(nanos(1024) + 15_000_000, 1024)))
+        assertEquals(listOf(0L, nanos(960)), chunks.map { it.ptsNanos })
+    }
+
+    @Test
     fun aForwardResyncMidChunkStartsTheChunkOnTheNewTimeline() {
         // The capture loop re-anchors (e.g. after a device change) 50 ms later than counted.
         val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
         val jump = 50_000_000L
-        val chunks = feed(rechunker, listOf(0L to 0, nanos(1024) + jump to 1024, nanos(2048) + jump to 2048))
+        val chunks = feed(rechunker, listOf(Read(0, 0), Read(nanos(1024) + jump, 1024, resync = true), Read(nanos(2048) + jump, 2048)))
         // The 64 frames left from before the jump are dropped rather than stamped on the old timeline.
         assertEquals(3, chunks.size, "${chunks.map { it.ptsNanos }}")
         assertEquals(0L, chunks[0].ptsNanos)
@@ -94,20 +114,34 @@ class PcmRechunkerTest {
     }
 
     @Test
-    fun aBackwardResyncMidChunkNeverGoesBackInTime() {
+    fun aSmallBackwardResyncSkipsLessThanAChunkAndStaysOnTheNewTimeline() {
         val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
-        val jump = -30_000_000L
-        val reads = (0 until 6).map { if (it == 0) 0L to 0 else nanos(it * 1024L) + jump to it * 1024 }
+        val jump = -10_000_000L
+        val reads = (0 until 6).map { if (it == 0) Read(0, 0) else Read(nanos(it * 1024L) + jump, it * 1024, resync = it == 1) }
         val chunks = feed(rechunker, reads)
-        val times = chunks.map { it.ptsNanos }
-        // Each chunk starts no earlier than the previous one ends: no overlap, nothing backwards.
-        times.zipWithNext().forEach { (a, b) -> assertTrue(b >= a + nanos(960) - 1_000, "$times") }
-        // After the jump, chunks are on the new timeline: a sample's time is its read's time plus its offset.
-        val after = chunks.drop(1)
-        assertTrue(after.isNotEmpty())
-        after.forEach { chunk ->
-            val sample = chunk.samples[0].toLong()
-            assertNear(nanos(sample) + jump, chunk.ptsNanos)
+        assertMonotonic(chunks)
+        // The chunk after the jump starts at the first new-timeline frame after the previous chunk's end.
+        assertTrue(chunks[1].ptsNanos in nanos(960)..nanos(961), "${chunks[1].ptsNanos}")
+        chunks.drop(1).forEach { chunk -> assertNear(nanos(chunk.samples[0].toLong()) + jump, chunk.ptsNanos) }
+        // At most one chunk of audio is lost: 5 reads after the first.
+        assertTrue(chunks.size >= (6 * 1024) / 960 - 1, "${chunks.size}")
+    }
+
+    @Test
+    fun oneBadStampSecondsAheadAndBackSilencesAtMostAChunk() {
+        // The capture loop briefly re-anchors 5 s ahead, then back to the real clock.
+        val rechunker = PcmRechunker(channels = 1, framesPerChunk = 960, sampleRate = 48_000)
+        val ahead = 5_000_000_000L
+        val reads = (0 until 50).map {
+            when (it) {
+                1 -> Read(nanos(1024) + ahead, 1024, resync = true)
+                2 -> Read(nanos(2048), 2048, resync = true)
+                else -> Read(nanos(it * 1024L), it * 1024)
+            }
         }
+        val chunks = feed(rechunker, reads)
+        assertMonotonic(chunks)
+        // Audio keeps flowing: no more than a chunk or two (the partial chunks dropped at each resync) is lost.
+        assertTrue(chunks.size >= 50 * 1024 / 960 - 2, "${chunks.size} chunks")
     }
 }

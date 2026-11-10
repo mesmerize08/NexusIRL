@@ -131,10 +131,7 @@ class AudioPipeline(
         val pcm = ShortArray(chunkFrames * channels)
         val timestamp = AudioTimestamp()
         var framesRead = 0L
-        // Times come from the sample count, like upstream, so frames are evenly spaced; Android's
-        // per-read timestamps jitter by several milliseconds.
-        var anchorNanos: Long? = null
-        var anchorFrames = 0L
+        val timeline = CaptureTimeline(sampleRate)
         var windowStart = System.nanoTime()
         var windowFrames = 0L
         while (running) {
@@ -148,16 +145,8 @@ class AudioPipeline(
                 continue
             }
             val frames = read / channels
-            val measured = presentationTimeNanos(record, timestamp, framesRead)
-            val counted = anchorNanos?.let { it + (framesRead - anchorFrames) * 1_000_000_000L / sampleRate }
-            val pts = if (counted == null || abs(measured - counted) > RESYNC_NANOS) {
-                // First read, or the count drifted from the clock (e.g. after a device change).
-                anchorNanos = measured
-                anchorFrames = framesRead
-                measured
-            } else {
-                counted
-            }
+            val pts = timeline.next(presentationTimeNanos(record, timestamp, framesRead), frames)
+            val resync = timeline.resync
             framesRead += frames
             windowFrames += frames
             val now = System.nanoTime()
@@ -171,13 +160,8 @@ class AudioPipeline(
                 windowFrames = 0
             }
             applyGainAndMeasure(pcm, read)
-            encoders.forEach { it.feed(pcm, read, pts) }
+            encoders.forEach { it.feed(pcm, read, pts, resync) }
         }
-    }
-
-    private companion object {
-        /** Re-anchor sample-counted times when they are this far from the measured clock. */
-        const val RESYNC_NANOS = 20_000_000L
     }
 
     /** Silence in real time on the host clock, for when there is no microphone. */
@@ -273,13 +257,13 @@ class AudioPipeline(
         }
 
         /** Capture thread. The lock keeps [release] from freeing buffers being filled. */
-        fun feed(pcm: ShortArray, count: Int, ptsNanos: Long) {
+        fun feed(pcm: ShortArray, count: Int, ptsNanos: Long, resync: Boolean = false) {
             synchronized(this) {
                 if (released) {
                     return
                 }
                 try {
-                    rechunker.append(pcm, count, ptsNanos) { chunk, pts -> queue(chunk, pts) }
+                    rechunker.append(pcm, count, ptsNanos, resync) { chunk, pts -> queue(chunk, pts) }
                 } catch (e: IllegalStateException) {
                     // The codec failed; it is released with the pipeline.
                 }
