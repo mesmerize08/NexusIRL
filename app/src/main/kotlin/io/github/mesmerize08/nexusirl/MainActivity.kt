@@ -78,6 +78,7 @@ import io.github.mesmerize08.nexusirl.ui.CameraPreview
 import io.github.mesmerize08.nexusirl.ui.ChatControls
 import io.github.mesmerize08.nexusirl.ui.ChatOverlay
 import io.github.mesmerize08.nexusirl.ui.ChatSettingsScreen
+import io.github.mesmerize08.nexusirl.ui.ConnectionPrioritiesScreen
 import io.github.mesmerize08.nexusirl.ui.ImportExportScreen
 import io.github.mesmerize08.nexusirl.ui.LiveStatusBar
 import io.github.mesmerize08.nexusirl.ui.LocationScreen
@@ -310,6 +311,8 @@ private sealed interface Screen {
     data object RemoteAssistant : Screen
 
     data object Obs : Screen
+
+    data class ConnectionPriorities(val streamId: UUID) : Screen
 }
 
 @Composable
@@ -419,9 +422,11 @@ private fun App(pendingLink: MutableStateFlow<String?>) {
             onMoblink = { screen = Screen.Moblink },
             onRemoteAssistant = { screen = Screen.RemoteAssistant },
             onObs = { screen = Screen.Obs },
+            onConnectionPriorities = { store.current.selectedStream?.let { screen = Screen.ConnectionPriorities(it.id) } },
         )
         Screen.RemoteAssistant -> RemoteAssistantScreen(store, onBack = { screen = Screen.Main })
         Screen.Moblink -> MoblinkScreen(store, onBack = { screen = Screen.Main })
+        is Screen.ConnectionPriorities -> ConnectionPrioritiesScreen(store, current.streamId, onBack = { screen = Screen.Main })
         Screen.Obs -> ObsScreen(store, onEditStream = { screen = Screen.EditStream(it) }, onBack = { screen = Screen.Main })
         Screen.RemoteControl -> RemoteControlScreen(store, onBack = { screen = Screen.Main })
         Screen.Location -> LocationScreen(store, onBack = { screen = Screen.Main })
@@ -471,6 +476,7 @@ private fun MainScreen(
     onMoblink: () -> Unit,
     onRemoteAssistant: () -> Unit,
     onObs: () -> Unit,
+    onConnectionPriorities: () -> Unit,
 ) {
     val context = LocalContext.current
     val store = remember { StreamController.settings(context) }
@@ -554,7 +560,14 @@ private fun MainScreen(
             OutlinedButton(onClick = onScenes, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.scenes), maxLines = 1) }
         }
         ScenePicker(store)
-        QuickButtonBar(store, onWidgets = onWidgets, onLuts = onLuts, onObs = onObs, onEdit = onQuickButtons)
+        QuickButtonBar(
+            store,
+            onWidgets = onWidgets,
+            onLuts = onLuts,
+            onObs = onObs,
+            onConnectionPriorities = onConnectionPriorities,
+            onEdit = onQuickButtons,
+        )
         ChatControls(store, onSettings = onChat)
         if (status.encoder.isNotEmpty()) {
             Text("Encoder ${status.encoder}", style = MaterialTheme.typography.bodySmall)

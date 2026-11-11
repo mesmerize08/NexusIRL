@@ -119,6 +119,12 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
     val urlValid = StreamUrlSecrets.isValid(url)
     val scheme = url.substringBefore("://", "").lowercase()
     val isSrt = scheme == "srt" || scheme == "srtla"
+    // Shown in place of the editor, so the unsaved edits stay.
+    var showConnectionPriorities by remember(streamId) { mutableStateOf(false) }
+    if (showConnectionPriorities && original != null) {
+        ConnectionPrioritiesScreen(store, original.id, onBack = { showConnectionPriorities = false }, url = url)
+        return
+    }
 
     Page(
         title = stringResource(if (original == null) R.string.add_stream else R.string.edit_stream),
@@ -143,6 +149,8 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                         twitchLoggedIn = account?.twitchLoggedIn ?: false,
                         kickAccessToken = account?.kickAccessToken.orEmpty(),
                         kickLoggedIn = account?.kickLoggedIn ?: false,
+                        // Saved by the connection priorities screen (and remote control, Moblink) directly.
+                        srt = stream.srt.copy(connectionPriorities = account?.srt?.connectionPriorities ?: stream.srt.connectionPriorities),
                     )
                     store.update { if (original == null) it.addStream(edited) else it.updateStream(edited) }
                     onDone()
@@ -247,6 +255,11 @@ fun StreamEditorScreen(store: SettingsStore, streamId: UUID?, onDone: () -> Unit
                 ChoiceField(stringResource(R.string.algorithm), stream.srt.adaptiveBitrate.algorithm, ALGORITHMS, ::algorithmName, {
                     stream = stream.copy(srt = stream.srt.copy(adaptiveBitrate = stream.srt.adaptiveBitrate.copy(algorithm = it)))
                 })
+            }
+            if (original == null) {
+                Text(stringResource(R.string.connection_priorities_save_first), style = MaterialTheme.typography.bodySmall)
+            } else {
+                OutlinedButton(onClick = { showConnectionPriorities = true }) { Text(stringResource(R.string.connection_priorities)) }
             }
         }
         ObsSettingsSection(stream, obsUrl, obsPassword, { stream = it }, { obsUrl = it }, { obsPassword = it })

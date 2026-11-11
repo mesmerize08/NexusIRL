@@ -122,6 +122,29 @@ data class Database(
 
     fun updateStream(stream: SettingsStream): Database = copy(streams = streams.map { if (it.id == stream.id) stream else it })
 
+    /** Changes stream [id]'s SRTLA connection priorities; the same database when nothing changes. */
+    fun updateConnectionPriorities(
+        id: java.util.UUID,
+        transform: (SettingsStreamSrtConnectionPriorities) -> SettingsStreamSrtConnectionPriorities,
+    ): Database {
+        val stream = streams.firstOrNull { it.id == id } ?: return this
+        val priorities = transform(stream.srt.connectionPriorities)
+        if (priorities == stream.srt.connectionPriorities) {
+            return this
+        }
+        return updateStream(stream.copy(srt = stream.srt.copy(connectionPriorities = priorities)))
+    }
+
+    /** Upstream `handleIpStatusUpdate`: every stream gets an entry for a wired interface. */
+    fun withWiredInterface(name: String): Database {
+        if (streams.all { stream -> stream.srt.connectionPriorities.priorities.any { it.name == name } }) {
+            return this
+        }
+        return copy(
+            streams = streams.map { it.copy(srt = it.srt.copy(connectionPriorities = it.srt.connectionPriorities.withInterface(name))) },
+        )
+    }
+
     fun addStream(stream: SettingsStream): Database {
         val added = copy(streams = streams + stream)
         return if (streams.isEmpty()) added.selectStream(stream.id) else added

@@ -80,12 +80,14 @@ object MoblinkStreamerController {
             config.port,
             password,
             object : MoblinkStreamerListener {
+                // On the main thread, where the relay's priority entry is saved; removals follow
+                // the same way so they cannot overtake an add.
                 override fun tunnelAdded(tunnel: MoblinkTunnel) {
-                    StreamController.session?.addMoblink(tunnel)
+                    handler.post { StreamController.moblinkTunnelAdded(context, tunnel) }
                 }
 
                 override fun tunnelRemoved(tunnel: MoblinkTunnel) {
-                    StreamController.session?.removeMoblink(tunnel)
+                    handler.post { StreamController.session?.removeMoblink(tunnel) }
                 }
 
                 override fun relaysChanged() {

@@ -419,4 +419,9 @@
     <string name="obs_configure_source_name">Configure the source name in the stream\'s OBS remote control settings for the Fix button and more.</string>
     <string name="obs_muted">Muted</string>
     <string name="obs_unmuted">Unmuted</string>
+    <string name="connection_priorities">Connection priorities</string>
+    <string name="connection_priorities_not_supported">Connection priorities are not supported by %1$s. Only SRTLA supports connection priorities.</string>
+    <string name="connection_priorities_help">A connection with high priority will be used more than a connection with low priority if the high priority connection is stable. Unstable connections will get lowest priority regardless of configured priority until they are stable again.</string>
+    <string name="connection_priorities_disabled_help">Disabled connections will not be used.</string>
+    <string name="connection_priorities_save_first">Save the stream to set its connection priorities.</string>
 </resources>

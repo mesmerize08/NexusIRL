@@ -4,6 +4,9 @@ import io.github.mesmerize08.nexusirl.media.pipeline.AudioEncoderFormat
 import io.github.mesmerize08.nexusirl.settings.Database
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.ConnectionPriorities
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.ConnectionPriority
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -118,5 +121,35 @@ class StreamConfigTest {
         )
         assertEquals(1, config.rtmpDestinations.size)
         assertFalse("fakekey" in config.toString(), config.toString())
+    }
+
+    @Test
+    fun connectionPrioritiesComeFromTheStream() {
+        // Upstream passes stream.srt.connectionPriorities to the SRTLA client.
+        val relayId = "8C7D4E5F-1A2B-4C3D-9E8F-7A6B5C4D3E2F"
+        val config = StreamConfig.from(
+            stream(
+                """{"srt":{"connectionPriorities":{"enabled":true,"priorities":[""" +
+                    """{"name":"Cellular","priority":3,"enabled":true},""" +
+                    """{"name":"WiFi","priority":1,"enabled":false},""" +
+                    """{"name":"Pixel","priority":9,"enabled":true,"relayId":"$relayId"}]}}}""",
+            ),
+            "srtla://h:5000",
+        )
+        assertEquals(
+            ConnectionPriorities(
+                true,
+                listOf(
+                    ConnectionPriority("Cellular", 3, true),
+                    ConnectionPriority("WiFi", 1, false),
+                    ConnectionPriority("Pixel", 9, true, UUID.fromString(relayId)),
+                ),
+            ),
+            config.connectionPriorities,
+        )
+        assertEquals(
+            ConnectionPriorities(false, listOf("Cellular", "WiFi").map { ConnectionPriority(it, 1, true) }),
+            StreamConfig.from(stream("{}"), "srtla://h").connectionPriorities,
+        )
     }
 }

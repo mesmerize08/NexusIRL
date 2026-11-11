@@ -29,6 +29,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import io.github.mesmerize08.nexusirl.moblink.MoblinkController
 import io.github.mesmerize08.nexusirl.moblink.MoblinkStreamerController
+import io.github.mesmerize08.nexusirl.moblink.MoblinkTunnel
 import io.github.mesmerize08.nexusirl.obs.ObsController
 import io.github.mesmerize08.nexusirl.scene.BrowserWidgets
 import io.github.mesmerize08.nexusirl.scene.LutLoader
@@ -44,11 +45,14 @@ import io.github.mesmerize08.nexusirl.settings.SettingsColorLut
 import io.github.mesmerize08.nexusirl.settings.SettingsScene
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
+import io.github.mesmerize08.nexusirl.settings.SettingsStreamSrtConnectionPriorities
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamUrlSecrets
 import io.github.mesmerize08.nexusirl.settings.VideoStabilizationMode
 import io.github.mesmerize08.nexusirl.settings.WidgetType
 import io.github.mesmerize08.nexusirl.settings.addMissingQuickButtons
+import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
+import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -204,6 +208,50 @@ object StreamController {
             database.updateStream(stream.copy(bitrate = bitrate))
         }
         session?.setBitrate(bitrate)
+    }
+
+    /**
+     * Saves stream [streamId]'s SRTLA connection priorities and, when it is the live stream, applies
+     * them now (upstream: edit `stream.srt.connectionPriorities`, then `updateSrtlaPriorities`).
+     */
+    fun updateConnectionPriorities(
+        context: Context,
+        streamId: UUID,
+        transform: (SettingsStreamSrtConnectionPriorities) -> SettingsStreamSrtConnectionPriorities,
+    ) {
+        val store = settings(context)
+        store.update { it.updateConnectionPriorities(streamId, transform) }
+        applyConnectionPriorities(store)
+    }
+
+    /** Upstream `updateSrtlaPriorities`: the live stream's saved priorities to the SRTLA client. */
+    private fun applyConnectionPriorities(store: SettingsStore) {
+        val liveId = liveStream?.id ?: return
+        val stream = store.current.streams.firstOrNull { it.id == liveId } ?: return
+        session?.setConnectionPriorities(stream.srt.connectionPriorities.toTransport())
+    }
+
+    /**
+     * Upstream `moblinkStreamerTunnelAdded`: the relay gets (or renames) its priority entry in the
+     * live stream, then becomes an SRTLA path. Main thread.
+     */
+    fun moblinkTunnelAdded(context: Context, tunnel: MoblinkTunnel) {
+        val session = session ?: return
+        (liveStream?.id ?: settings(context).current.selectedStream?.id)?.let { id ->
+            updateConnectionPriorities(context, id) { it.withRelay(tunnel.relayId, tunnel.relayName) }
+        }
+        session.addMoblink(tunnel)
+    }
+
+    /** Upstream `handleIpStatusUpdate`: wired interfaces get a priority entry in every stream. Main thread. */
+    private fun bondingInterfacesChanged(context: Context, interfaces: List<BondingInterface>) {
+        val names = interfaces.filter { it.type == InterfaceType.WIRED_ETHERNET }.map { it.name }
+        if (names.isEmpty()) {
+            return
+        }
+        val store = settings(context)
+        store.update { database -> names.fold(database) { current, name -> current.withWiredInterface(name) } }
+        applyConnectionPriorities(store)
     }
 
     fun isQuickButtonOn(context: Context, type: QuickButtonType): Boolean =
@@ -457,6 +505,10 @@ object StreamController {
             audio(context),
             onStatus = { publishStatus(newSession, it) },
             onMessage = ChatController::showToast,
+            onBondingInterfaces = { interfaces ->
+                val appContext = context.applicationContext
+                mainHandler.post { bondingInterfacesChanged(appContext, interfaces) }
+            },
         )
         synchronized(statusLock) {
             session = newSession
@@ -474,7 +526,7 @@ object StreamController {
         })
         LocationController.onGoLive()
         // The stream that went live, not whichever is selected when it ends.
-        liveObsStream = obsStream
+        liveStream = obsStream
         obsStream?.let(ObsController::onGoLive)
         // Upstream starts looking up the YouTube live video when going live.
         ChatController.fetchYouTubeVideoId()
@@ -497,8 +549,8 @@ object StreamController {
         // stopping session must not start them again before its stop runs.
         stopping?.ending()
         if (stopping != null) {
-            liveObsStream?.let(ObsController::onStop)
-            liveObsStream = null
+            liveStream?.let(ObsController::onStop)
+            liveStream = null
         }
         MoblinkStreamerController.stopTunnels()
         val appContext = context.applicationContext
@@ -507,8 +559,11 @@ object StreamController {
 
     private val statusLock = Any()
 
-    /** The stream settings of the live stream, for OBS auto stop. Main thread. */
-    private var liveObsStream: SettingsStream? = null
+    /**
+     * The stream settings of the live stream as they were when going live, for OBS auto stop and
+     * connection priorities; null for a debug URL. Main thread.
+     */
+    private var liveStream: SettingsStream? = null
 
     /**
      * Whether [canvas] needs a new pipeline while queued work (a stop, a recording being finished)

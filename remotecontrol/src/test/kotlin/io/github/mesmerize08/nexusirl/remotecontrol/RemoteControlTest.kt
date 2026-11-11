@@ -145,6 +145,52 @@ class RemoteControlTest {
         assertEquals(status, SwiftJson.decodeFromString(RemoteControlMessageToAssistant.Serializer, status.toJson()))
     }
 
+    @Test
+    fun srtConnectionPriorities() {
+        // Upstream RemoteControlRequest.setSrtConnectionPriority / setSrtConnectionPrioritiesEnabled,
+        // as the assistant and the web remote control (js/utils.mjs) send them.
+        val id = UUID.fromString("0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11")
+        assertEquals(
+            RemoteControlMessageToStreamer.Request(5, RemoteControlRequest.SetSrtConnectionPriority(id, 7, false)),
+            toStreamer(
+                """{"request":{"id":5,"data":{"setSrtConnectionPriority":{"id":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11","priority":7,"enabled":false}}}}""",
+            ),
+        )
+        assertEquals(
+            RemoteControlMessageToStreamer.Request(6, RemoteControlRequest.SetSrtConnectionPrioritiesEnabled(true)),
+            toStreamer("""{"request":{"id":6,"data":{"setSrtConnectionPrioritiesEnabled":{"enabled":true}}}}"""),
+        )
+        // Both run on the delegate and are answered with an empty ok.
+        val calls = mutableListOf<String>()
+        val delegate = object : RemoteControlStreamerDelegate {
+            override fun getStatus() =
+                RemoteControlResponse.GetStatus(RemoteControlStatusGeneral(), RemoteControlStatusTopLeft(), RemoteControlStatusTopRight())
+
+            override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
+
+            override fun setSrtConnectionPriority(id: UUID, priority: Int, enabled: Boolean) {
+                calls += "priority $id $priority $enabled"
+            }
+
+            override fun setSrtConnectionPrioritiesEnabled(enabled: Boolean) {
+                calls += "enabled $enabled"
+            }
+        }
+        assertEquals(RemoteControlResult.OK to null, delegate.handle(RemoteControlRequest.SetSrtConnectionPriority(id, 7, false)))
+        assertEquals(RemoteControlResult.OK to null, delegate.handle(RemoteControlRequest.SetSrtConnectionPrioritiesEnabled(true)))
+        assertEquals(listOf("priority $id 7 false", "enabled true"), calls)
+        // getSettings carries the current stream's priorities (upstream RemoteControlSettingsSrt).
+        val settings = RemoteControlSettings(
+            streams = emptyList(),
+            scenes = emptyList(),
+            srt = RemoteControlSettingsSrt(true, listOf(RemoteControlSettingsSrtConnectionPriority(id, "Cellular", 3, true))),
+        )
+        assertEquals(
+            """{"streams":[],"scenes":[],"bitratePresets":[],"mics":[],"srt":{"connectionPrioritiesEnabled":true,"connectionPriorities":[{"id":"0B3B5C3E-6D5A-4D47-9D7B-6B7C1D8F2A11","name":"Cellular","priority":3,"enabled":true}]}}""",
+            SwiftJson.encodeToString(RemoteControlSettings.serializer(), settings),
+        )
+    }
+
     /** Protocol additions upstream made after 97e26d2. */
     @Test
     fun newerUpstreamMessages() {

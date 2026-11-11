@@ -5,14 +5,21 @@ import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoRateControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.settings.SettingsStreamRecording
+import io.github.mesmerize08.nexusirl.settings.SettingsStreamSrtConnectionPriorities
 import io.github.mesmerize08.nexusirl.settings.SrtAdaptiveBitrateAlgorithm
 import io.github.mesmerize08.nexusirl.settings.StreamAudioCodec
 import io.github.mesmerize08.nexusirl.settings.StreamCodec
 import io.github.mesmerize08.nexusirl.settings.StreamRateControl
 import io.github.mesmerize08.nexusirl.transport.abr.AdaptiveBitrateSettings
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.ConnectionPriorities
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.ConnectionPriority
 
 /** Which SRT adaptive bitrate algorithm to run, with its tunables (upstream Media/Model). */
 data class SrtAdaptiveBitrateChoice(val belabox: Boolean, val settings: AdaptiveBitrateSettings)
+
+/** What the SRTLA client takes from the stream's connection priorities (upstream passes the settings themselves). */
+fun SettingsStreamSrtConnectionPriorities.toTransport(): ConnectionPriorities =
+    ConnectionPriorities(enabled, priorities.map { ConnectionPriority(it.name, it.priority, it.enabled, it.relayId) })
 
 /** An extra RTMP destination (upstream multi streaming). [url] includes the stream key: memory only. */
 data class RtmpDestination(val name: String, val url: String) {
@@ -41,6 +48,8 @@ data class StreamConfig(
      * while live; Android's audio encoders cannot change bitrate mid-stream, so it applies at go-live.
      */
     val audioBitrate: Int = SharedAudio.DEFAULT_BITRATE,
+    /** SRTLA path priorities when going live; changes while live are applied by the session. */
+    val connectionPriorities: ConnectionPriorities = ConnectionPriorities(),
 ) {
     /**
      * What to tell the streamer about the audio encoder actually running ([encoded], null when
@@ -132,6 +141,7 @@ data class StreamConfig(
                     StreamAudioCodec.OPUS -> AudioEncoderFormat.OPUS
                 },
                 audioBitrate = stream.audioBitrate.coerceIn(AUDIO_BITRATES),
+                connectionPriorities = srt.connectionPriorities.toTransport(),
             )
         }
     }

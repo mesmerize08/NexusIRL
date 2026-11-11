@@ -167,6 +167,87 @@ data class SrtAdaptiveBitrate(
     object Serializer : SwiftPreservingSerializer<SrtAdaptiveBitrate>(generatedSerializer())
 }
 
+/** Upstream `minimumSrtConnectionPriority` and `maximumSrtConnectionPriority`. */
+const val MINIMUM_SRT_CONNECTION_PRIORITY = 1
+const val MAXIMUM_SRT_CONNECTION_PRIORITY = 10
+
+/** Upstream `clampConnectionPriority`. */
+fun clampConnectionPriority(value: Int): Int = value.coerceIn(MINIMUM_SRT_CONNECTION_PRIORITY, MAXIMUM_SRT_CONNECTION_PRIORITY)
+
+/** The entries every stream has; upstream does not let them be deleted. */
+private val BUILT_IN_CONNECTION_PRIORITY_NAMES = listOf("Cellular", "WiFi")
+
+/**
+ * Upstream `SettingsStreamSrtConnectionPriority`: one SRTLA path's priority. [name] is the bonding
+ * interface's name ("Cellular", "WiFi", or the system name of a wired interface) or, with
+ * [relayId], a Moblink relay's name.
+ */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsStreamSrtConnectionPriority.Serializer::class)
+data class SettingsStreamSrtConnectionPriority(
+    val id: SUuid = UUID.randomUUID(),
+    val name: String = "",
+    val priority: Int = 1,
+    val enabled: Boolean = true,
+    val relayId: SUuid? = null,
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    /** Upstream's list disables deleting Cellular and WiFi. */
+    val canDelete: Boolean
+        get() = name !in BUILT_IN_CONNECTION_PRIORITY_NAMES
+
+    object Serializer : SwiftPreservingSerializer<SettingsStreamSrtConnectionPriority>(generatedSerializer())
+}
+
+/** Upstream `SettingsStreamSrtConnectionPriorities`. */
+@KeepGeneratedSerializer
+@Serializable(with = SettingsStreamSrtConnectionPriorities.Serializer::class)
+data class SettingsStreamSrtConnectionPriorities(
+    val enabled: Boolean = false,
+    val priorities: List<SettingsStreamSrtConnectionPriority> = BUILT_IN_CONNECTION_PRIORITY_NAMES.map {
+        SettingsStreamSrtConnectionPriority(name = it)
+    },
+    @Transient override var extra: JsonObject = EMPTY,
+) : SwiftPreserving {
+    /** Upstream `moblinkStreamerTunnelAdded`: renames the relay's entry, or adds one. */
+    fun withRelay(relayId: UUID, relayName: String): SettingsStreamSrtConnectionPriorities {
+        val existing = priorities.firstOrNull { it.relayId == relayId }
+        return when {
+            existing == null -> copy(priorities = priorities + SettingsStreamSrtConnectionPriority(name = relayName, relayId = relayId))
+            existing.name == relayName -> this
+            else -> copy(priorities = priorities.map { if (it === existing) it.copy(name = relayName) else it })
+        }
+    }
+
+    /** Upstream `handleIpStatusUpdate`: a wired interface gets an entry named after it. */
+    fun withInterface(name: String): SettingsStreamSrtConnectionPriorities = if (priorities.any { it.name == name }) {
+        this
+    } else {
+        copy(priorities = priorities + SettingsStreamSrtConnectionPriority(name = name))
+    }
+
+    /** Upstream `remoteControlStreamerSetSrtConnectionPriority`: unknown ids change nothing. */
+    fun withPriority(id: UUID, priority: Int, enabled: Boolean): SettingsStreamSrtConnectionPriorities {
+        if (priorities.none { it.id == id }) {
+            return this
+        }
+        return copy(
+            priorities = priorities.map {
+                if (it.id == id) it.copy(priority = clampConnectionPriority(priority), enabled = enabled) else it
+            },
+        )
+    }
+
+    /** Removes an entry; Cellular and WiFi stay. */
+    fun without(id: UUID): SettingsStreamSrtConnectionPriorities = if (priorities.any { it.id == id && it.canDelete }) {
+        copy(priorities = priorities.filterNot { it.id == id })
+    } else {
+        this
+    }
+
+    object Serializer : SwiftPreservingSerializer<SettingsStreamSrtConnectionPriorities>(generatedSerializer())
+}
+
 /** Upstream `SettingsStreamSrt` (v1 subset; implementation, DNS strategy etc. stay in `extra`). */
 @KeepGeneratedSerializer
 @Serializable(with = SettingsStreamSrt.Serializer::class)
@@ -174,6 +255,7 @@ data class SettingsStreamSrt(
     val latency: Int = DEFAULT_SRT_LATENCY,
     val adaptiveBitrateEnabled: Boolean = true,
     val adaptiveBitrate: SrtAdaptiveBitrate = SrtAdaptiveBitrate(),
+    val connectionPriorities: SettingsStreamSrtConnectionPriorities = SettingsStreamSrtConnectionPriorities(),
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsStreamSrt>(generatedSerializer())
@@ -298,6 +380,25 @@ data class SettingsStream(
 
     val canvasHeight: Int
         get() = if (portrait) resolution.width else resolution.height
+
+    /** Upstream `getScheme` (the stored URL's scheme is never secret). */
+    private val scheme: String
+        get() = url.substringBefore("://", "").lowercase()
+
+    /** Upstream `isSrtla`: the only protocol with connection priorities. */
+    val isSrtla: Boolean
+        get() = scheme == "srtla"
+
+    /** Upstream `protocolString`. */
+    fun protocolString(): String = when (scheme) {
+        "srtla" -> "SRTLA"
+        "srt" -> "SRT"
+        "rtmps" -> "RTMPS"
+        "rist" -> "RIST"
+        "whip", "whips" -> "WHIP"
+        "mobcam" -> "Mobcam"
+        else -> "RTMP"
+    }
 
     /** Upstream `getYouTubeVideoIds`. */
     val youTubeVideoIdList: List<String>

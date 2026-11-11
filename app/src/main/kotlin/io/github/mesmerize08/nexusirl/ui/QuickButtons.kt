@@ -62,12 +62,20 @@ val SUPPORTED_QUICK_BUTTONS = setOf(
     QuickButtonType.LUTS,
     QuickButtonType.PORTRAIT,
     QuickButtonType.OBS,
+    QuickButtonType.CONNECTION_PRIORITIES,
 )
 
 /** Enabled quick buttons in their configured order (upstream pages are shown one after another). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Unit, onObs: () -> Unit, onEdit: () -> Unit) {
+fun QuickButtonBar(
+    store: SettingsStore,
+    onWidgets: () -> Unit,
+    onLuts: () -> Unit,
+    onObs: () -> Unit,
+    onConnectionPriorities: () -> Unit,
+    onEdit: () -> Unit,
+) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val database by store.database.collectAsState()
@@ -89,7 +97,7 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                 QuickButtonType.LIVE -> status.active
                 QuickButtonType.RECORD -> recording != null
                 QuickButtonType.SNAPSHOT, QuickButtonType.WIDGETS, QuickButtonType.LUTS, QuickButtonType.MIC,
-                QuickButtonType.BITRATE, QuickButtonType.OBS,
+                QuickButtonType.BITRATE, QuickButtonType.OBS, QuickButtonType.CONNECTION_PRIORITIES,
                 -> false
                 QuickButtonType.PORTRAIT -> database.portrait
                 else -> button.isOn
@@ -132,6 +140,8 @@ fun QuickButtonBar(store: SettingsStore, onWidgets: () -> Unit, onLuts: () -> Un
                         QuickButtonType.WIDGETS -> onWidgets()
                         QuickButtonType.LUTS -> onLuts()
                         QuickButtonType.OBS -> onObs()
+                        // Upstream opens the current stream's connection priorities panel.
+                        QuickButtonType.CONNECTION_PRIORITIES -> onConnectionPriorities()
                         QuickButtonType.TORCH -> StreamController.setQuickButton(context, button.type, !camera.torch)
                         else -> StreamController.setQuickButton(context, button.type, !button.isOn)
                     }

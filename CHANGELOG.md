@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- SRTLA connection priorities, as in Moblin (Streams → edit → SRT → Connection priorities, or the
+  Connection priorities quick button): give mobile data, Wi-Fi, Ethernet and each Moblink relay a
+  priority from 1 to 10, or turn a connection off. Changes apply while live. Priorities in Moblin
+  settings imports are used, and remote control assistants and the web remote control can change
+  them.
+
 ### Fixed
 - The stream's audio bitrate setting (Moblin's "Audio bitrate", from imported settings) was ignored:
   audio always went out at 128 kbps. Streams now use their own audio bitrate and recordings theirs,

@@ -26,9 +26,11 @@ import io.github.mesmerize08.nexusirl.transport.rtmp.RtmpStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtAdaptiveBitrateDriver
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStream
 import io.github.mesmerize08.nexusirl.transport.srt.SrtStreamConfig
+import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
 import io.github.mesmerize08.nexusirl.transport.srt.net.DatagramUdpLinkFactory
 import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.BondingConnection
+import io.github.mesmerize08.nexusirl.transport.srt.srtla.ConnectionPriorities
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -109,6 +111,8 @@ class StreamSession(
     private val onStatus: (StreamStatus) -> Unit,
     /** Messages for the streamer, such as an extra destination failing (upstream toasts). */
     private val onMessage: (String) -> Unit = {},
+    /** The SRTLA bonding paths whenever they change (for wired interfaces' priorities). Any thread. */
+    private val onBondingInterfaces: (List<BondingInterface>) -> Unit = {},
 ) {
     private val url = config.url
     private val settings = config.video
@@ -157,6 +161,9 @@ class StreamSession(
         fun addMoblink(tunnel: MoblinkTunnel) {}
 
         fun removeMoblink(tunnel: MoblinkTunnel) {}
+
+        /** New SRTLA connection priorities (SRTLA only). */
+        fun setConnectionPriorities(priorities: ConnectionPriorities) {}
 
         fun rttMs(): Double
 
@@ -213,6 +220,15 @@ class StreamSession(
     fun addMoblink(tunnel: MoblinkTunnel) = executor.execute { destination?.addMoblink(tunnel) }
 
     fun removeMoblink(tunnel: MoblinkTunnel) = executor.execute { destination?.removeMoblink(tunnel) }
+
+    /** The SRTLA connection priorities in use; changes while live are kept for reconnects. Stream executor. */
+    private var connectionPriorities = config.connectionPriorities
+
+    /** Upstream `updateSrtlaPriorities`: applies new connection priorities while live. Any thread. */
+    fun setConnectionPriorities(priorities: ConnectionPriorities) = executor.execute {
+        connectionPriorities = priorities
+        destination?.setConnectionPriorities(priorities)
+    }
 
     /** Adds an event (camera switch, Moblink relay) to this stream's log. Any thread. */
     fun note(text: String) = log.line(REDACTOR.redact(text))
@@ -321,7 +337,7 @@ class StreamSession(
 
     private fun startSrt(eventGeneration: Int): Destination {
         val stream = SrtStream(
-            SrtStreamConfig(url = url, latency = config.srtLatency),
+            SrtStreamConfig(url = url, latency = config.srtLatency, connectionPriorities = connectionPriorities),
             DatagramUdpLinkFactory(),
             executor,
             clock,
@@ -358,7 +374,10 @@ class StreamSession(
         }
         // SRTLA bonds every available network (cellular, Wi-Fi, Ethernet) at once.
         val networks = if (url.startsWith("srtla", ignoreCase = true)) MultiNetworkManager(context) else null
-        networks?.start { stream.setInterfaces(it) }
+        networks?.start {
+            stream.setInterfaces(it)
+            onBondingInterfaces(it)
+        }
         stream.start()
         driver?.start()
         return object : Destination {
@@ -386,6 +405,8 @@ class StreamSession(
             )
 
             override fun removeMoblink(tunnel: MoblinkTunnel) = stream.removeMoblink(tunnel.host, tunnel.port)
+
+            override fun setConnectionPriorities(priorities: ConnectionPriorities) = stream.setConnectionPriorities(priorities)
 
             override fun stop() {
                 driver?.stop()

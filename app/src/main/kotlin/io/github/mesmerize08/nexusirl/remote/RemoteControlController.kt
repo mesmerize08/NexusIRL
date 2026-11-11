@@ -24,6 +24,8 @@ import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettings
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsBitratePreset
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsMic
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsScene
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsSrt
+import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsSrtConnectionPriority
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlSettingsStream
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStartStatusFilter
 import io.github.mesmerize08.nexusirl.remotecontrol.RemoteControlStatusGeneral
@@ -42,6 +44,7 @@ import io.github.mesmerize08.nexusirl.settings.SceneCamera
 import io.github.mesmerize08.nexusirl.settings.SettingsArchive
 import io.github.mesmerize08.nexusirl.settings.SettingsRemoteControl
 import io.github.mesmerize08.nexusirl.settings.SettingsStore
+import io.github.mesmerize08.nexusirl.settings.SettingsStream
 import io.github.mesmerize08.nexusirl.stream.Microphones
 import io.github.mesmerize08.nexusirl.stream.RecordingResult
 import io.github.mesmerize08.nexusirl.stream.StreamController
@@ -64,6 +67,15 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** How the streamer's connection to the assistant is doing, for the settings screen. */
+/** Upstream `handleGetSettings`: the current stream's SRTLA connection priorities. */
+internal fun remoteControlSrtSettings(stream: SettingsStream?): RemoteControlSettingsSrt {
+    val priorities = stream?.srt?.connectionPriorities ?: return RemoteControlSettingsSrt(false, emptyList())
+    return RemoteControlSettingsSrt(
+        priorities.enabled,
+        priorities.priorities.map { RemoteControlSettingsSrtConnectionPriority(it.id, it.name, it.priority, it.enabled) },
+    )
+}
+
 enum class RemoteControlConnection { OFF, CONNECTING, CONNECTED, WRONG_PASSWORD }
 
 /**
@@ -438,6 +450,7 @@ object RemoteControlController {
             scenes = database?.scenes.orEmpty().filter { it.enabled }.map { RemoteControlSettingsScene(it.id, it.name) },
             bitratePresets = database?.bitratePresets.orEmpty().map { RemoteControlSettingsBitratePreset(it.id, it.bitrate) },
             mics = Microphones.mics.value.map { RemoteControlSettingsMic(it.id, it.name) },
+            srt = remoteControlSrtSettings(database?.selectedStream),
         )
     }
 
@@ -624,6 +637,19 @@ object RemoteControlController {
         override fun setBitratePreset(id: UUID) = main { context ->
             StreamController.settings(context).current.bitratePresets.firstOrNull { it.id == id }?.let {
                 StreamController.setBitrate(context, it.bitrate)
+            }
+        }
+
+        // Upstream: the current stream's entry, clamped, then updateSrtlaPriorities.
+        override fun setSrtConnectionPriority(id: UUID, priority: Int, enabled: Boolean) = main { context ->
+            StreamController.settings(context).current.selectedStream?.let { stream ->
+                StreamController.updateConnectionPriorities(context, stream.id) { it.withPriority(id, priority, enabled) }
+            }
+        }
+
+        override fun setSrtConnectionPrioritiesEnabled(enabled: Boolean) = main { context ->
+            StreamController.settings(context).current.selectedStream?.let { stream ->
+                StreamController.updateConnectionPriorities(context, stream.id) { it.copy(enabled = enabled) }
             }
         }
 

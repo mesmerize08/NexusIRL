@@ -84,6 +84,10 @@ sealed interface RemoteControlRequest {
 
     @Serializable data class SetBitratePreset(val id: SUuid) : RemoteControlRequest
 
+    @Serializable data class SetSrtConnectionPriority(val id: SUuid, val priority: Int, val enabled: Boolean) : RemoteControlRequest
+
+    @Serializable data class SetSrtConnectionPrioritiesEnabled(val enabled: Boolean) : RemoteControlRequest
+
     @Serializable data object ReloadBrowserWidgets : RemoteControlRequest
 
     @Serializable data object StartPreview : RemoteControlRequest
@@ -125,6 +129,8 @@ sealed interface RemoteControlRequest {
             swiftCase("setScene", SetScene.serializer()),
             swiftCase("setMic", SetMic.serializer()),
             swiftCase("setBitratePreset", SetBitratePreset.serializer()),
+            swiftCase("setSrtConnectionPriority", SetSrtConnectionPriority.serializer()),
+            swiftCase("setSrtConnectionPrioritiesEnabled", SetSrtConnectionPrioritiesEnabled.serializer()),
             swiftCase("reloadBrowserWidgets", ReloadBrowserWidgets.serializer()),
             swiftCase("startPreview", StartPreview.serializer()),
             swiftCase("stopPreview", StopPreview.serializer()),

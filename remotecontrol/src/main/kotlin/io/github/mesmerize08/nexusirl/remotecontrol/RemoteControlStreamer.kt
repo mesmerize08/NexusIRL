@@ -46,6 +46,12 @@ interface RemoteControlStreamerDelegate {
 
     fun setDebugLogging(on: Boolean) {}
 
+    /** Upstream `remoteControlStreamerSetSrtConnectionPriority`: one entry of the current stream. */
+    fun setSrtConnectionPriority(id: UUID, priority: Int, enabled: Boolean) {}
+
+    /** Upstream `remoteControlStreamerSetSrtConnectionPrioritiesEnabled`. */
+    fun setSrtConnectionPrioritiesEnabled(enabled: Boolean) {}
+
     fun reloadBrowserWidgets() {}
 
     fun startPreview() {}
@@ -259,6 +265,8 @@ fun RemoteControlStreamerDelegate.handle(request: RemoteControlRequest): Pair<Re
         is RemoteControlRequest.SetStealthMode -> setStealthMode(request.on)
         is RemoteControlRequest.SetTorch -> setTorch(request.on)
         is RemoteControlRequest.SetDebugLogging -> setDebugLogging(request.on)
+        is RemoteControlRequest.SetSrtConnectionPriority -> setSrtConnectionPriority(request.id, request.priority, request.enabled)
+        is RemoteControlRequest.SetSrtConnectionPrioritiesEnabled -> setSrtConnectionPrioritiesEnabled(request.enabled)
         RemoteControlRequest.ReloadBrowserWidgets -> reloadBrowserWidgets()
         RemoteControlRequest.StartPreview -> startPreview()
         RemoteControlRequest.StopPreview -> stopPreview()
