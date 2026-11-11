@@ -66,7 +66,6 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** How the streamer's connection to the assistant is doing, for the settings screen. */
 /** Upstream `handleGetSettings`: the current stream's SRTLA connection priorities. */
 internal fun remoteControlSrtSettings(stream: SettingsStream?): RemoteControlSettingsSrt {
     val priorities = stream?.srt?.connectionPriorities ?: return RemoteControlSettingsSrt(false, emptyList())
@@ -76,6 +75,7 @@ internal fun remoteControlSrtSettings(stream: SettingsStream?): RemoteControlSet
     )
 }
 
+/** How the streamer's connection to the assistant is doing, for the settings screen. */
 enum class RemoteControlConnection { OFF, CONNECTING, CONNECTED, WRONG_PASSWORD }
 
 /**
