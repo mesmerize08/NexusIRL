@@ -60,6 +60,9 @@ CI runs everything except the system tests and device checks on every push and p
 - One logical change per commit, with a message that says what changed and why; mention how it was
   checked (tests, phone, emulator).
 - Add user-visible changes to the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md).
+- NexusIRL is developed with generative AI (see the README's "How it is made"). AI-assisted
+  contributions are welcome: say so in the pull request, and check and test the change yourself
+  as you would your own code.
 - Fill in the pull request template. Pull requests need the CI checks (build, UI tests, CodeQL and
   gitleaks) to pass before merging.
 

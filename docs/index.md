@@ -45,6 +45,12 @@ ads.
 **Which phones does it run on?** Android 10 or newer. It is tested on a Samsung Galaxy S26 Ultra
 and a Huawei P30 Pro; [reports from other phones](testing/community-testing.md) are very welcome.
 
+**Is NexusIRL made with AI?** Yes. Most of its code, tests and documentation are written by an
+AI coding assistant (Anthropic's Claude), directed and reviewed by the maintainer. Every change
+is checked by automated tests, Moblin's ported test suites, security scans and field tests on
+real phones, and release builds are reproducible.
+[How it is made](https://github.com/mesmerize08/NexusIRL#how-it-is-made).
+
 **What do I need for bonding?** A server that receives SRTLA, such as a self-hosted
 [SRTLA receiver](https://github.com/mesmerize08/NexusIRL/tree/main/server) or an IRL hosting
 service, and the phone's mobile data plus Wi-Fi or a second phone as a Moblink relay.

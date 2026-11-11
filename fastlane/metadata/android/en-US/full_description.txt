@@ -32,4 +32,6 @@
 
 <p>Chat, alerts and sign-in use Twitch, Kick and YouTube, which are not free software.</p>
 
+<p>NexusIRL is developed with generative AI: most of its code is written by an AI coding assistant and reviewed and tested by the maintainer.</p>
+
 <p>NexusIRL is based on Moblin by Erik Moqvist (MIT License). It is not affiliated with or endorsed by the Moblin project.</p>

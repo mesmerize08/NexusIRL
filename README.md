@@ -21,6 +21,9 @@ settings and stream keys stay encrypted on your phone.
 > still being field tested. See [what has been tested](#tested-devices).
 >
 > Not affiliated with or endorsed by the Moblin project.
+>
+> **Built with generative AI.** Most of NexusIRL's code is written with an AI coding assistant;
+> see [how it is made](#how-it-is-made).
 
 ## Features
 
@@ -149,6 +152,23 @@ Bug reports and pull requests are welcome; please read [CONTRIBUTING.md](CONTRIB
 For a bug report, tap **Share diagnostics** at the bottom of the main screen and attach the file:
 it contains no stream keys, passwords or tokens. Report security problems privately as described
 in [SECURITY.md](SECURITY.md).
+
+## How it is made
+
+NexusIRL is developed with generative AI: most of its code, tests and documentation are written by
+an AI coding assistant (Anthropic's Claude), directed and reviewed by the maintainer. Because of
+that, the project leans on checks that do not depend on trusting the code's author:
+
+- Each ported file follows a named Moblin source file, and Moblin's own tests are ported as
+  golden tests, so behaviour can be compared with the original.
+- Every change runs the unit tests, lint, a licence check, a secret scan, CodeQL and UI tests on
+  an emulator, and releases are built only from commits that passed them.
+- Streaming is checked against real servers (mediamtx, ffmpeg, an SRTLA receiver), against iOS
+  Moblin, and in field tests on real phones and mobile networks.
+- Release builds are reproducible, so anyone can confirm an APK was built from this source.
+- An independent release-readiness audit was reviewed and its findings addressed.
+
+If you find something wrong, please [open an issue](https://github.com/mesmerize08/NexusIRL/issues).
 
 ## Credits and license
 
