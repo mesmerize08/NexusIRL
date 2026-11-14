@@ -129,7 +129,7 @@ class TwitchApi(
         )
     }
 
-    private fun encode(value: String) = java.net.URLEncoder.encode(value, Charsets.UTF_8).replace("+", "%20")
+    private fun encode(value: String) = java.net.URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 
     /** Upstream `sendChatMessage`: posts publicly in the channel's chat. */
     fun sendChatMessage(broadcasterId: String, senderId: String, message: String) {

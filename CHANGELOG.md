@@ -16,6 +16,11 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   with names or numbers in them.
 
 ### Fixed
+- On Android 10 to 12, SRT and SRTLA streams whose URL has a stream ID or other settings after
+  `?` stayed at "Connecting" forever: reading the URL used a Java method that only exists from
+  Android 13. The same applied to RTMP servers that ask for a user name and password, and to
+  Twitch searches and chat messages. Found on a Huawei P30 Pro (Android 10). If starting a stream
+  ever fails like this again, NexusIRL now says so instead of waiting, and the error is logged.
 - The stream's audio bitrate setting (Moblin's "Audio bitrate", from imported settings) was ignored:
   audio always went out at 128 kbps. Streams now use their own audio bitrate and recordings theirs,
   within what the phone's encoder can do (at most 256 kbps for mono AAC). RTMP servers are told

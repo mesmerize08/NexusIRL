@@ -276,6 +276,13 @@ class StreamSession(
             report(e.message ?: "Invalid stream settings")
             update(status.copy(state = StreamState.STOPPED))
             null
+        } catch (e: LinkageError) {
+            // A Java API missing on this Android version (NoSuchMethodError): say so instead of
+            // staying at "Connecting" (seen on Android 10 with an API 33 method).
+            android.util.Log.e("StreamSession", "Could not start the stream", e)
+            report("Could not start the stream on this Android version (${e.javaClass.simpleName})")
+            update(status.copy(state = StreamState.STOPPED))
+            null
         }
     }
 

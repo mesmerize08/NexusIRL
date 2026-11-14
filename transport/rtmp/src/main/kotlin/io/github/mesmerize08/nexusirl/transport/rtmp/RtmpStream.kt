@@ -494,8 +494,8 @@ class RtmpStream(
     private fun handleConnectRejected(data: AsObject) {
         val description = (data["description"] as? AsValue.Str)?.value ?: return
         val userInfo = uri.rawUserInfo ?: return
-        val user = URLDecoder.decode(userInfo.substringBefore(':'), Charsets.UTF_8)
-        val password = URLDecoder.decode(userInfo.substringAfter(':', ""), Charsets.UTF_8)
+        val user = URLDecoder.decode(userInfo.substringBefore(':'), "UTF-8")
+        val password = URLDecoder.decode(userInfo.substringAfter(':', ""), "UTF-8")
         closeSocket(isDisconnected = false)
         when {
             "reason=nosuchuser" in description || "reason=authfailed" in description -> Unit
@@ -516,7 +516,7 @@ class RtmpStream(
             return command
         }
         val query = description.substring(index + 1).split('&').associate {
-            URLDecoder.decode(it.substringBefore('='), Charsets.UTF_8) to URLDecoder.decode(it.substringAfter('=', ""), Charsets.UTF_8)
+            URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('=', ""), "UTF-8")
         }
         val salt = query["salt"] ?: return command
         val challenge = "%08x".format(Random.nextInt())

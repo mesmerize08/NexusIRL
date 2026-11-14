@@ -59,7 +59,7 @@ data class SrtUrl(
             return rawQuery.split('&').filter { it.isNotEmpty() }.associate { part ->
                 val key = part.substringBefore('=')
                 val value = part.substringAfter('=', "")
-                URLDecoder.decode(key, Charsets.UTF_8) to URLDecoder.decode(value, Charsets.UTF_8)
+                URLDecoder.decode(key, "UTF-8") to URLDecoder.decode(value, "UTF-8")
             }
         }
     }

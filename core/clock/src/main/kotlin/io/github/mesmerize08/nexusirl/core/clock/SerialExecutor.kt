@@ -34,15 +34,34 @@ interface SerialExecutor {
  * After [shutdown], new tasks are dropped instead of throwing: network threads (socket readers,
  * UDP receivers) may still report a closed connection after their owner stopped, and a late post
  * must not crash the app (a released upstream dispatch queue never throws either).
+ *
+ * A task that throws goes to [onError] (by default printed with its stack trace, which Android
+ * logs as `System.err`) and the executor carries on; a repeating task keeps repeating. Without
+ * this, the scheduled executor would keep the failure in a future nobody reads: on Android 10 a
+ * NoSuchMethodError while starting a stream left it at "Connecting" with nothing logged.
  */
-class ThreadSerialExecutor(name: String) : SerialExecutor {
+class ThreadSerialExecutor(
+    private val name: String,
+    private val onError: (Throwable) -> Unit = { error ->
+        System.err.println("Uncaught error in serial executor \"$name\"")
+        error.printStackTrace()
+    },
+) : SerialExecutor {
     private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
         ThreadFactory { runnable -> Thread(runnable, name).apply { isDaemon = true } },
     )
 
+    private fun guarded(task: () -> Unit): Runnable = Runnable {
+        try {
+            task()
+        } catch (error: Throwable) {
+            onError(error)
+        }
+    }
+
     override fun execute(task: () -> Unit) {
         try {
-            executor.execute(task)
+            executor.execute(guarded(task))
         } catch (e: RejectedExecutionException) {
             // Shut down: dropped.
         }
@@ -50,7 +69,7 @@ class ThreadSerialExecutor(name: String) : SerialExecutor {
 
     override fun schedule(delayNanos: Long, task: () -> Unit): Cancellable {
         val future = try {
-            executor.schedule(task, delayNanos, TimeUnit.NANOSECONDS)
+            executor.schedule(guarded(task), delayNanos, TimeUnit.NANOSECONDS)
         } catch (e: RejectedExecutionException) {
             return Cancellable {}
         }
@@ -59,7 +78,7 @@ class ThreadSerialExecutor(name: String) : SerialExecutor {
 
     override fun scheduleRepeating(periodNanos: Long, task: () -> Unit): Cancellable {
         val future = try {
-            executor.scheduleAtFixedRate(task, periodNanos, periodNanos, TimeUnit.NANOSECONDS)
+            executor.scheduleAtFixedRate(guarded(task), periodNanos, periodNanos, TimeUnit.NANOSECONDS)
         } catch (e: RejectedExecutionException) {
             return Cancellable {}
         }
