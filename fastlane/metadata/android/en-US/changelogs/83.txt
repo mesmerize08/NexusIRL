@@ -1,0 +1,1 @@
+Fixes streaming on Android 10 to 12: SRT and SRTLA streams with a stream ID stayed at Connecting. The stream's audio bitrate setting is now used (it was always 128 kbps). After another app used the camera, the picture no longer stutters. New: SRTLA connection priorities, as in Moblin, for mobile data, Wi-Fi and each Moblink relay. More texts translated.

@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-14
+
 ### Added
 - SRTLA connection priorities, as in Moblin (Streams → edit → SRT → Connection priorities, or the
   Connection priorities quick button): give mobile data, Wi-Fi, Ethernet and each Moblink relay a
