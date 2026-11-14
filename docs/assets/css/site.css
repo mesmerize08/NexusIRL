@@ -670,6 +670,10 @@ p {
   font-weight: 700;
 }
 
+.prose td:first-child code {
+  white-space: nowrap;
+}
+
 .prose img {
   border-radius: var(--radius-s);
 }
