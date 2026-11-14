@@ -61,6 +61,16 @@ val checkAndroidApi by tasks.registering(Exec::class) {
     inputs.file("tools/check-android-api.py").withPropertyName("script")
     val python = if (System.getProperty("os.name").startsWith("Windows")) "python" else "python3"
     executable = python
+    doFirst {
+        // A new pure JVM module must be added to phoneJvmModules (or be a desktop tool), so it is
+        // never left unchecked by accident.
+        val unchecked = subprojects.filter {
+            it.plugins.hasPlugin("org.jetbrains.kotlin.jvm") && it.path !in phoneJvmModules && !it.path.startsWith(":tools:")
+        }
+        if (unchecked.isNotEmpty()) {
+            throw GradleException("Add ${unchecked.joinToString { it.path }} to phoneJvmModules in build.gradle.kts")
+        }
+    }
     argumentProviders.add(
         CommandLineArgumentProvider {
             listOf("tools/check-android-api.py", "--api-versions", apiVersionsFile().path, "--min-sdk", "$androidMinSdk") +

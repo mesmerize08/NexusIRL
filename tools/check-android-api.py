@@ -127,7 +127,8 @@ DESUGARED = {"java/lang/invoke/LambdaMetafactory", "java/lang/invoke/StringConca
 
 
 def is_jdk(name):
-    return name.startswith("java/") or name.startswith("javax/")
+    """JDK packages: when Android does not list one of these, the phone does not have it."""
+    return name.startswith(("java/", "javax/", "jdk/", "sun/", "com/sun/"))
 
 
 def main():
