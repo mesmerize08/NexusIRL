@@ -16,10 +16,14 @@ object Flv {
     const val FRAME_TYPE_KEY = 1
     const val FRAME_TYPE_INTER = 2
     const val VIDEO_CODEC_AVC = 7
+    const val VIDEO_CODEC_HEVC = 12
     const val AUDIO_CODEC_EX_HEADER = 9
     const val AUDIO_CODEC_AAC = 10
     const val VIDEO_PACKET_TYPE_SEQUENCE_START = 0
     const val VIDEO_PACKET_TYPE_CODED_FRAMES = 1
+    const val VIDEO_PACKET_TYPE_SEQUENCE_END = 2
+    const val VIDEO_PACKET_TYPE_CODED_FRAMES_X = 3
+    const val VIDEO_PACKET_TYPE_MULTITRACK = 6
     const val FOURCC_AVC1 = 0x6176_6331L
     const val FOURCC_HVC1 = 0x6876_6331L
     const val EXTENDED_VIDEO_HEADER = 0b1000_0000
