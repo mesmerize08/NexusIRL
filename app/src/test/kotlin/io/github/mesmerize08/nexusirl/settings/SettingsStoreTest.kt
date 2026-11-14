@@ -427,4 +427,31 @@ class SettingsStoreTest {
         assertTrue(store.current.streams.isEmpty())
         assertTrue(File(directory, "settings.json.broken").exists())
     }
+
+    private val rtmpKey = "fakekey-bbbbbbbbbbbb"
+    private val rtmpImport = """{"rtmpServer":{"enabled":true,"port":11935,"streams":[{"name":"A","streamKey":"$rtmpKey"}]}}"""
+
+    @Test
+    fun importKeepsRtmpServerOff() {
+        val store = SettingsStore(File(directory, "settings.json"), InMemorySecretStore())
+        store.import(rtmpImport)
+        assertFalse(store.current.rtmpServer.enabled)
+        assertEquals(11935, store.current.rtmpServer.port)
+        assertEquals("A", store.current.rtmpServer.streams.single().name)
+
+        store.update { it.copy(rtmpServer = it.rtmpServer.copy(enabled = true)) }
+        store.import("{}")
+        assertTrue(store.current.rtmpServer.enabled)
+    }
+
+    @Test
+    fun rtmpStreamKeyIsASecret() {
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, InMemorySecretStore())
+        store.import(rtmpImport)
+        assertFalse(rtmpKey in file.readText(), file.readText())
+        val exported = store.exportJson()
+        assertFalse(rtmpKey in exported, exported)
+        assertTrue("\"streamKey\":\"\"" in exported, exported)
+    }
 }

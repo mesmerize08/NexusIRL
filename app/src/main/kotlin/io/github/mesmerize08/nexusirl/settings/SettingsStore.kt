@@ -63,8 +63,12 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             // Whether an assistant may import settings is this phone's choice; a file never changes it.
             val allowSettingsImport = current.remoteControl.streamer.allowSettingsImport
             val streamer = imported.remoteControl.streamer.copy(allowSettingsImport = allowSettingsImport)
+            // Decision 1 (docs/plans/2026-11-14-rtmp-ingest-stages-1-3.md): an import never turns this
+            // phone's RTMP server on or off; its port and streams still import.
+            val rtmpServer = imported.rtmpServer.copy(enabled = current.rtmpServer.enabled)
             imported.copy(
                 quickButtons = addMissingQuickButtons(imported.quickButtons),
+                rtmpServer = rtmpServer,
                 remoteControl = imported.remoteControl.copy(streamer = streamer),
             )
         }

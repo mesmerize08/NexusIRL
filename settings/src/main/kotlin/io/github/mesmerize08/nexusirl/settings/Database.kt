@@ -109,6 +109,8 @@ data class Database(
     val bitratePresets: List<SettingsBitratePreset> = emptyList(),
     /** Upstream torch brightness, 0.01 to 1 (1 is full). */
     val torchLevel: SFloat = 1f,
+    val rtmpServer: SettingsRtmpServer = SettingsRtmpServer(),
+    val ingestsSoftwareVideoDecoding: Boolean = false,
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<Database>(generatedSerializer())

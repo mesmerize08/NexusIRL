@@ -268,6 +268,10 @@ data class SettingsScene(
      */
     val cameraPosition: String = "Back",
     val widgets: List<SettingsSceneWidget> = emptyList(),
+    /** The RTMP stream a scene with camera position "RTMP" shows (upstream `rtmpCameraId`). */
+    val rtmpCameraId: SUuid = UUID.randomUUID(),
+    val overrideMic: Boolean = false,
+    val micId: String = "",
     @Transient override var extra: JsonObject = EMPTY,
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsScene>(generatedSerializer())
