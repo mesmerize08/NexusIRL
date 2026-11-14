@@ -144,6 +144,12 @@ object OpusHeader {
 sealed interface MpegTsVideoConfig {
     data class Avc(val sequenceParameterSet: ByteArray?, val pictureParameterSet: ByteArray?) : MpegTsVideoConfig {
         companion object {
+            /** NAL length field size from an `avcC` record (1, 2 or 4), or null when invalid. */
+            fun nalLengthSize(avcC: ByteArray): Int? {
+                if (avcC.size < 5) return null
+                return (avcC[4].toInt() and 0x03).plus(1).takeIf { it != 3 }
+            }
+
             /** Parses an `avcC` (ISO/IEC 14496-15) record. */
             fun fromAvcC(avcC: ByteArray): Avc {
                 var sps: ByteArray? = null
@@ -166,6 +172,12 @@ sealed interface MpegTsVideoConfig {
     data class Hevc(val videoParameterSet: ByteArray?, val sequenceParameterSet: ByteArray?, val pictureParameterSet: ByteArray?) :
         MpegTsVideoConfig {
         companion object {
+            /** NAL length field size from an `hvcC` record (1, 2 or 4), or null when invalid. */
+            fun nalLengthSize(hvcC: ByteArray): Int? {
+                if (hvcC.size < 22) return null
+                return (hvcC[21].toInt() and 0x03).plus(1).takeIf { it != 3 }
+            }
+
             /** Parses an `hvcC` (ISO/IEC 14496-15 8.3.3.1.2) record. */
             fun fromHvcC(hvcC: ByteArray): Hevc {
                 var vps: ByteArray? = null

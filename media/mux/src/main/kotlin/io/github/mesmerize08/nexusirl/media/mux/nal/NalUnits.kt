@@ -190,17 +190,66 @@ fun getNalUnits(data: ByteArray): List<NalUnitInfo> {
     return nalUnits
 }
 
-/** Converts a 4-byte length-prefixed (AVCC/HVCC) access unit to Annex-B in place. */
+/**
+ * Converts a 4-byte length-prefixed (AVCC/HVCC) access unit to Annex-B in place. Stops at a length
+ * that runs past the end. Not for untrusted input: use [lengthPrefixedToAnnexB].
+ */
 fun addNalUnitStartCodes(data: ByteArray) {
-    var index = 0
+    var index = 0L
     while (index + 3 < data.size) {
-        val length = ((data[index].toInt() and 0xFF) shl 24) or
-            ((data[index + 1].toInt() and 0xFF) shl 16) or
-            ((data[index + 2].toInt() and 0xFF) shl 8) or
-            (data[index + 3].toInt() and 0xFF)
-        NAL_UNIT_START_CODE.copyInto(data, index)
+        val i = index.toInt()
+        val length = readUnsignedLength(data, i, 4)
+        NAL_UNIT_START_CODE.copyInto(data, i)
         index += length + 4
     }
+}
+
+private fun readUnsignedLength(data: ByteArray, offset: Int, size: Int): Long {
+    var length = 0L
+    for (i in 0 until size) {
+        length = (length shl 8) or (data[offset + i].toLong() and 0xFF)
+    }
+    return length
+}
+
+/**
+ * Converts a length-prefixed (AVCC/HVCC) access unit to Annex-B into a new array, with a 4-byte
+ * start code before each NAL unit. Returns null for untrusted-input defects: a zero length, a
+ * length past the end, trailing bytes shorter than a length field, or a [nalLengthSize] other
+ * than 1, 2 or 4.
+ */
+fun lengthPrefixedToAnnexB(data: ByteArray, nalLengthSize: Int = 4): ByteArray? {
+    if (nalLengthSize != 1 && nalLengthSize != 2 && nalLengthSize != 4) {
+        return null
+    }
+    // First pass validates and sizes the output, so nothing is allocated for bad input.
+    var outputSize = 0L
+    var index = 0
+    while (index < data.size) {
+        if (data.size - index < nalLengthSize) {
+            return null
+        }
+        val length = readUnsignedLength(data, index, nalLengthSize)
+        index += nalLengthSize
+        if (length == 0L || length > data.size - index) {
+            return null
+        }
+        index += length.toInt()
+        outputSize += NAL_UNIT_START_CODE.size + length
+    }
+    val output = ByteArray(outputSize.toInt())
+    var read = 0
+    var write = 0
+    while (read < data.size) {
+        val length = readUnsignedLength(data, read, nalLengthSize).toInt()
+        read += nalLengthSize
+        NAL_UNIT_START_CODE.copyInto(output, write)
+        write += NAL_UNIT_START_CODE.size
+        data.copyInto(output, write, read, read + length)
+        read += length
+        write += length
+    }
+    return output
 }
 
 /** Converts an Annex-B access unit to 4-byte length-prefixed (AVCC/HVCC) form, e.g. for FLV/RTMP. */
