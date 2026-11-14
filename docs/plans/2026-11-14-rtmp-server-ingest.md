@@ -1,7 +1,8 @@
 # Plan: RTMP server ingest (port of Moblin's RTMP server)
 
-**Status:** proposed, awaiting the maintainer's answers to the open questions (section 10). Based
-on reading upstream `97e26d2` and NexusIRL `main` on 2026-11-14; nothing is built yet.
+**Status:** approved on 2026-11-14, with the open questions decided (section 10): behave as much
+like Moblin as possible, deviating only where security or Android requires it. Based on reading
+upstream `97e26d2` and NexusIRL `main` on 2026-11-14.
 
 **Goal:** the phone accepts an RTMP publish (from OBS, a GoPro, a drone or another phone) and uses
 it as a scene's video source and, optionally, as the audio source, the way Moblin does, with
@@ -153,8 +154,8 @@ Moblin-compatible settings.
 
 ## 5. Decoding and timing
 
-- **Timestamp zero:** per client instead of per chunk stream, a recorded deviation (open
-  question 4). The 32-bit wrap is handled.
+- **Timestamp zero:** per client instead of per chunk stream, a recorded deviation (decision
+  4). The 32-bit wrap is handled.
 - **Two video stages:** Android cannot hold seconds of decoded frames.
   - Compressed frames wait in the jitter buffer and are fed to the decoder when
     `dts + drift ≤ outputPts + decodeAhead` (150–500 ms, adaptive). At most 6 frames are held
@@ -171,8 +172,8 @@ Moblin-compatible settings.
 
 ## 6. Security and limits
 
-- **Off by default.** An import never enables the server: the device keeps its own value (open
-  question 1).
+- **Off by default.** An import never enables the server: the device keeps its own value (decision
+  1).
 - **Binding:** wildcard address. The peer check (`isAllowedLocalAddress`, which refuses cellular)
   runs before any byte is read. Only LAN addresses are shown as URLs.
 - **Authentication:**
@@ -249,17 +250,19 @@ Moblin-compatible settings.
 - **Harness defaults:** the upstream harness imports `enabled:true` and key `"1"`, which conflicts
   with the hardening.
 
-## 10. Open questions for the maintainer
+## 10. Decisions (2026-11-14)
 
-1. When an imported file sets `rtmpServer.enabled=true`: always keep the device's own value
-   (recommended), or allow it after on-device confirmation?
-2. Weak stream keys (the harness uses `"1"`): accept them with a warning (recommended), or enforce
-   a minimum length?
-3. Server lifetime: only while the app is visible, live or recording (recommended for the MVP), or
-   whenever enabled, as upstream does?
-4. Timestamp zero per client (recommended), or upstream's per-chunk-stream quirk?
-5. Switch to RTMP audio automatically on connect, as upstream does with auto-switch?
-6. Release the built-in camera while an RTMP scene is selected, as upstream does?
-7. At most 2 sources decoding at once in the MVP?
-8. Accept enhanced-RTMP Opus audio, which upstream rejects?
-9. Is the video-source widget needed in the first release?
+The maintainer chose the recommended option for each question, with the guiding rule that the
+feature should work as much like Moblin as possible.
+
+| # | Question | Decision | Same as Moblin? |
+|---|---|---|---|
+| 1 | Imported `rtmpServer.enabled=true` | The device keeps its own value; an import never turns the server on | No: security (same treatment as `allowSettingsImport`) |
+| 2 | Weak stream keys (the harness uses `"1"`) | Accepted, with a warning in the stream screen; new keys are random as upstream's | Yes, plus a warning |
+| 3 | Server lifetime | While the app is visible, live or recording | Yes in practice: iOS suspends Moblin in the background unless it is live |
+| 4 | Timestamp zero | Per client, not per chunk stream | No: fixes a fixed A/V offset; recorded in PORTING.md |
+| 5 | Switch to RTMP audio on connect | Yes, through the mic list's auto-switch, as upstream | Yes |
+| 6 | Release the built-in camera while an RTMP scene is selected | Yes, as upstream | Yes |
+| 7 | Sources decoding at once | At most 2 in the MVP | Android limit (decoder count and heat) |
+| 8 | Enhanced-RTMP Opus audio | Rejected with upstream's "Only AAC is supported" message; may come later | Yes |
+| 9 | Video-source widget in the first release | No, it stays in "Later" | Yes (upstream added it after the server) |

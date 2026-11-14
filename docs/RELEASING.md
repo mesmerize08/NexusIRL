@@ -56,6 +56,16 @@ Then add four repository secrets (GitHub → Settings → Secrets and variables 
    release from GitHub when it is built and uses this value only if that fails.
 2. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
+## Store and website screenshots
+
+`fastlane/metadata/android/en-US/images/phoneScreenshots/` (F-Droid) and
+`docs/assets/img/app-*.webp` (README and website) are taken on the emulator, with a sample
+stream to `example.com` and no keys. Turn the emulator to landscape with its own rotate control
+(or `adb emu rotate`), not with `settings put system user_rotation`: forcing the display leaves
+the virtual camera scene upright for a portrait phone, so the preview looks sideways (the app is
+right; real phones are not affected). Take them with `adb emu screenrecord screenshot <dir>`, as
+`adb exec-out screencap` can return a stale or black frame on the emulator.
+
 ## Local release builds
 
 Set the same variables, with `NEXUSIRL_KEYSTORE` pointing at the `.jks` file, then run
