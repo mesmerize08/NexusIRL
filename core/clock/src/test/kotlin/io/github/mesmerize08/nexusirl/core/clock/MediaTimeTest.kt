@@ -5,6 +5,30 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MediaTimeTest {
+    /** [multiplyHigh] replaces Math.multiplyHigh, which Android only has from API 31. */
+    @Test
+    fun multiplyHighMatchesBigInteger() {
+        val random = java.util.Random(29)
+        val values = listOf(0L, 1L, -1L, Long.MAX_VALUE, Long.MIN_VALUE, 0xFFFF_FFFFL, -0x1_0000_0000L) +
+            List(2000) { random.nextLong() }
+        for (x in values) {
+            for (y in values.take(40)) {
+                val expected = java.math.BigInteger.valueOf(x).multiply(java.math.BigInteger.valueOf(y)).shiftRight(64).toLong()
+                assertEquals(expected, multiplyHigh(x, y), "$x * $y")
+            }
+        }
+    }
+
+    @Test
+    fun comparesHugeValuesAcrossTimescales() {
+        // value * timescale overflows 64 bits; the comparison must still be exact.
+        val a = MediaTime(Long.MAX_VALUE / 2, MediaTime.MPEG_TS)
+        val b = MediaTime(Long.MAX_VALUE / 2, MediaTime.NANOSECONDS)
+        assertTrue(a > b)
+        assertTrue(MediaTime(-Long.MAX_VALUE / 3, MediaTime.MPEG_TS) < MediaTime(-1, MediaTime.NANOSECONDS))
+        assertEquals(MediaTime(90_000, MediaTime.MPEG_TS), MediaTime(1_000_000_000, MediaTime.NANOSECONDS))
+    }
+
     @Test
     fun mixedTimescaleArithmeticUsesFinerScale() {
         val sum = MediaTime(90_000, MediaTime.MPEG_TS) + MediaTime(500_000_000, MediaTime.NANOSECONDS)

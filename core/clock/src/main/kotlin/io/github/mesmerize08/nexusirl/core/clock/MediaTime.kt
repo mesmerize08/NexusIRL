@@ -40,8 +40,8 @@ data class MediaTime(val value: Long, val timescale: Int) : Comparable<MediaTime
             return value.compareTo(other.value)
         }
         // Cross-multiply exactly: value * otherTimescale vs otherValue * timescale.
-        val left = Math.multiplyHigh(value, other.timescale.toLong()) to value * other.timescale
-        val right = Math.multiplyHigh(other.value, timescale.toLong()) to other.value * timescale
+        val left = multiplyHigh(value, other.timescale.toLong()) to value * other.timescale
+        val right = multiplyHigh(other.value, timescale.toLong()) to other.value * timescale
         val high = left.first.compareTo(right.first)
         return if (high != 0) high else java.lang.Long.compareUnsigned(left.second, right.second)
     }
@@ -62,4 +62,21 @@ data class MediaTime(val value: Long, val timescale: Int) : Comparable<MediaTime
         /** Equivalent of upstream's `CMTime(seconds:)` helper (nanosecond timescale). */
         fun fromSeconds(seconds: Double, timescale: Int = NANOSECONDS): MediaTime = MediaTime(Math.round(seconds * timescale), timescale)
     }
+}
+
+/**
+ * The high 64 bits of the 128-bit product `x * y` (signed), like `Math.multiplyHigh`, which Android
+ * only has from API 31 (minSdk is 29).
+ */
+internal fun multiplyHigh(x: Long, y: Long): Long {
+    val x1 = x shr 32
+    val x2 = x and 0xFFFF_FFFFL
+    val y1 = y shr 32
+    val y2 = y and 0xFFFF_FFFFL
+    val z2 = x2 * y2
+    val t = x1 * y2 + (z2 ushr 32)
+    var z1 = t and 0xFFFF_FFFFL
+    val z0 = t shr 32
+    z1 += x2 * y1
+    return x1 * y1 + z0 + (z1 shr 32)
 }

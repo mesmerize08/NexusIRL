@@ -47,6 +47,11 @@ CI runs everything except the system tests and device checks on every push and p
   protocols. Settings classes keep unknown keys, so iOS-only settings survive a round trip.
 - Secrets (stream keys, tokens, passwords) go through `SettingsStore`/`SecretStore`, are never
   logged, and are shown only as `scheme://host`.
+- The app runs on Android 10 (API 29) and newer. The pure Kotlin/JVM modules compile against the
+  desktop JDK, so a Java method newer than Android 10 compiles there and then crashes the phone
+  (for example `URLDecoder.decode(String, Charset)`, API 33). `./gradlew test` includes
+  `checkAndroidApi` (`tools/check-android-api.py`), which checks their classes against the Android
+  SDK's API database; when it complains, use an older overload or write the few lines yourself.
 - Only permissive licences (MIT, BSD, Apache-2.0); no GPL code and no Google Play Services in the
   main build, so it stays eligible for F-Droid. CI checks licences.
 - No dependency on services run by the Moblin author or by this project.

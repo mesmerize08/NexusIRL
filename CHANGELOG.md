@@ -21,6 +21,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   Android 13. The same applied to RTMP servers that ask for a user name and password, and to
   Twitch searches and chat messages. Found on a Huawei P30 Pro (Android 10). If starting a stream
   ever fails like this again, NexusIRL now says so instead of waiting, and the error is logged.
+  Two more methods missing before Android 12 are no longer used: one in comparing timestamps of
+  different time scales, and one in opening encrypted settings files. A build check now compares
+  the shared code with what Android 10 provides, so this kind of mistake fails the build.
 - The stream's audio bitrate setting (Moblin's "Audio bitrate", from imported settings) was ignored:
   audio always went out at 128 kbps. Streams now use their own audio bitrate and recordings theirs,
   within what the phone's encoder can do (at most 256 kbps for mono AAC). RTMP servers are told

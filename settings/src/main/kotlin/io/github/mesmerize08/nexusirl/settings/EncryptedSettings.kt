@@ -57,7 +57,10 @@ object EncryptedSettings {
             throw DecryptionException("Not an encrypted settings file")
         }
         val buffer = ByteBuffer.wrap(data)
-        buffer.position(MAGIC.size)
+        // Through Buffer: the JDK's ByteBuffer.position(int) override (returning ByteBuffer) is not
+        // Android API, so calling it on a ByteBuffer can throw NoSuchMethodError on the phone.
+        val asBuffer: java.nio.Buffer = buffer
+        asBuffer.position(MAGIC.size)
         if (buffer.get() != VERSION) {
             throw DecryptionException("Unsupported encrypted settings version")
         }
