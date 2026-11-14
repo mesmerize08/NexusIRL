@@ -14,6 +14,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">ビットレート</string>
     <string name="codec">コーデック</string>
+    <string name="audio">オーディオ</string>
     <string name="srt_latency">遅延</string>
     <string name="adaptive_bitrate">適応ビットレート</string>
     <string name="algorithm">アルゴリズム</string>
@@ -55,6 +56,7 @@
     <string name="mute">ミュート</string>
     <string name="zoom">ズーム</string>
     <string name="portrait">ポートレート</string>
+    <string name="bluetooth_output_only">Bluetooth出力のみ</string>
     <string name="alerts_subscriptions">サブスク</string>
     <string name="alerts_gift_subscriptions">サブスクギフト</string>
     <string name="alerts_raids">レイド</string>
@@ -63,4 +65,25 @@
     <string name="subscribers">サブスクライバー</string>
     <string name="minimum_subscriber_tier">最低サブスクティア</string>
     <string name="url">URL</string>
+    <string name="obs_remote_control">OBSリモートコントロール</string>
+    <string name="obs_source_name">ソース名</string>
+    <string name="obs_auto_start_stream">開始時に自動的に配信を開始</string>
+    <string name="obs_auto_stop_stream">終了時に配信を自動停止</string>
+    <string name="obs_auto_start_recording">開始時に自動的に録画を開始</string>
+    <string name="obs_auto_stop_recording">終了時に録画を自動停止</string>
+    <string name="obs_start_streaming">ストリーミングを開始する</string>
+    <string name="obs_stop_streaming">ストリーミングを停止</string>
+    <string name="obs_start_recording">録画を開始</string>
+    <string name="obs_no_snapshot">まだスナップショットを受信して​​いません。</string>
+    <string name="obs_audio_inputs">オーディオ入力シーン</string>
+    <string name="obs_fix_source">%1$s ソースを修正</string>
+    <string name="obs_fix_source_help">オーディオとビデオの問題を修正するために、%1$s ソースを再起動します。</string>
+    <string name="obs_audio_sync">%1$s ソースオーディオ同期</string>
+    <string name="obs_audio_levels">%1$s ソースオーディオレベル</string>
+    <string name="obs_no_audio_levels">音声レベルはまだ受信されていません。</string>
+    <string name="obs_go_live_for_audio_levels">ライブ配信をして音声レベルを確認してください。</string>
+    <string name="obs_muted">ミュート中</string>
+    <string name="connection_priorities">接続の優先順位</string>
+    <string name="connection_priorities_help">優先度の高い接続が安定している場合、優先度の高い接続は優先度の低い接続よりも多く使用されます。不安定な接続は、再び安定するまで、設定された優先順位に関係なく、最低の優先順位になります。</string>
+    <string name="connection_priorities_disabled_help">無効化された接続は使用されません。</string>
 </resources>

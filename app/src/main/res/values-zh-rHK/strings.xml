@@ -16,6 +16,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">碼率</string>
     <string name="codec">編碼</string>
+    <string name="audio">音訊</string>
     <string name="srt_latency">延遲</string>
     <string name="adaptive_bitrate">動態碼率</string>
     <string name="algorithm">演算法</string>
@@ -46,6 +47,9 @@
     <string name="luts">LUTs</string>
     <string name="lut_bundled">套件</string>
     <string name="chat">聊天室</string>
+    <string name="alerts_hosts">主機</string>
+    <string name="alerts_bans">封鎖及禁言</string>
+    <string name="alerts_kicks">Kicks</string>
     <string name="border">邊框</string>
     <string name="bold_message">粗體訊息</string>
     <string name="enabled">啟用</string>
@@ -74,6 +78,7 @@
     <string name="stealth_mode">隱秘模式</string>
     <string name="zoom">縮放</string>
     <string name="portrait">垂直</string>
+    <string name="bluetooth_output_only">藍牙僅用作聲音輸出</string>
     <string name="moblink">Moblink</string>
     <string name="alerts_follows">追隨</string>
     <string name="alerts_subscriptions">訂閱</string>
@@ -117,4 +122,31 @@
     <string name="multi_streaming_help">串流至額外目標</string>
     <string name="multi_streaming_warning">⚠️ 此設定會增加數據用量、系統負載及裝置溫度</string>
     <string name="destination">目標</string>
+    <string name="poll">投票</string>
+    <string name="obs_remote_control">OBS遠端控制</string>
+    <string name="obs_main_scene">主場景</string>
+    <string name="obs_brb_scene">BRB場景</string>
+    <string name="obs_source_name">來源名稱</string>
+    <string name="obs_auto_start_stream">開始時自動開始直播</string>
+    <string name="obs_auto_stop_stream">結束時自動停止直播</string>
+    <string name="obs_auto_start_recording">開始時自動錄影</string>
+    <string name="obs_auto_stop_recording">結束時自動停錄</string>
+    <string name="obs_start_streaming">開始直播</string>
+    <string name="obs_stop_streaming">停止直播</string>
+    <string name="obs_start_recording">開始錄影</string>
+    <string name="obs_snapshot">當前場景截圖</string>
+    <string name="obs_no_snapshot">尚未接收截圖。</string>
+    <string name="obs_audio_inputs">場景音訊輸入</string>
+    <string name="obs_media_sources">場景媒體來源</string>
+    <string name="obs_fix_source">修復 %1$s 來源</string>
+    <string name="obs_fix_source_help">重啟來源 %1$s 以修復聲畫問題。</string>
+    <string name="obs_audio_sync">%1$s 來源音訊同步</string>
+    <string name="obs_audio_levels">%1$s 來源音量</string>
+    <string name="obs_no_audio_levels">尚未接收到音量。</string>
+    <string name="obs_go_live_for_audio_levels">開始直播以查看音量水平。</string>
+    <string name="obs_muted">已靜音</string>
+    <string name="connection_priorities">網路連接順序</string>
+    <string name="connection_priorities_not_supported">%1$s不支援網路連接順序，SRTLA才使用此設定</string>
+    <string name="connection_priorities_help">如果高優先權的連接穩定，使用率會比低優先權的高。不論優先權，不穩定連接會降至順序最低，直到穩定為止。</string>
+    <string name="connection_priorities_disabled_help">未啟用的連接不會被使用。</string>
 </resources>

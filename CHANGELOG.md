@@ -11,6 +11,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
   priority from 1 to 10, or turn a connection off. Changes apply while live. Priorities in Moblin
   settings imports are used, and remote control assistants and the web remote control can change
   them.
+- Translations from Moblin for connection priorities and 32 other texts (OBS remote control,
+  Kick alerts, Twitch poll, prediction and hype train banners, audio settings), including texts
+  with names or numbers in them.
 
 ### Fixed
 - The stream's audio bitrate setting (Moblin's "Audio bitrate", from imported settings) was ignored:

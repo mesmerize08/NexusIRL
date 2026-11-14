@@ -24,4 +24,12 @@
     <string name="alias_start">De alias moet beginnen met !.</string>
     <string name="only_when_live">Werkt alleen als je live bent</string>
     <string name="discord_snapshots_help">Upload automatisch  sneltoets snapshots van chatbots naar kanalen op je Discord-server.</string>
+    <string name="obs_remote_control">OBS afstandsbediening</string>
+    <string name="obs_start_recording">Start met opnemen</string>
+    <string name="obs_snapshot">Snapshot van de huidige scène</string>
+    <string name="obs_no_snapshot">Nog geen snapshot ontvangen.</string>
+    <string name="obs_fix_source_help">Herstart de %1$s-bron opnieuw om hopelijk audio- en videoproblemen op te lossen.</string>
+    <string name="obs_audio_sync">%1$s bron audio synchronisatie</string>
+    <string name="obs_audio_levels">%1$s bron audio niveaus</string>
+    <string name="connection_priorities_help">Een verbinding met hoge prioriteit zal meer worden gebruikt dan een verbinding met lage prioriteit als de verbinding met hoge prioriteit stabiel is. Bij een onstabiele verbindingen krijgen de laagste prioriteit, ongeacht de geconfigureerde prioriteit, totdat ze weer stabiel zijn.</string>
 </resources>

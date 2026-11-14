@@ -16,6 +16,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">비트레이트</string>
     <string name="codec">코덱</string>
+    <string name="audio">오디오</string>
     <string name="srt_latency">지연 시간</string>
     <string name="adaptive_bitrate">적응형 비트레이트</string>
     <string name="algorithm">알고리즘</string>
@@ -46,6 +47,9 @@
     <string name="luts">LUT</string>
     <string name="lut_bundled">기본 제공</string>
     <string name="chat">채팅</string>
+    <string name="alerts_hosts">호스트</string>
+    <string name="alerts_bans">밴과 타임 아웃</string>
+    <string name="alerts_kicks">킥</string>
     <string name="border">윤곽선</string>
     <string name="bold_message">메시지 굵게</string>
     <string name="enabled">활성화</string>
@@ -74,6 +78,7 @@
     <string name="stealth_mode">스텔스 모드</string>
     <string name="zoom">줌</string>
     <string name="portrait">세로 모드</string>
+    <string name="bluetooth_output_only">블루투스 출력 전용</string>
     <string name="moblink">Moblink</string>
     <string name="alerts_follows">팔로우</string>
     <string name="alerts_subscriptions">구독</string>
@@ -117,4 +122,31 @@
     <string name="multi_streaming_help">이 기기에서 여러 플랫폼으로 동시 송출이 가능합니다.</string>
     <string name="multi_streaming_warning">⚠️ 네트워크 대역폭 사용량과 시스템 부하 및 발열을 증가시킵니다.</string>
     <string name="destination">송출 대상</string>
+    <string name="poll">투표</string>
+    <string name="hype_train_level">레벨 %1$d</string>
+    <string name="obs_remote_control">OBS 원격 조정</string>
+    <string name="obs_main_scene">메인 장면</string>
+    <string name="obs_brb_scene">대기 장면</string>
+    <string name="obs_source_name">소스 이름</string>
+    <string name="obs_auto_start_stream">방송 시작 시 스트리밍 자동 시작</string>
+    <string name="obs_auto_stop_stream">방송 종료 시 스트리밍 자동 중지</string>
+    <string name="obs_auto_start_recording">방송 시작 시 녹화 자동 시작</string>
+    <string name="obs_auto_stop_recording">방송 종료 시 녹화 자동 중지</string>
+    <string name="obs_start_streaming">스트리밍 시작</string>
+    <string name="obs_stop_streaming">스트리밍 중지</string>
+    <string name="obs_start_recording">녹화 시작</string>
+    <string name="obs_snapshot">현재 장면 스냅샷</string>
+    <string name="obs_no_snapshot">아직 스냅샷이 수신되지 않았습니다.</string>
+    <string name="obs_audio_inputs">장면 오디오 입력</string>
+    <string name="obs_fix_source">%1$s 소스 다시 시작</string>
+    <string name="obs_fix_source_help">오디오 및 비디오 문제를 해결하기 위해 %1$s 소스를 다시 시작합니다.</string>
+    <string name="obs_audio_sync">%1$s 소스 오디오 동기화</string>
+    <string name="obs_audio_levels">%1$s 소스 오디오 레벨</string>
+    <string name="obs_no_audio_levels">아직 수신된 오디오 레벨이 없습니다.</string>
+    <string name="obs_go_live_for_audio_levels">송출을 시작하여 오디오 레벨을 확인하세요.</string>
+    <string name="obs_muted">음소거 됨</string>
+    <string name="connection_priorities">연결 우선순위</string>
+    <string name="connection_priorities_not_supported">%1$s는 연결 우선순위를 지원하지 않습니다. SRTLA만 연결 우선순위를 지원합니다.</string>
+    <string name="connection_priorities_help">우선순위가 높은 연결이 안정적이라면 우선순위가 낮은 연결보다 더 많이 사용합니다. 불안정한 연결은 다시 안정될 때까지 설정값과 관계없이 가장 낮은 우선순위를 가집니다.</string>
+    <string name="connection_priorities_disabled_help">비활성화된 연결은 사용되지 않습니다.</string>
 </resources>

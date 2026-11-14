@@ -10,6 +10,7 @@
     <string name="resolution">解析度</string>
     <string name="bitrate">位元率</string>
     <string name="codec">編碼器</string>
+    <string name="audio">聲音</string>
     <string name="srt_latency">延遲</string>
     <string name="adaptive_bitrate">動態位元率</string>
     <string name="import_export">導入和導出設定</string>
@@ -34,4 +35,13 @@
     <string name="portrait">直拍</string>
     <string name="alerts_raids">揪團</string>
     <string name="add">增加</string>
+    <string name="poll">投票</string>
+    <string name="obs_remote_control">OBS 遠端控制</string>
+    <string name="obs_no_snapshot">尚未接收快照。</string>
+    <string name="obs_fix_source_help">重新啟動 %1$s 來源有望解決音訊和視訊問題。</string>
+    <string name="obs_audio_levels">%1$s來源音量</string>
+    <string name="obs_no_audio_levels">尚未接收到音量。</string>
+    <string name="obs_go_live_for_audio_levels">開始直播以查看音量。</string>
+    <string name="obs_muted">已靜音</string>
+    <string name="connection_priorities_disabled_help">停用的連線將不會被使用。</string>
 </resources>

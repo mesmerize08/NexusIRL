@@ -14,6 +14,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">Bitrate</string>
     <string name="codec">Códec</string>
+    <string name="audio">Audio</string>
     <string name="srt_latency">Latencia</string>
     <string name="adaptive_bitrate">Bitrate adaptable</string>
     <string name="algorithm">Algoritmo</string>
@@ -53,6 +54,26 @@
     <string name="mute">Silenciar</string>
     <string name="zoom">Zoom</string>
     <string name="portrait">Modo vertical</string>
+    <string name="bluetooth_output_only">Bluetooth solo salida</string>
     <string name="add">Añadir</string>
     <string name="url">URL</string>
+    <string name="obs_remote_control">Control remoto de OBS</string>
+    <string name="obs_source_name">Nombre de la fuente</string>
+    <string name="obs_auto_start_recording">Iniciar automáticamente la grabación al iniciar la transmisión</string>
+    <string name="obs_auto_stop_recording">Detener automáticamente la grabación al finalizar la transmisión</string>
+    <string name="obs_start_streaming">Iniciar transmisión</string>
+    <string name="obs_stop_streaming">Detener transmisión</string>
+    <string name="obs_start_recording">Empezar grabación</string>
+    <string name="obs_snapshot">Captura de la escena actual</string>
+    <string name="obs_no_snapshot">Aún no se ha recibido ninguna instantánea.</string>
+    <string name="obs_fix_source">Reiniciar fuente: %1$s</string>
+    <string name="obs_fix_source_help">Reinicia la fuente %1$s para, con suerte, solucionar problemas de audio y video.</string>
+    <string name="obs_audio_sync">%1$s: Sincronización de audio</string>
+    <string name="obs_audio_levels">%1$s: Nivel de audio</string>
+    <string name="obs_no_audio_levels">Aún no se han recibido niveles de audio.</string>
+    <string name="obs_go_live_for_audio_levels">Inicia la transmisión para ver los niveles de audio.</string>
+    <string name="obs_muted">Silenciado</string>
+    <string name="connection_priorities">Prioridades de conexión</string>
+    <string name="connection_priorities_help">Una conexión con alta prioridad se utilizará más que una conexión con baja prioridad si la conexión de alta prioridad es estable. Las conexiones inestables tendrán la prioridad más baja independientemente de la prioridad configurada hasta que vuelvan a ser estables.</string>
+    <string name="connection_priorities_disabled_help">No se utilizarán conexiones desactivadas.</string>
 </resources>

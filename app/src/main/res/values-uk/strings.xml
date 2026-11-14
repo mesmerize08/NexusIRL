@@ -13,6 +13,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">Бітрейт</string>
     <string name="codec">Кодек</string>
+    <string name="audio">Аудіо</string>
     <string name="srt_latency">Затримка</string>
     <string name="adaptive_bitrate">Адаптивний бітрейт</string>
     <string name="algorithm">Алгоритм</string>
@@ -45,6 +46,22 @@
     <string name="filter_pixellate">Pixellate</string>
     <string name="mute">Вимкнути звук</string>
     <string name="zoom">Збільшити</string>
+    <string name="bluetooth_output_only">Тільки вихід Bluetooth</string>
     <string name="add">додати</string>
     <string name="url">URL</string>
+    <string name="obs_remote_control">OBS вітдалене керування</string>
+    <string name="obs_source_name">Назва джерела</string>
+    <string name="obs_start_streaming">Почати трансляцію</string>
+    <string name="obs_stop_streaming">Зупинити трансляцію</string>
+    <string name="obs_no_snapshot">Знімок ще не отримано.</string>
+    <string name="obs_fix_source">Виправте джерело %1$s</string>
+    <string name="obs_fix_source_help">Перезапускає джерело %1$s, щоб, сподіваюся, вирішити проблеми зі звуком і відео.</string>
+    <string name="obs_audio_sync">Синхронізація вихідного звуку %1$s</string>
+    <string name="obs_audio_levels">Рівні звуку джерела %1$s</string>
+    <string name="obs_no_audio_levels">Рівні звуку ще не отримані.</string>
+    <string name="obs_go_live_for_audio_levels">Перейдіть у прямому етері, щоб побачити рівні звуку.</string>
+    <string name="obs_muted">Вимкнено</string>
+    <string name="connection_priorities">Пріоритети підключення</string>
+    <string name="connection_priorities_help">З’єднання з високим пріоритетом використовуватиметься частіше, ніж з’єднання з низьким пріоритетом, якщо з’єднання з високим пріоритетом є стабільним. Нестабільні з’єднання матимуть найнижчий пріоритет незалежно від налаштованого пріоритету, доки вони знову не стануть стабільними.</string>
+    <string name="connection_priorities_disabled_help">Вимкнені підключення не використовуватимуться.</string>
 </resources>

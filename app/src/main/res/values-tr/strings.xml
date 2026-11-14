@@ -15,6 +15,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">Bitrate</string>
     <string name="codec">Kodek</string>
+    <string name="audio">Ses</string>
     <string name="srt_latency">Gecikme</string>
     <string name="adaptive_bitrate">Adaptif bitrate</string>
     <string name="algorithm">Algoritma</string>
@@ -68,6 +69,7 @@
     <string name="stealth_mode">Gizli mod</string>
     <string name="zoom">Zoom</string>
     <string name="portrait">Dikey</string>
+    <string name="bluetooth_output_only">Yalnızca Bluetooth çıkışı</string>
     <string name="moblink">Moblink</string>
     <string name="alerts_follows">Takip eder</string>
     <string name="alerts_subscriptions">Abonelikler</string>
@@ -91,4 +93,30 @@
     <string name="discord_snapshots_help">Anlık görüntüleri ve sohbet botu anlık görüntülerini otomatik olarak Discord sunucunuzdaki kanallara yükleyin.</string>
     <string name="discord_webhook_help">Discord sunucunuzun ayarlarından bir webhook oluşturun ve URL\'sini yukarıya yapıştırın.</string>
     <string name="url">URL</string>
+    <string name="poll">Anket</string>
+    <string name="hype_train_level">SEVİYE %1$d</string>
+    <string name="obs_remote_control">OBS uzaktan kontrolcü</string>
+    <string name="obs_main_scene">Ana sahne</string>
+    <string name="obs_brb_scene">BRB sahnesi</string>
+    <string name="obs_source_name">Kaynak adı</string>
+    <string name="obs_auto_start_stream">Canlı yayına geçtiğinizde yayını otomatik başlat</string>
+    <string name="obs_auto_stop_stream">Yayını sonlandırırken yayını otomatik olarak durdur</string>
+    <string name="obs_auto_start_recording">Canlı yayına geçtiğinizde kaydı otomatik başlat</string>
+    <string name="obs_auto_stop_recording">Yayını sonlandırırken kaydı otomatik durdur</string>
+    <string name="obs_start_streaming">Yayını başlat</string>
+    <string name="obs_stop_streaming">Yayını durdur</string>
+    <string name="obs_start_recording">Kayda başla</string>
+    <string name="obs_snapshot">Mevcut sahnenin anlık görüntüsü</string>
+    <string name="obs_no_snapshot">Henüz anlık görüntü alınmadı.</string>
+    <string name="obs_audio_inputs">Sahne ses girişleri</string>
+    <string name="obs_fix_source">%1$s kaynağını düzelt</string>
+    <string name="obs_fix_source_help">Ses ve video sorunlarını düzeltmek için %1$s kaynağını yeniden başlatır.</string>
+    <string name="obs_audio_sync">%1$s kaynak ses senkronizasyonu</string>
+    <string name="obs_audio_levels">%1$s kaynak ses seviyeleri</string>
+    <string name="obs_no_audio_levels">Henüz ses düzeyi alınmadı.</string>
+    <string name="obs_go_live_for_audio_levels">Ses seviyelerini görmek için canlı yayına geçin.</string>
+    <string name="obs_muted">Susturuldu</string>
+    <string name="connection_priorities">Bağlantı öncelikleri</string>
+    <string name="connection_priorities_help">Yüksek önceliğe sahip bir bağlantı kararlı ise düşük önceliğe sahip bir bağlantıdan daha fazla kullanılacaktır. Kararsız bağlantılar, tekrar kararlı hale gelene kadar yapılandırılmış önceliğe bakılmaksızın en düşük önceliğe sahip olacaktır.</string>
+    <string name="connection_priorities_disabled_help">Devre dışı bırakılan bağlantılar kullanılmayacaktır.</string>
 </resources>

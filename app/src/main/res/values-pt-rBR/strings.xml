@@ -15,6 +15,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">Taxa de bits</string>
     <string name="codec">Codec</string>
+    <string name="audio">Áudio</string>
     <string name="srt_latency">Latência</string>
     <string name="adaptive_bitrate">Taxa de bits adaptável</string>
     <string name="algorithm">Algoritmo</string>
@@ -66,6 +67,7 @@
     <string name="mute">Mudo</string>
     <string name="zoom">Ampliar</string>
     <string name="portrait">Retrato</string>
+    <string name="bluetooth_output_only">Somente saída Bluetooth</string>
     <string name="moblink">Moblink</string>
     <string name="alerts_follows">Seguir</string>
     <string name="alerts_subscriptions">Assinaturas</string>
@@ -89,4 +91,30 @@
     <string name="discord_snapshots_help">Carregue automaticamente capturas de tela por botões e capturas de tela dos bots de bate-papo para canais no seu servidor Discord.</string>
     <string name="discord_webhook_help">Crie um webhook nas configurações do seu servidor Discord e cole o URL acima.</string>
     <string name="url">URL</string>
+    <string name="poll">Enquete</string>
+    <string name="hype_train_level">NÍVEL %1$d</string>
+    <string name="obs_remote_control">Controle remoto OBS</string>
+    <string name="obs_main_scene">Cena principal</string>
+    <string name="obs_brb_scene">Cena BRB</string>
+    <string name="obs_source_name">Nome da fonte</string>
+    <string name="obs_auto_start_stream">Iniciar transmissão automaticamente ao entrar ao vivo</string>
+    <string name="obs_auto_stop_stream">Parar automaticamente a transmissão ao finalizar a transmissão</string>
+    <string name="obs_auto_start_recording">Iniciar gravação automaticamente ao entrar ao vivo</string>
+    <string name="obs_auto_stop_recording">Parar automaticamente a gravação ao encerrar a transmissão</string>
+    <string name="obs_start_streaming">Iniciar transmissão</string>
+    <string name="obs_stop_streaming">Pare de transmitir</string>
+    <string name="obs_start_recording">Iniciar gravação</string>
+    <string name="obs_snapshot">Captura de tela da cena atual</string>
+    <string name="obs_no_snapshot">Nenhuma captura de tela recebida ainda.</string>
+    <string name="obs_audio_inputs">Entradas de áudio de cena</string>
+    <string name="obs_fix_source">Corrigir %1$s fonte</string>
+    <string name="obs_fix_source_help">Reinicia a fonte %1$s para corrigir problemas de áudio e vídeo.</string>
+    <string name="obs_audio_sync">%1$s sincronização de áudio de origem</string>
+    <string name="obs_audio_levels">%1$s níveis de áudio de origem</string>
+    <string name="obs_no_audio_levels">Nenhum nível de áudio recebido ainda.</string>
+    <string name="obs_go_live_for_audio_levels">Transmita ao vivo para ver os níveis de áudio.</string>
+    <string name="obs_muted">Silenciado</string>
+    <string name="connection_priorities">Prioridades de conexão</string>
+    <string name="connection_priorities_help">Uma conexão com alta prioridade será mais usada do que uma conexão com baixa prioridade se a conexão de alta prioridade for estável. Conexões instáveis terão a prioridade mais baixa, independentemente da prioridade configurada, até que fiquem estáveis novamente.</string>
+    <string name="connection_priorities_disabled_help">Conexões desabilitadas não serão usadas.</string>
 </resources>

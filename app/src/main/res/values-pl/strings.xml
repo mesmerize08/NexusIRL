@@ -16,6 +16,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">Bitrate</string>
     <string name="codec">Kodek</string>
+    <string name="audio">Audio</string>
     <string name="srt_latency">Latencja</string>
     <string name="adaptive_bitrate">Adaptacyjny bitrate</string>
     <string name="algorithm">Algorytm</string>
@@ -45,6 +46,9 @@
     <string name="luts">LUT-y</string>
     <string name="lut_bundled">W zestawie</string>
     <string name="chat">Czat</string>
+    <string name="alerts_hosts">Hosty</string>
+    <string name="alerts_bans">Bany i wykluczenia</string>
+    <string name="alerts_kicks">Kicks</string>
     <string name="border">Obrys</string>
     <string name="bold_message">Pogrubiona treść wiadomości</string>
     <string name="enabled">Włączony</string>
@@ -71,6 +75,7 @@
     <string name="stealth_mode">Tryb ukrycia</string>
     <string name="zoom">Zoom</string>
     <string name="portrait">Tryb portretowy</string>
+    <string name="bluetooth_output_only">Tylko wyjście Bluetooth</string>
     <string name="moblink">Moblink</string>
     <string name="alerts_follows">Followy</string>
     <string name="alerts_subscriptions">Subskrypcje</string>
@@ -113,4 +118,31 @@
     <string name="multi_streaming_help">Streamuj do dodatkowych miejsc bezpośrednio z tego urządzenia.</string>
     <string name="multi_streaming_warning">⚠️ Zwiększy to wykorzystanie pasma sieci, obciążenie systemu i wpłynie na temperaturę urządzenia.</string>
     <string name="destination">Miejsce docelowe</string>
+    <string name="poll">Ankieta</string>
+    <string name="hype_train_level">POZIOM %1$d</string>
+    <string name="obs_remote_control">Zdalne sterowanie OBS</string>
+    <string name="obs_main_scene">Scena główna</string>
+    <string name="obs_brb_scene">Scena Z/W</string>
+    <string name="obs_source_name">Nazwa źródła</string>
+    <string name="obs_auto_start_stream">Automatyczne rozpoczęcie streamowania na żywo</string>
+    <string name="obs_auto_stop_stream">Automatyczne zatrzymanie streamowania po jego zakończeniu</string>
+    <string name="obs_auto_start_recording">Automatyczne rozpoczynanie nagrywania podczas transmisji na żywo</string>
+    <string name="obs_auto_stop_recording">Automatyczne zatrzymywanie nagrywania po zakończeniu streamowania</string>
+    <string name="obs_start_streaming">Rozpocznij stream</string>
+    <string name="obs_stop_streaming">Zatrzymaj stream</string>
+    <string name="obs_start_recording">Rozpocznij nagrywanie</string>
+    <string name="obs_snapshot">Aktualny snapshot sceny</string>
+    <string name="obs_no_snapshot">Nie otrzymano jeszcze żadnego zrzutu ekranu.</string>
+    <string name="obs_audio_inputs">Wejścia audio sceny</string>
+    <string name="obs_fix_source">Napraw źródło %1$s</string>
+    <string name="obs_fix_source_help">Uruchamia ponownie %1$s, aby, rozwiązać problemy z dźwiękiem i obrazem.</string>
+    <string name="obs_audio_sync">%1$s synchronizacja źródła dźwięku</string>
+    <string name="obs_audio_levels">%1$s poziom dźwięku źródłowego</string>
+    <string name="obs_no_audio_levels">Nie odebrano jeszcze żadnych poziomów dźwięku.</string>
+    <string name="obs_go_live_for_audio_levels">Rozpocznij live\'a, aby zobaczyć poziom dźwięku.</string>
+    <string name="obs_muted">Wyciszono</string>
+    <string name="connection_priorities">Priorytety połączeń</string>
+    <string name="connection_priorities_not_supported">Priorytety połączenia nie są obsługiwane przez %1$s. Tylko SRTLA obsługuje priorytety połączenia.</string>
+    <string name="connection_priorities_help">Połączenie o wysokim priorytecie będzie używane bardziej niż połączenie o niskim priorytecie, jeśli połączenie o wysokim priorytecie jest stabilne. Niestabilne połączenia otrzymają najniższy priorytet, niezależnie od skonfigurowanego priorytetu, dopóki ponownie nie staną się stabilne.</string>
+    <string name="connection_priorities_disabled_help">Wyłączone połączenia nie będą używane.</string>
 </resources>

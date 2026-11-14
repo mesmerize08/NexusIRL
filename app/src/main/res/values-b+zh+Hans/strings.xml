@@ -16,6 +16,7 @@
     <string name="fps">FPS</string>
     <string name="bitrate">比特率</string>
     <string name="codec">编码器</string>
+    <string name="audio">音频</string>
     <string name="srt_latency">延迟</string>
     <string name="adaptive_bitrate">自适应比特率</string>
     <string name="algorithm">算法</string>
@@ -45,6 +46,9 @@
     <string name="luts">LUTs</string>
     <string name="lut_bundled">捆绑式</string>
     <string name="chat">聊天</string>
+    <string name="alerts_hosts">主持人</string>
+    <string name="alerts_bans">封禁和超时</string>
+    <string name="alerts_kicks">踢</string>
     <string name="border">边框</string>
     <string name="bold_message">粗体消息</string>
     <string name="enabled">启用</string>
@@ -71,6 +75,7 @@
     <string name="stealth_mode">隐形模式</string>
     <string name="zoom">缩放</string>
     <string name="portrait">竖屏</string>
+    <string name="bluetooth_output_only">仅蓝牙输出</string>
     <string name="moblink">Moblink</string>
     <string name="alerts_follows">关注</string>
     <string name="alerts_subscriptions">订阅</string>
@@ -114,4 +119,31 @@
     <string name="multi_streaming_help">直接从该设备推流到其他地址。</string>
     <string name="multi_streaming_warning">⚠️这将增加网络带宽的使用，系统负载和设备加热。</string>
     <string name="destination">目的地</string>
+    <string name="poll">投票</string>
+    <string name="hype_train_level">等级 %1$d</string>
+    <string name="obs_remote_control">OBS 远程控制</string>
+    <string name="obs_main_scene">主场景</string>
+    <string name="obs_brb_scene">BRB 场景</string>
+    <string name="obs_source_name">源名称</string>
+    <string name="obs_auto_start_stream">直播时自动开始推流</string>
+    <string name="obs_auto_stop_stream">结束推流时自动停止直播</string>
+    <string name="obs_auto_start_recording">直播时自动开始录制</string>
+    <string name="obs_auto_stop_recording">结束推流时自动停止录制</string>
+    <string name="obs_start_streaming">开始串流</string>
+    <string name="obs_stop_streaming">停止串流</string>
+    <string name="obs_start_recording">开始录制</string>
+    <string name="obs_snapshot">当前场景快照</string>
+    <string name="obs_no_snapshot">尚未收到快照。</string>
+    <string name="obs_audio_inputs">场景音频输入</string>
+    <string name="obs_fix_source">修复 %1$s 源</string>
+    <string name="obs_fix_source_help">重新启动 %1$s 源可能会解决音频和视频问题。</string>
+    <string name="obs_audio_sync">%1$s 源音频同步</string>
+    <string name="obs_audio_levels">%1$s 源音量</string>
+    <string name="obs_no_audio_levels">尚未收到音频电平。</string>
+    <string name="obs_go_live_for_audio_levels">开始直播以查看音频电平。</string>
+    <string name="obs_muted">已静音</string>
+    <string name="connection_priorities">连接优先级</string>
+    <string name="connection_priorities_not_supported">%1$s不支持连接优先级。只有SRTLA支持连接优先级。</string>
+    <string name="connection_priorities_help">高优先级连接如果稳定的话将比低优先级直播更多的被使用。无论配置的优先级如何，不稳定的连接都将获得最低优先级，直到它们再次稳定为止。</string>
+    <string name="connection_priorities_disabled_help">禁用的连接将不会被使用。</string>
 </resources>

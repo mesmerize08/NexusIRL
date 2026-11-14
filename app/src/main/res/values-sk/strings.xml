@@ -37,4 +37,14 @@
     <string name="url">URL</string>
     <string name="multi_streaming_help">Streamujte na ďalšie platformy priamo z tohto zariadenia.</string>
     <string name="multi_streaming_warning">⚠ Tým sa zvýši využitie šírky pásma siete, zaťaženie systému a teplo zariadenia.</string>
+    <string name="poll">Poll</string>
+    <string name="obs_auto_start_stream">Automatické začnite streamovať, keď budete naživo</string>
+    <string name="obs_stop_streaming">Zastaviť stream</string>
+    <string name="obs_snapshot">Snímka aktuálnej scény</string>
+    <string name="obs_no_snapshot">Zatiaľ neprišla žiadna snímka.</string>
+    <string name="obs_audio_inputs">Scéna zvukových vstupov</string>
+    <string name="obs_fix_source_help">Reštartuje zdroj %1$s, aby snáď vyriešil problémy so zvukom a videom.</string>
+    <string name="obs_go_live_for_audio_levels">Pre zobrazenie úrovní zvuku prejdite na živé vysielanie.</string>
+    <string name="obs_muted">Stlmený</string>
+    <string name="connection_priorities">Priority pripojenia</string>
 </resources>

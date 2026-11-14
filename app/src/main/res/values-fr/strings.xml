@@ -13,6 +13,7 @@
     <string name="fps">IPS</string>
     <string name="bitrate">Bitrate</string>
     <string name="codec">Codec</string>
+    <string name="audio">Audio</string>
     <string name="srt_latency">Latence</string>
     <string name="adaptive_bitrate">Bitrate adaptatif</string>
     <string name="import_export">Importer et exporter les réglages</string>
@@ -52,4 +53,14 @@
     <string name="webhook_url">URL du webhook</string>
     <string name="chat_bot_webhook_url">URL du Webhook du chat bot</string>
     <string name="url">URL</string>
+    <string name="obs_remote_control">Contrôle à distance OBS</string>
+    <string name="obs_auto_start_stream">Démarrage automatique du stream lors du passage en direct</string>
+    <string name="obs_auto_stop_stream">Arrêt automatique du streaming à la fin du stream</string>
+    <string name="obs_auto_stop_recording">Arrêt automatique de l\'enregistrement à la fin du stream</string>
+    <string name="obs_snapshot">Cliché de la scène actuelle</string>
+    <string name="obs_no_snapshot">Aucune capture d’écran reçue pour l\'instant.</string>
+    <string name="obs_fix_source">Corriger la source %1$s</string>
+    <string name="obs_fix_source_help">Redémarre la source %1$s pour espérer résoudre les problèmes audio et vidéo.</string>
+    <string name="obs_go_live_for_audio_levels">Démarrez le live pour voir les niveaux audio.</string>
+    <string name="obs_muted">Son coupé</string>
 </resources>
