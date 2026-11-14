@@ -19,7 +19,9 @@ private class DriftTrackerMediaState(val targetFillLevel: Double) {
 
 /**
  * Estimates how far the publisher's clock has drifted from the output clock, from the fill levels
- * of the audio and video queues. Not thread-safe: callers use one thread, like upstream's queue.
+ * of the audio and video queues. One tracker per stream is shared by the video selection thread
+ * and the audio output thread (upstream runs both on one queue), so every public method is
+ * synchronized.
  */
 class DriftTracker(private val name: String, private val log: (String) -> Unit = {}) {
     private var audio: DriftTrackerMediaState? = null
@@ -27,6 +29,7 @@ class DriftTracker(private val name: String, private val log: (String) -> Unit =
     private var latestAdjustDriftPresentationTimeStamp = -1.0
     private var drift = 0.0
 
+    @Synchronized
     fun addMedia(media: DriftTrackerMedia, targetFillLevel: Double) {
         log("drift-tracker: $name: Adding $media with target fill level ${three(targetFillLevel)}")
         val state = DriftTrackerMediaState(targetFillLevel)
@@ -36,12 +39,15 @@ class DriftTracker(private val name: String, private val log: (String) -> Unit =
         }
     }
 
+    @Synchronized
     fun getDrift(): Double = drift
 
+    @Synchronized
     fun setDrift(drift: Double) {
         this.drift = drift
     }
 
+    @Synchronized
     fun update(media: DriftTrackerMedia, outputPresentationTimeStamp: Double, newestPresentationTimeStamp: Double) {
         val state = state(media) ?: return
         if (outputPresentationTimeStamp <= state.latestFillLevelPresentationTimeStamp + 0.5) return

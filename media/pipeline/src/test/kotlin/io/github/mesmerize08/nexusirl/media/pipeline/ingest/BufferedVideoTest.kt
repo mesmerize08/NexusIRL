@@ -1,8 +1,11 @@
 package io.github.mesmerize08.nexusirl.media.pipeline.ingest
 
+import java.util.IdentityHashMap
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class BufferedVideoTest {
@@ -91,5 +94,124 @@ class BufferedVideoTest {
         video.updateFrame(2.0)
         assertEquals(2.0, video.latestFrame())
         assertEquals(listOf(1.0), released)
+    }
+
+    private class Frame(val pts: Double)
+
+    /** Counts releases per frame object, so a double release shows up. */
+    private class Releases {
+        val counts = IdentityHashMap<Frame, Int>()
+
+        fun release(frame: Frame) {
+            counts[frame] = (counts[frame] ?: 0) + 1
+        }
+    }
+
+    private fun createFrames(
+        releases: Releases,
+        newest: (() -> Double?)? = null,
+        latency: Double = 0.1,
+        tracker: DriftTracker? = DriftTracker(""),
+    ) = BufferedVideo<Frame>(
+        name = "",
+        update = true,
+        latency = latency,
+        driftTracker = tracker,
+        presentationTimeStamp = { it.pts },
+        onRelease = releases::release,
+        newestPresentationTimeStamp = newest,
+    )
+
+    /** 60 s of output at 30 fps, with the publisher's frames arriving only 0.2 s ahead of the output. */
+    private fun driveWithShortQueue(newest: ((Double) -> Double?)?): DriftTracker {
+        val tracker = DriftTracker("")
+        var output = 0.0
+        val video = createFrames(Releases(), newest?.let { provider -> { provider(output) } }, latency = 2.0, tracker = tracker)
+        var next = 0
+        for (tick in 0..60 * 30) {
+            output = tick / 30.0
+            while (next / 30.0 <= output + 0.2) {
+                video.appendFrame(Frame(next / 30.0))
+                next += 1
+            }
+            video.updateFrame(output)
+        }
+        return tracker
+    }
+
+    @Test
+    fun newestPresentationTimeStampProviderDrivesTheDriftTracker() {
+        // The decoder stage holds the rest of the latency: the stream is on target, the drift stays.
+        val tracker = driveWithShortQueue { output -> output + 2.0 }
+        assertEquals(0.0, tracker.getDrift())
+    }
+
+    @Test
+    fun withoutProviderTheQueueDrivesTheDriftTracker() {
+        // Upstream behaviour: a queue far below its target fill level moves the drift.
+        val tracker = driveWithShortQueue(null)
+        assertNotEquals(0.0, tracker.getDrift())
+    }
+
+    @Test
+    fun providerReturningNullFallsBackToTheQueue() {
+        assertEquals(driveWithShortQueue(null).getDrift(), driveWithShortQueue { null }.getDrift())
+    }
+
+    @Test
+    fun appendWithoutConsumerStaysWithinHardCapAndReleasesDropped() {
+        val releases = Releases()
+        val video = createFrames(releases)
+        val frames = (0 until 1000).map { Frame(it * 0.01) }
+        frames.forEach { video.appendFrame(it) }
+        assertTrue(video.numberOfFrames() <= 400, "${video.numberOfFrames()} frames held")
+        assertEquals(1000 - video.numberOfFrames(), releases.counts.size)
+        assertTrue(releases.counts.values.all { it == 1 }, "a frame was released twice")
+        assertTrue(frames.subList(0, releases.counts.size).all { it in releases.counts }, "not the oldest dropped")
+    }
+
+    @Test
+    fun updateFrameReturnsTheNewlySelectedFrame() {
+        val video = createFrames(Releases())
+        val first = Frame(1.0)
+        val second = Frame(2.0)
+        video.appendFrame(first)
+        video.appendFrame(second)
+        assertSame(first, video.updateFrame(1.0))
+        assertNull(video.updateFrame(1.0), "a duplicate tick selects nothing new")
+        assertSame(second, video.updateFrame(2.0))
+    }
+
+    @Test
+    fun setLatestFrameReleasesTheReplacedFrame() {
+        val releases = Releases()
+        val video = createFrames(releases)
+        val a = Frame(1.0)
+        val b = Frame(2.0)
+        video.setLatestFrame(a)
+        video.setLatestFrame(a)
+        assertTrue(releases.counts.isEmpty(), "re-setting the same frame releases nothing")
+        video.setLatestFrame(b)
+        assertEquals(mapOf(a to 1), releases.counts.toMap())
+        video.setLatestFrame(null)
+        assertEquals(mapOf(a to 1, b to 1), releases.counts.toMap())
+        assertNull(video.latestFrame())
+    }
+
+    @Test
+    fun clearReleasesEveryHeldFrameOnce() {
+        val releases = Releases()
+        val video = createFrames(releases)
+        val frames = (0 until 5).map { Frame(1.0 + it) }
+        frames.forEach { video.appendFrame(it) }
+        video.updateFrame(1.0)
+        assertSame(frames[0], video.latestFrame())
+        video.clear()
+        assertEquals(0, video.numberOfFrames())
+        assertNull(video.latestFrame())
+        assertEquals(frames.toSet(), releases.counts.keys)
+        assertTrue(releases.counts.values.all { it == 1 }, "a frame was released twice")
+        video.clear()
+        assertTrue(releases.counts.values.all { it == 1 }, "clearing twice released again")
     }
 }

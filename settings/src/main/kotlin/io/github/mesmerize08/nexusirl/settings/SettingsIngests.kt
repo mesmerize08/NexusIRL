@@ -10,6 +10,7 @@ import io.github.mesmerize08.nexusirl.core.codable.SwiftPreserving
 import io.github.mesmerize08.nexusirl.core.codable.SwiftPreservingSerializer
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KeepGeneratedSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonObject
@@ -39,16 +40,29 @@ data class SettingsRtmpServerStream(
     val latencySeconds: Double get() = latency / 1000.0
 }
 
-/** Upstream `SettingsRtmpServer`. An import never turns it [enabled] (see SettingsStore.import). */
+/**
+ * Upstream `SettingsRtmpServer`. An import never turns it [enabled] (see SettingsStore.import).
+ *
+ * [enabledChecked] is Android's addition, local to this device like `nexusirlAllowSettingsImport`:
+ * set once the store has turned [enabled] off in a file written before NexusIRL had an RTMP
+ * server (an iOS import could leave it on there, with no way to see it). Imports keep this
+ * device's value and exports leave it out.
+ */
 @KeepGeneratedSerializer
 @Serializable(with = SettingsRtmpServer.Serializer::class)
 data class SettingsRtmpServer(
     val enabled: Boolean = false,
     val port: Int = 1935,
     val streams: List<SettingsRtmpServerStream> = emptyList(),
+    @SerialName(ENABLED_CHECKED_KEY)
+    val enabledChecked: Boolean = false,
     @Transient override var extra: JsonObject = JsonObject(emptyMap()),
 ) : SwiftPreserving {
     object Serializer : SwiftPreservingSerializer<SettingsRtmpServer>(generatedSerializer())
+
+    companion object {
+        const val ENABLED_CHECKED_KEY = "nexusirlEnabledChecked"
+    }
 }
 
 /** Upstream `isValidIngestLatency` and `isValidPort`: an error message, or null when valid. */

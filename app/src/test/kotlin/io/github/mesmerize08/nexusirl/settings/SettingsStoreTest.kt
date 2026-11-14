@@ -454,4 +454,43 @@ class SettingsStoreTest {
         assertFalse(rtmpKey in exported, exported)
         assertTrue("\"streamKey\":\"\"" in exported, exported)
     }
+
+    /** Before RTMP ingest, an iOS import could leave `rtmpServer.enabled=true` in `settings.json` with no way to see it. */
+    @Test
+    fun olderFileWithRtmpServerOnLoadsOffOnce() {
+        val secrets = InMemorySecretStore()
+        val file = File(directory, "settings.json").apply {
+            writeText("""{"rtmpServer":{"enabled":true,"port":1935,"streams":[]}}""")
+        }
+        val store = SettingsStore(file, secrets)
+        assertFalse(store.current.rtmpServer.enabled)
+        assertFalse(SettingsStore(file, secrets).current.rtmpServer.enabled, "the migration is saved")
+
+        store.update { it.copy(rtmpServer = it.rtmpServer.copy(enabled = true)) }
+        assertTrue(SettingsStore(file, secrets).current.rtmpServer.enabled, "the user's choice survives a restart")
+    }
+
+    @Test
+    fun rtmpServerMigrationMarkerIsNeverExported() {
+        val file = File(directory, "settings.json").apply {
+            writeText("""{"rtmpServer":{"enabled":true,"port":1935,"streams":[]}}""")
+        }
+        val store = SettingsStore(file, InMemorySecretStore())
+        assertTrue(rtmpMarker in file.readText(), "the marker is saved on this device")
+        assertFalse(rtmpMarker in store.exportJson(includeSecrets = true))
+        assertFalse(rtmpMarker in store.exportJson())
+    }
+
+    @Test
+    fun importKeepsThisDevicesRtmpServerMigrationMarker() {
+        val secrets = InMemorySecretStore()
+        val file = File(directory, "settings.json")
+        val store = SettingsStore(file, secrets)
+        store.update { it.copy(rtmpServer = it.rtmpServer.copy(enabled = true)) }
+        store.import("""{"rtmpServer":{"enabled":true,"port":1935,"streams":[],"$rtmpMarker":false}}""")
+        assertTrue(rtmpMarker + "\":true" in file.readText(), file.readText())
+        assertTrue(SettingsStore(file, secrets).current.rtmpServer.enabled, "an import did not re-arm the migration")
+    }
+
+    private val rtmpMarker = "nexusirlEnabledChecked"
 }

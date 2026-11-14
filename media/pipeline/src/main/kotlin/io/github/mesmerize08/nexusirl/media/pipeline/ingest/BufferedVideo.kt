@@ -5,8 +5,23 @@ import java.util.Locale
 
 /**
  * Holds incoming video frames in presentation order and picks the one to show for an output time.
- * Not thread-safe: callers use one thread, like upstream's queue. [onRelease] gets every frame that
- * leaves without becoming the latest one, and a replaced latest frame.
+ *
+ * Threading: an instance is not thread-safe. The caller serialises [appendFrame] against
+ * [updateFrame], [setLatestFrame] and [clear] (upstream runs them all on one queue). Only the
+ * [DriftTracker] may be shared.
+ *
+ * Frame ownership: the buffer owns every frame it is given until it passes it to [onRelease],
+ * exactly once: a frame dropped from the queue, a frame that never became the latest one, a
+ * replaced latest frame, and everything still held on [clear]. The caller renders the frame
+ * [updateFrame] returns at selection time and must not keep it past its release. [F] should be a
+ * wrapper whose release is idempotent, and [onRelease] must not throw.
+ *
+ * Unlike upstream, [appendFrame] also drops (and releases) the oldest frame once twice the
+ * upstream cap is queued, so a stalled consumer cannot grow the queue without bound.
+ *
+ * @param newestPresentationTimeStamp when set, the newest timestamp the drift tracker sees, for a
+ *   stream whose frames wait in an earlier stage (a decoder) before reaching this queue. A null
+ *   result falls back to the queue's newest frame. Without it the behaviour is upstream's.
  */
 class BufferedVideo<F>(
     private val name: String,
@@ -17,6 +32,7 @@ class BufferedVideo<F>(
     private val onReady: () -> Unit = {},
     private val onRelease: (F) -> Unit = {},
     private val log: (String) -> Unit = {},
+    private val newestPresentationTimeStamp: (() -> Double?)? = null,
 ) {
     private val frames = ArrayDeque<F>()
     private var current: F? = null
@@ -29,14 +45,16 @@ class BufferedVideo<F>(
     }
 
     fun appendFrame(frame: F) {
+        if (frames.size >= HARD_MAX_FRAMES) onRelease(frames.removeFirst())
         hasFrameBeenAppended = true
         val pts = presentationTimeStamp(frame)
         val index = frames.indexOfLast { presentationTimeStamp(it) < pts }
         frames.add(index + 1, frame)
     }
 
-    fun updateFrame(outputPresentationTimeStamp: Double, forceUpdate: Boolean = false) {
-        if (!(update || forceUpdate)) return
+    /** Picks the frame for [outputPresentationTimeStamp]; returns it when it is new, else null. */
+    fun updateFrame(outputPresentationTimeStamp: Double, forceUpdate: Boolean = false): F? {
+        if (!(update || forceUpdate)) return null
         var candidate: F? = null
         var numberOfFramesConsumed = 0
         val drift = driftTracker?.getDrift() ?: 0.0
@@ -61,15 +79,13 @@ class BufferedVideo<F>(
         }
         if (!isInitialBuffering && hasFrameBeenAppended && update) {
             hasFrameBeenAppended = false
-            val newest = frames.lastOrNull() ?: current
+            val newest = newestPresentationTimeStamp?.invoke()
+                ?: (frames.lastOrNull() ?: current)?.let(presentationTimeStamp)
             if (driftTracker != null && newest != null) {
-                driftTracker.update(
-                    DriftTrackerMedia.VIDEO,
-                    outputPresentationTimeStamp,
-                    presentationTimeStamp(newest),
-                )
+                driftTracker.update(DriftTrackerMedia.VIDEO, outputPresentationTimeStamp, newest)
             }
         }
+        return candidate
     }
 
     /** Removes the first frame; the candidate it replaces never becomes the latest, so it is released. */
@@ -108,8 +124,21 @@ class BufferedVideo<F>(
         isInitialBuffering = false
     }
 
+    /** Replaces the latest frame; the replaced one is released unless it is [frame] itself. */
     fun setLatestFrame(frame: F?) {
+        val replaced = current
         current = frame
+        if (replaced != null && replaced !== frame) onRelease(replaced)
+    }
+
+    /** Releases every queued frame and the latest frame, leaving the buffer empty. */
+    fun clear() {
+        val held = frames.toList()
+        val latest = current
+        frames.clear()
+        current = null
+        held.forEach(onRelease)
+        if (latest != null && held.none { it === latest }) onRelease(latest)
     }
 
     fun latestFrame(): F? = current
@@ -120,6 +149,9 @@ class BufferedVideo<F>(
 
     private companion object {
         const val MAX_FRAMES = 200
+
+        /** Android's addition: a cap that holds even when [updateFrame] is not called. */
+        const val HARD_MAX_FRAMES = 2 * MAX_FRAMES
         const val AHEAD_THRESHOLD = 0.01
     }
 }

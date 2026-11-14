@@ -2,7 +2,8 @@
 
 **Status:** approved on 2026-11-14, with the open questions decided (section 10): behave as much
 like Moblin as possible, deviating only where security or Android requires it. Based on reading
-upstream `97e26d2` and NexusIRL `main` on 2026-11-14.
+upstream `97e26d2` and NexusIRL `main` on 2026-11-14. Stages 1–3 are done (2026-11-14); their
+plan is `docs/plans/2026-11-14-rtmp-ingest-stages-1-3.md`.
 
 **Goal:** the phone accepts an RTMP publish (from OBS, a GoPro, a drone or another phone) and uses
 it as a scene's video source and, optionally, as the audio source, the way Moblin does, with
@@ -249,6 +250,8 @@ Moblin-compatible settings.
 - **Future `targetSdk` 37:** may need a local-network permission.
 - **Harness defaults:** the upstream harness imports `enabled:true` and key `"1"`, which conflicts
   with the hardening.
+- **Audio PTS stepping back:** `BufferedAudioClock` can hand out the previous PTS again when it
+  steps back (as upstream), so the audio path must keep encoder PTS strictly increasing (stage 7).
 
 ## 10. Decisions (2026-11-14)
 

@@ -9,6 +9,7 @@ import io.github.mesmerize08.nexusirl.core.secrets.SecretStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import java.io.File
 import java.io.IOException
 
@@ -29,7 +30,8 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
 
     init {
         // Files written before a field became secret still hold it in plain text: move it now.
-        val protected = protectSecrets(current)
+        // Files written before the RTMP server existed get it turned off, once.
+        val protected = protectSecrets(checkRtmpServerEnabled(current))
         if (protected != current) {
             val json = save(protected)
             mutableDatabase.value = protected
@@ -65,7 +67,11 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             val streamer = imported.remoteControl.streamer.copy(allowSettingsImport = allowSettingsImport)
             // Decision 1 (docs/plans/2026-11-14-rtmp-ingest-stages-1-3.md): an import never turns this
             // phone's RTMP server on or off; its port and streams still import.
-            val rtmpServer = imported.rtmpServer.copy(enabled = current.rtmpServer.enabled)
+            // Its migration marker belongs to this phone too.
+            val rtmpServer = imported.rtmpServer.copy(
+                enabled = current.rtmpServer.enabled,
+                enabledChecked = current.rtmpServer.enabledChecked,
+            )
             imported.copy(
                 quickButtons = addMissingQuickButtons(imported.quickButtons),
                 rtmpServer = rtmpServer,
@@ -94,7 +100,7 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
                 ),
             )
         }
-        val tree = SwiftJson.encodeToJsonElement(Database.Serializer, database)
+        val tree = withoutRtmpServerMarker(SwiftJson.encodeToJsonElement(Database.Serializer, database))
         val exported = SettingsCredentials.map(tree) { kind, value ->
             when {
                 includeSecrets -> resolveOrPublicPart(value)
@@ -104,6 +110,24 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
             }
         }
         return SwiftJson.encodeToString(JsonElement.serializer(), exported)
+    }
+
+    /** [tree] without the RTMP server's migration marker, which belongs to this device. */
+    private fun withoutRtmpServerMarker(tree: JsonElement): JsonElement {
+        val root = tree as? JsonObject ?: return tree
+        val rtmpServer = root["rtmpServer"] as? JsonObject ?: return tree
+        return JsonObject(root + ("rtmpServer" to JsonObject(rtmpServer - SettingsRtmpServer.ENABLED_CHECKED_KEY)))
+    }
+
+    /**
+     * Before NexusIRL had an RTMP server, `rtmpServer` was kept as is from iOS imports, so a file
+     * may hold `enabled=true` that no release ever showed. Such a file (without the marker) gets
+     * the server turned off once; after that the user's choice stands.
+     */
+    private fun checkRtmpServerEnabled(database: Database): Database = if (database.rtmpServer.enabledChecked) {
+        database
+    } else {
+        database.copy(rtmpServer = database.rtmpServer.copy(enabled = false, enabledChecked = true))
     }
 
     /** [value] without its secret parts: a URL's public part, else empty if it holds a secret. */
@@ -215,7 +239,10 @@ class SettingsStore(private val file: File, private val secrets: SecretStore) {
     }
 
     private companion object {
-        /** Upstream `createDefault()` starts without streams; the user adds the first one. */
-        fun createDefault(): Database = Database()
+        /**
+         * Upstream `createDefault()` starts without streams; the user adds the first one. A new
+         * document needs no RTMP server migration.
+         */
+        fun createDefault(): Database = Database(rtmpServer = SettingsRtmpServer(enabledChecked = true))
     }
 }

@@ -5,6 +5,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class FlvTagParserTest {
@@ -218,5 +219,33 @@ class FlvTagParserTest {
     @Test
     fun aacOtherPacketTypeIsIgnored() {
         assertIs<FlvAudioTag.Ignored>(FlvTagParser.parseAudio(bytes(0xAF, 2, 1)))
+    }
+
+    /** Later stages compare headers to see a format change, so tags compare by content. */
+    @Test
+    fun tagsWithEqualBytesAreEqual() {
+        val pairs = listOf(
+            FlvVideoTag.SequenceHeader(
+                IngestVideoCodec.H264,
+                bytes(1, 2),
+            ) to FlvVideoTag.SequenceHeader(IngestVideoCodec.H264, bytes(1, 2)),
+            FlvVideoTag.Frame(true, 33, bytes(3)) to FlvVideoTag.Frame(true, 33, bytes(3)),
+            FlvAudioTag.AacConfig(bytes(0x12, 0x10)) to FlvAudioTag.AacConfig(bytes(0x12, 0x10)),
+            FlvAudioTag.AacFrame(bytes(4, 5)) to FlvAudioTag.AacFrame(bytes(4, 5)),
+        )
+        for ((a, b) in pairs) {
+            assertEquals(a, b)
+            assertEquals(a.hashCode(), b.hashCode(), "$a")
+        }
+        assertNotEquals(
+            FlvVideoTag.SequenceHeader(IngestVideoCodec.H264, bytes(1, 2)),
+            FlvVideoTag.SequenceHeader(IngestVideoCodec.H264, bytes(1, 3)),
+        )
+        assertNotEquals(
+            FlvVideoTag.SequenceHeader(IngestVideoCodec.H264, bytes(1, 2)),
+            FlvVideoTag.SequenceHeader(IngestVideoCodec.H265, bytes(1, 2)),
+        )
+        assertNotEquals<FlvVideoTag>(FlvVideoTag.Frame(true, 33, bytes(3)), FlvVideoTag.Frame(false, 33, bytes(3)))
+        assertNotEquals<FlvVideoTag>(FlvVideoTag.Frame(true, 33, bytes(3)), FlvVideoTag.Frame(true, 34, bytes(3)))
     }
 }

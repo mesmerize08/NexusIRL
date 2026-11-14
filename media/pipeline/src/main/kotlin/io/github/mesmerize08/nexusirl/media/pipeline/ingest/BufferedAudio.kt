@@ -9,8 +9,17 @@ data class BufferedAudioOutput<F>(val frame: F, val silent: Boolean)
 
 /**
  * Holds incoming audio frames and picks the one to play for an output time. Output timing (the
- * timer, sample rate and frame length) belongs to [BufferedAudioClock] and the caller. Not
- * thread-safe: callers use one thread, like upstream's queue.
+ * timer, sample rate and frame length) belongs to [BufferedAudioClock] and the caller.
+ *
+ * Threading: an instance is not thread-safe. The caller serialises [appendFrame] against
+ * [getFrame] (upstream runs both on one queue). Only the [DriftTracker] may be shared.
+ *
+ * Unlike upstream, [appendFrame] also drops the oldest frame once twice the upstream cap is
+ * queued, so a stalled consumer cannot grow the queue without bound.
+ *
+ * @param manualOutput upstream's flag for a buffer whose output is driven from outside. There is
+ *   no timer in here (see [BufferedAudioClock]), so all it does now is switch drift-tracker
+ *   updates off.
  */
 class BufferedAudio<F>(
     private val name: String,
@@ -34,6 +43,7 @@ class BufferedAudio<F>(
     fun numberOfFrames(): Int = frames.size
 
     fun appendFrame(frame: F) {
+        if (frames.size >= HARD_MAX_FRAMES) frames.removeFirst()
         frames.addLast(frame)
         hasFrameBeenAppended = true
     }
@@ -127,6 +137,9 @@ class BufferedAudio<F>(
 
     private companion object {
         const val MAX_FRAMES = 300
+
+        /** Android's addition: a cap that holds even when [getFrame] is not called. */
+        const val HARD_MAX_FRAMES = 2 * MAX_FRAMES
         const val RESYNC_THRESHOLD = 0.05
     }
 }

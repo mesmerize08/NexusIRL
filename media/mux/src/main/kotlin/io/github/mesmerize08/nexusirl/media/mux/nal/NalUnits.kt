@@ -214,12 +214,12 @@ private fun readUnsignedLength(data: ByteArray, offset: Int, size: Int): Long {
 
 /**
  * Converts a length-prefixed (AVCC/HVCC) access unit to Annex-B into a new array, with a 4-byte
- * start code before each NAL unit. Returns null for untrusted-input defects: a zero length, a
- * length past the end, trailing bytes shorter than a length field, or a [nalLengthSize] other
- * than 1, 2 or 4.
+ * start code before each NAL unit. Returns null for untrusted-input defects: empty input (no NAL
+ * unit to decode), a zero length, a length past the end, trailing bytes shorter than a length
+ * field, or a [nalLengthSize] other than 1, 2 or 4.
  */
 fun lengthPrefixedToAnnexB(data: ByteArray, nalLengthSize: Int = 4): ByteArray? {
-    if (nalLengthSize != 1 && nalLengthSize != 2 && nalLengthSize != 4) {
+    if (data.isEmpty() || (nalLengthSize != 1 && nalLengthSize != 2 && nalLengthSize != 4)) {
         return null
     }
     // First pass validates and sizes the output, so nothing is allocated for bad input.

@@ -6,11 +6,24 @@ import io.github.mesmerize08.nexusirl.transport.rtmp.Flv
 
 enum class IngestVideoCodec { H264, H265 }
 
+// The tags holding bytes compare them by content: later stages compare sequence headers to see a
+// format change.
 sealed interface FlvVideoTag {
-    data class SequenceHeader(val codec: IngestVideoCodec, val config: ByteArray) : FlvVideoTag
+    data class SequenceHeader(val codec: IngestVideoCodec, val config: ByteArray) : FlvVideoTag {
+        override fun equals(other: Any?): Boolean = other is SequenceHeader && codec == other.codec && config.contentEquals(other.config)
+
+        override fun hashCode(): Int = 31 * codec.hashCode() + config.contentHashCode()
+    }
 
     /** [data] is length-prefixed NAL units, as sent. */
-    data class Frame(val isKeyFrame: Boolean, val compositionTimeMs: Int, val data: ByteArray) : FlvVideoTag
+    data class Frame(val isKeyFrame: Boolean, val compositionTimeMs: Int, val data: ByteArray) : FlvVideoTag {
+        override fun equals(other: Any?): Boolean = other is Frame &&
+            isKeyFrame == other.isKeyFrame &&
+            compositionTimeMs == other.compositionTimeMs &&
+            data.contentEquals(other.data)
+
+        override fun hashCode(): Int = 31 * (31 * isKeyFrame.hashCode() + compositionTimeMs) + data.contentHashCode()
+    }
 
     data object SequenceEnd : FlvVideoTag
 
@@ -19,9 +32,17 @@ sealed interface FlvVideoTag {
 }
 
 sealed interface FlvAudioTag {
-    data class AacConfig(val audioSpecificConfig: ByteArray) : FlvAudioTag
+    data class AacConfig(val audioSpecificConfig: ByteArray) : FlvAudioTag {
+        override fun equals(other: Any?): Boolean = other is AacConfig && audioSpecificConfig.contentEquals(other.audioSpecificConfig)
 
-    data class AacFrame(val data: ByteArray) : FlvAudioTag
+        override fun hashCode(): Int = audioSpecificConfig.contentHashCode()
+    }
+
+    data class AacFrame(val data: ByteArray) : FlvAudioTag {
+        override fun equals(other: Any?): Boolean = other is AacFrame && data.contentEquals(other.data)
+
+        override fun hashCode(): Int = data.contentHashCode()
+    }
 
     data class Ignored(val reason: String) : FlvAudioTag
 }

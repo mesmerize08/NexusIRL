@@ -74,4 +74,10 @@ class LengthPrefixedToAnnexBTest {
         assertEquals(4, MpegTsVideoConfig.Hevc.nalLengthSize(hvcC(0x0F)))
         assertEquals(2, MpegTsVideoConfig.Hevc.nalLengthSize(hvcC(0x0D)))
     }
+
+    @Test
+    fun emptyInputRejected() {
+        assertNull(lengthPrefixedToAnnexB(ByteArray(0)))
+        assertNull(lengthPrefixedToAnnexB(ByteArray(0), 2))
+    }
 }
