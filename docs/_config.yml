@@ -1,4 +1,5 @@
 # GitHub Pages site for the docs folder: https://mesmerize08.github.io/NexusIRL/
+# Own layout (docs/_layouts/default.html) and stylesheet (docs/assets/css/site.css); no theme.
 title: NexusIRL
 description: >-
   NexusIRL is a free, open-source IRL live streaming app for Android: SRTLA bonding of mobile data
@@ -7,8 +8,21 @@ description: >-
 url: https://mesmerize08.github.io
 baseurl: /NexusIRL
 lang: en
-theme: jekyll-theme-minimal
-# Both are on GitHub Pages' allowed plugin list: page meta tags, and a sitemap for search engines.
+repository: mesmerize08/NexusIRL
+repository_url: https://github.com/mesmerize08/NexusIRL
+# Used when GitHub's release list is unavailable at build time; update with each release.
+fallback_release: v0.5.0
+logo: /assets/img/icon-192.png
+image: /assets/img/social-card.png
+twitter:
+  card: summary_large_image
+# All are on GitHub Pages' allowed plugin list: page meta tags, a sitemap, release information.
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
+  - jekyll-github-metadata
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

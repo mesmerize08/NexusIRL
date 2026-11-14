@@ -51,6 +51,9 @@ Then add four repository secrets (GitHub → Settings → Secrets and variables 
    - the F-Droid note `fastlane/metadata/android/en-US/changelogs/<code>.txt`, where `<code>` is
      10 × `versionCode` + 3 (the highest APK code, which F-Droid reads it for; up to v0.4.0 it was
      plain `versionCode`), 500 characters at most.
+
+   Also set `fallback_release` in `docs/_config.yml` to the new tag. The website reads the newest
+   release from GitHub when it is built and uses this value only if that fails.
 2. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 
 ## Local release builds

@@ -8,7 +8,7 @@ are especially wanted.
 ## Before you start
 
 - Install the APK for your phone from the
-  [latest release](https://github.com/mesmerize08/NexusIRL/releases/latest): `arm64-v8a` for
+  [newest release](https://github.com/mesmerize08/NexusIRL/releases): `arm64-v8a` for
   practically every phone from the last several years.
 - You need somewhere to stream to that is **not a public channel**, for example a private or test
   stream on your own platform account, or a server you run

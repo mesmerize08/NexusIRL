@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="{{ site.lang | default: 'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1126" media="(prefers-color-scheme: dark)">
+  {% seo %}
+  <link rel="preload" href="{{ '/assets/fonts/archivo-latin.woff2' | relative_url }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}">
+  <link rel="icon" type="image/png" sizes="64x64" href="{{ '/assets/img/icon-64.png' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/assets/img/icon-192.png' | relative_url }}">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  {%- assign release = site.github.releases | first -%}
+  {%- assign tag = release.tag_name | default: site.fallback_release -%}
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="{{ '/' | relative_url }}">
+        <img src="{{ '/assets/img/icon-64.png' | relative_url }}" alt="" width="32" height="32">
+        NexusIRL
+      </a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="{{ '/' | relative_url }}#features">Features</a>
+        <a href="{{ '/' | relative_url }}#guides">Guides</a>
+        <a href="{{ '/' | relative_url }}#questions">Questions</a>
+        <a href="{{ site.repository_url }}">GitHub</a>
+        <a class="button" href="{{ site.repository_url }}/releases/tag/{{ tag }}">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  {% if page.home %}
+  <main id="main">
+    {{ content }}
+  </main>
+  {% else %}
+  <main id="main" class="prose">
+    <a class="doc-back" href="{{ '/' | relative_url }}">NexusIRL home</a>
+    {{ content }}
+  </main>
+  {% endif %}
+
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div>
+        <h2>NexusIRL</h2>
+        <p>Free, open-source IRL live streaming for Android. MIT licence.</p>
+        <p>Based on <a href="https://github.com/eerimoq/moblin">Moblin</a> by Erik Moqvist. Not affiliated with or endorsed by the Moblin project.</p>
+      </div>
+      <div>
+        <h2>Get it</h2>
+        <ul>
+          <li><a href="{{ site.repository_url }}/releases/tag/{{ tag }}">Download {{ tag }}</a></li>
+          <li><a href="{{ site.repository_url }}/blob/main/CHANGELOG.md">What's new</a></li>
+          <li><a href="{{ site.repository_url }}">Source code</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Guides</h2>
+        <ul>
+          <li><a href="{{ '/remote-control.html' | relative_url }}">Remote control</a></li>
+          <li><a href="{{ '/chat-bot.html' | relative_url }}">Chat bot</a></li>
+          <li><a href="{{ '/testing/field-test.html' | relative_url }}">Field testing</a></li>
+          <li><a href="{{ '/testing/community-testing.html' | relative_url }}">Test on your phone</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href="{{ '/privacy-policy.html' | relative_url }}">Privacy policy</a></li>
+          <li><a href="{{ site.repository_url }}/blob/main/SECURITY.md">Security</a></li>
+          <li><a href="{{ '/audit/' | relative_url }}">Audit</a></li>
+          <li><a href="{{ site.repository_url }}/blob/main/CONTRIBUTING.md">Contributing</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
