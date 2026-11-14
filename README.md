@@ -166,7 +166,8 @@ that, the project leans on checks that do not depend on trusting the code's auth
 - Streaming is checked against real servers (mediamtx, ffmpeg, an SRTLA receiver), against iOS
   Moblin, and in field tests on real phones and mobile networks.
 - Release builds are reproducible, so anyone can confirm an APK was built from this source.
-- An independent release-readiness audit was reviewed and its findings addressed.
+- An independent [release-readiness audit](docs/audit/README.md) was reviewed and its findings
+  fixed in v0.5.0.
 
 If you find something wrong, please [open an issue](https://github.com/mesmerize08/NexusIRL/issues).
 
