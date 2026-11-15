@@ -2,4 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Granted at run time by the one test that needs a camera picture. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Granted at run time by the audio pipeline tests (the microphone may still give silence). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

@@ -4,7 +4,8 @@
 like Moblin as possible, deviating only where security or Android requires it. Based on reading
 upstream `97e26d2` and NexusIRL `main` on 2026-11-14. Stages 1–3 are done (2026-11-14); their
 plan is `docs/plans/2026-11-14-rtmp-ingest-stages-1-3.md`. Stages 4–5 are done (2026-11-15); their plan is
-`docs/plans/2026-11-15-rtmp-ingest-stages-4-5.md`.
+`docs/plans/2026-11-15-rtmp-ingest-stages-4-5.md`. Stages 6–7 are done (2026-11-15); their plan is
+`docs/plans/2026-11-15-rtmp-ingest-stages-6-7.md`.
 
 **Goal:** the phone accepts an RTMP publish (from OBS, a GoPro, a drone or another phone) and uses
 it as a scene's video source and, optionally, as the audio source, the way Moblin does, with

@@ -9,6 +9,8 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaRecorder
 import io.github.mesmerize08.nexusirl.core.clock.MediaTime
+import io.github.mesmerize08.nexusirl.media.pipeline.ingest.BufferedAudioClock
+import io.github.mesmerize08.nexusirl.media.pipeline.ingest.IngestSource
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.abs
 import kotlin.math.log10
@@ -33,6 +35,25 @@ class AudioPipeline(
 
     @Volatile
     private var running = false
+
+    /** Serialises [switchIngest] calls. */
+    private val switchLock = Any()
+
+    /**
+     * Held while one chunk is gained, measured and fed, so the microphone and the ingest output
+     * never feed at once and a switch takes effect between two chunks.
+     */
+    private val feedLock = Any()
+
+    /** The ingest audio sent instead of the microphone; written with [feedLock] held. */
+    @Volatile
+    private var ingestOutput: IngestOutput? = null
+
+    /** The PTS of the chunk fed last, from either source (guarded by [feedLock]). */
+    private var lastFedPtsNanos = Long.MIN_VALUE
+
+    /** The PTS of the ingest chunk fed last; the microphone skips chunks up to it (guarded by [feedLock]). */
+    private var lastIngestPtsNanos = Long.MIN_VALUE
 
     @Volatile
     var muted = false
@@ -114,7 +135,48 @@ class AudioPipeline(
         }
     }
 
+    /**
+     * Sends [source]'s audio to the encoders instead of the microphone; null goes back to the
+     * microphone. The output for time t is the source's chunk for t - [videoDelayNanos], so it
+     * lines up with a picture shown that much after its selection time (the video pipeline's
+     * one-frame latch lag). The source must have [channels] channels. [stop] forgets the source.
+     */
+    fun useIngestAudio(source: IngestSource?, videoDelayNanos: Long = 0) {
+        require(source == null || source.outputChannels == channels) {
+            "The ingest source has ${source?.outputChannels} audio channels, the pipeline $channels"
+        }
+        switchIngest(source, videoDelayNanos, source?.let { it::audioChunk })
+    }
+
+    /** [useIngestAudio] with any chunk provider (for tests). */
+    internal fun useIngestChunks(chunks: ((outputNanos: Long) -> ShortArray?)?, videoDelayNanos: Long = 0) {
+        switchIngest(chunks, videoDelayNanos, chunks)
+    }
+
+    private fun switchIngest(key: Any?, videoDelayNanos: Long, chunks: ((Long) -> ShortArray?)?) {
+        synchronized(switchLock) {
+            val old = ingestOutput
+            if (old?.key === key && (old == null || old.videoDelayNanos == videoDelayNanos)) {
+                return
+            }
+            // Cleared first: the old output cannot feed any more, and the microphone feeds again
+            // from its next read.
+            synchronized(feedLock) {
+                ingestOutput = null
+                // The no-microphone silence does not measure: do not leave the source's level up.
+                if (!microphoneAvailable) levelDbfs = -160f
+            }
+            old?.stop()
+            if (key != null && chunks != null) {
+                val output = IngestOutput(key, videoDelayNanos, chunks)
+                synchronized(feedLock) { ingestOutput = output }
+                output.start()
+            }
+        }
+    }
+
     fun stop() {
+        switchIngest(null, 0, null)
         running = false
         captureThread?.join(1_000)
         record?.run {
@@ -170,14 +232,117 @@ class AudioPipeline(
                 windowStart = now
                 windowFrames = 0
             }
-            applyGainAndMeasure(pcm, read)
-            encoders.forEach { it.feed(pcm, read, pts) }
+            feedFromMicrophone(pcm, read, pts, measure = true)
+        }
+    }
+
+    /**
+     * Feeds a microphone chunk (or the no-microphone silence), unless ingest audio is sent instead.
+     * After ingest audio, chunks up to the last ingest PTS are skipped so PTS keep increasing.
+     */
+    private fun feedFromMicrophone(pcm: ShortArray, count: Int, pts: Long, measure: Boolean) {
+        synchronized(feedLock) {
+            if (ingestOutput != null || pts <= lastIngestPtsNanos) {
+                return
+            }
+            if (measure) {
+                applyGainAndMeasure(pcm, count)
+            }
+            encoders.forEach { it.feed(pcm, count, pts) }
+            lastFedPtsNanos = pts
         }
     }
 
     private companion object {
+        const val TAG = "AudioPipeline"
+
         /** Re-anchor sample-counted times when they are this far from the measured clock. */
         const val RESYNC_NANOS = 20_000_000L
+
+        /** Ingest output: frames per chunk (spec §5). */
+        const val INGEST_CHUNK_FRAMES = 1024
+
+        /** Ingest output: further behind schedule than this, the missed ticks are skipped. */
+        const val INGEST_MAX_BEHIND_NANOS = 100_000_000L
+    }
+
+    /**
+     * Sends an ingest source's audio: a thread ("audio-ingest") that ticks every 1024 frames on an
+     * absolute schedule of the host clock, takes each PTS from a [BufferedAudioClock] grid
+     * (upstream `BufferedAudio.output()`), and feeds the chunk for that PTS minus
+     * [videoDelayNanos], or silence, through the microphone's path (gain, mute, level meter). A
+     * tick whose PTS is not after the last one fed is skipped. Nothing thrown escapes the thread.
+     */
+    private inner class IngestOutput(val key: Any, val videoDelayNanos: Long, private val chunks: (Long) -> ShortArray?) {
+        private val thread = Thread({ run() }, "audio-ingest")
+
+        @Volatile
+        private var active = true
+
+        fun start() = thread.start()
+
+        fun stop() {
+            active = false
+            if (Thread.currentThread() !== thread) {
+                thread.join(1_000)
+            }
+        }
+
+        private fun run() {
+            try {
+                loop()
+            } catch (e: Throwable) {
+                // Nothing may escape this thread. The encoders get no audio until the next switch.
+                android.util.Log.e(TAG, "Ingest audio output stopped", e)
+            }
+        }
+
+        private fun loop() {
+            val clock = BufferedAudioClock(sampleRate, INGEST_CHUNK_FRAMES) { android.util.Log.i(TAG, it) }
+            val pcm = ShortArray(INGEST_CHUNK_FRAMES * channels)
+            var start = System.nanoTime()
+            var tick = 0L
+            var failures = 0
+            while (active) {
+                val now = System.nanoTime()
+                if (now - tickNanos(start, tick) > INGEST_MAX_BEHIND_NANOS) {
+                    // Far behind (the thread was not scheduled): skip the missed ticks.
+                    start = now
+                    tick = 0
+                }
+                val pts = Math.round(clock.next(now / 1e9) * 1e9)
+                val chunk = try {
+                    chunks(pts - videoDelayNanos)
+                } catch (e: Exception) {
+                    if (failures++ == 0) android.util.Log.w(TAG, "Ingest audio chunk failed, sending silence", e)
+                    null
+                }
+                // Copied: gain and mute must not change the source's own buffer.
+                val count = chunk?.let { minOf(it.size, pcm.size) } ?: 0
+                chunk?.let { System.arraycopy(it, 0, pcm, 0, count) }
+                pcm.fill(0, count, pcm.size)
+                feed(pts, pcm)
+                tick++
+                val wait = tickNanos(start, tick) - System.nanoTime()
+                if (wait > 0) {
+                    Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
+                }
+            }
+        }
+
+        private fun tickNanos(start: Long, tick: Long) = start + tick * INGEST_CHUNK_FRAMES * 1_000_000_000L / sampleRate
+
+        private fun feed(pts: Long, pcm: ShortArray) {
+            synchronized(feedLock) {
+                if (ingestOutput !== this || pts <= lastFedPtsNanos) {
+                    return
+                }
+                applyGainAndMeasure(pcm, pcm.size)
+                encoders.forEach { it.feed(pcm, pcm.size, pts) }
+                lastFedPtsNanos = pts
+                lastIngestPtsNanos = pts
+            }
+        }
     }
 
     /** Silence in real time on the host clock, for when there is no microphone. */
@@ -195,7 +360,7 @@ class AudioPipeline(
                 Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
             }
             chunks++
-            encoders.forEach { it.feed(pcm, pcm.size, pts) }
+            feedFromMicrophone(pcm, pcm.size, pts, measure = false)
         }
     }
 

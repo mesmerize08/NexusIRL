@@ -44,7 +44,8 @@ class IngestSource(
     val name: String,
     latencyNanos: Long,
     softwareDecoding: Boolean,
-    private val outputChannels: Int,
+    /** Channels of every [audioChunk]: the pipeline's channel count. */
+    val outputChannels: Int,
     private val clock: HostClock = HostClock.system,
     private val onEnded: (reason: String) -> Unit,
 ) {
