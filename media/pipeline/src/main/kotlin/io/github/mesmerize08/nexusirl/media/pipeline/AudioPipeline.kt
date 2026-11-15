@@ -49,14 +49,11 @@ class AudioPipeline(
     @Volatile
     private var ingestOutput: IngestOutput? = null
 
-    /** Where the chunk fed last ends (PTS plus duration), from either source (guarded by [feedLock]). */
-    private var lastFedEndNanos = Long.MIN_VALUE
-
     /**
-     * Where the ingest chunk fed last ends; microphone audio before it is cut off, so chunks never
-     * overlap and an encoder's own chunking never steps back (guarded by [feedLock]).
+     * Where the chunk fed last ends, from either source (guarded by [feedLock]). Microphone audio
+     * before it is cut off, so chunks never overlap and an encoder's own chunking never steps back.
      */
-    private var lastIngestEndNanos = Long.MIN_VALUE
+    private val timeline = FeedTimeline(sampleRate)
 
     /** Hears every chunk queued to an encoder: format, PTS (ns), frames (for tests). */
     @Volatile
@@ -212,10 +209,7 @@ class AudioPipeline(
         val pcm = ShortArray(chunkFrames * channels)
         val timestamp = AudioTimestamp()
         var framesRead = 0L
-        // Times come from the sample count, like upstream, so frames are evenly spaced; Android's
-        // per-read timestamps jitter by several milliseconds.
-        var anchorNanos: Long? = null
-        var anchorFrames = 0L
+        val clock = MicrophoneClock(sampleRate) { android.util.Log.i(TAG, it) }
         var windowStart = System.nanoTime()
         var windowFrames = 0L
         while (running) {
@@ -229,16 +223,7 @@ class AudioPipeline(
                 continue
             }
             val frames = read / channels
-            val measured = presentationTimeNanos(record, timestamp, framesRead)
-            val counted = anchorNanos?.let { it + (framesRead - anchorFrames) * 1_000_000_000L / sampleRate }
-            val pts = if (counted == null || abs(measured - counted) > RESYNC_NANOS) {
-                // First read, or the count drifted from the clock (e.g. after a device change).
-                anchorNanos = measured
-                anchorFrames = framesRead
-                measured
-            } else {
-                counted
-            }
+            val pts = clock.next(presentationTimeNanos(record, timestamp, framesRead), frames)
             framesRead += frames
             windowFrames += frames
             val now = System.nanoTime()
@@ -257,8 +242,9 @@ class AudioPipeline(
 
     /**
      * Feeds a microphone chunk (or the no-microphone silence), unless ingest audio is sent instead.
-     * After ingest audio, the frames before the end of the last ingest chunk are cut off (a chunk
-     * entirely before it is skipped), so chunks never overlap. Without ingest audio nothing is cut.
+     * The frames before the end of the chunk fed last are cut off (a chunk entirely before it is
+     * skipped), so chunks never overlap: after ingest audio, and when the microphone's time was
+     * re-anchored back on its clock.
      */
     private fun feedFromMicrophone(pcm: ShortArray, count: Int, pts: Long, measure: Boolean) {
         synchronized(feedLock) {
@@ -268,45 +254,48 @@ class AudioPipeline(
             var samples = pcm
             var sampleCount = count
             var start = pts
-            if (pts < lastIngestEndNanos) {
-                val frames = count / channels
-                // Rounded up, so the rest starts at or after the end.
-                val cut = ((lastIngestEndNanos - pts) * sampleRate + 999_999_999L) / 1_000_000_000L
-                if (cut >= frames) {
-                    return
-                }
-                samples = pcm.copyOfRange(cut.toInt() * channels, count)
+            val frames = count / channels
+            val cut = timeline.framesToCut(pts, frames)
+            if (cut >= frames) {
+                return
+            }
+            if (cut > 0) {
+                samples = pcm.copyOfRange(cut * channels, count)
                 sampleCount = samples.size
-                start = pts + framesToNanos(cut.toInt())
+                start = pts + framesToNanos(cut)
             }
             if (measure) {
                 applyGainAndMeasure(samples, sampleCount)
             }
             encoders.forEach { it.feed(samples, sampleCount, start) }
-            lastFedEndNanos = start + framesToNanos(sampleCount / channels)
+            timeline.fed(start, sampleCount / channels)
         }
     }
 
     private companion object {
         const val TAG = "AudioPipeline"
 
-        /** Re-anchor sample-counted times when they are this far from the measured clock. */
-        const val RESYNC_NANOS = 20_000_000L
-
         /** Ingest output: frames per chunk (spec §5). */
         const val INGEST_CHUNK_FRAMES = 1024
 
         /** Ingest output: further behind schedule than this, the missed ticks are skipped. */
         const val INGEST_MAX_BEHIND_NANOS = 100_000_000L
+
+        /** How long a feed waits for an encoder input buffer before its chunk waits in the backlog. */
+        const val INPUT_TIMEOUT_US = 10_000L
+
+        /** Chunks an encoder's backlog holds (about half a second) before the oldest is dropped. */
+        const val MAX_WAITING_CHUNKS = 24
     }
 
     /**
      * Sends an ingest source's audio: a thread ("audio-ingest") that ticks every 1024 frames on an
      * absolute schedule of the host clock, takes each PTS from a [BufferedAudioClock] grid
-     * (upstream `BufferedAudio.output()`), and feeds the chunk for that PTS minus
-     * [videoDelayNanos], or silence, through the microphone's path (gain, mute, level meter). A
-     * tick that would start before the end of the chunk fed last (a step back of the grid) is
-     * skipped. Nothing thrown escapes the thread; when it ends on its own the microphone takes over.
+     * (upstream `BufferedAudio.output()`) that follows the schedule ([IngestOutputSchedule]), and
+     * feeds the chunk for that PTS minus [videoDelayNanos], or silence, through the microphone's
+     * path (gain, mute, level meter). A tick that would start before the end of the chunk fed last
+     * (a step back of the grid) is skipped. Nothing thrown escapes the thread; when it ends on its
+     * own the microphone takes over.
      */
     private inner class IngestOutput(val key: Any, val videoDelayNanos: Long, private val chunks: (Long) -> ShortArray?) {
         private val thread = Thread({ run() }, "audio-ingest")
@@ -344,19 +333,11 @@ class AudioPipeline(
         }
 
         private fun loop() {
-            val clock = BufferedAudioClock(sampleRate, INGEST_CHUNK_FRAMES) { android.util.Log.i(TAG, it) }
+            val schedule = IngestOutputSchedule(sampleRate, INGEST_CHUNK_FRAMES, INGEST_MAX_BEHIND_NANOS) { android.util.Log.i(TAG, it) }
             val pcm = ShortArray(INGEST_CHUNK_FRAMES * channels)
-            var start = System.nanoTime()
-            var tick = 0L
             var failures = 0
             while (active) {
-                val now = System.nanoTime()
-                if (now - tickNanos(start, tick) > INGEST_MAX_BEHIND_NANOS) {
-                    // Far behind (the thread was not scheduled): skip the missed ticks.
-                    start = now
-                    tick = 0
-                }
-                val pts = Math.round(clock.next(now / 1e9) * 1e9)
+                val pts = schedule.next(System.nanoTime())
                 val chunk = try {
                     chunks(pts - videoDelayNanos)
                 } catch (e: Exception) {
@@ -368,26 +349,22 @@ class AudioPipeline(
                 chunk?.let { System.arraycopy(it, 0, pcm, 0, count) }
                 pcm.fill(0, count, pcm.size)
                 feed(pts, pcm)
-                tick++
-                val wait = tickNanos(start, tick) - System.nanoTime()
+                val wait = schedule.nextTickNanos() - System.nanoTime()
                 if (wait > 0) {
                     Thread.sleep(wait / 1_000_000, (wait % 1_000_000).toInt())
                 }
             }
         }
 
-        private fun tickNanos(start: Long, tick: Long) = start + tick * INGEST_CHUNK_FRAMES * 1_000_000_000L / sampleRate
-
         private fun feed(pts: Long, pcm: ShortArray) {
             synchronized(feedLock) {
                 // A grid PTS within a microsecond of the end is its rounding, not an overlap.
-                if (ingestOutput !== this || pts + 1_000 < lastFedEndNanos) {
+                if (ingestOutput !== this || pts + 1_000 < timeline.endNanos) {
                     return
                 }
                 applyGainAndMeasure(pcm, pcm.size)
                 encoders.forEach { it.feed(pcm, pcm.size, pts) }
-                lastFedEndNanos = pts + framesToNanos(INGEST_CHUNK_FRAMES)
-                lastIngestEndNanos = lastFedEndNanos
+                timeline.fed(pts, INGEST_CHUNK_FRAMES)
             }
         }
     }
@@ -447,9 +424,11 @@ class AudioPipeline(
         @Volatile
         private var released = false
 
-        @Volatile
-        var droppedChunks = 0
-            private set
+        /** Chunks waiting for an input buffer (guarded by this encoder's lock, like the codec input). */
+        private val backlog = ChunkBacklog(MAX_WAITING_CHUNKS)
+
+        /** Chunks dropped because the codec took none for too long (read by the capture log, unlocked). */
+        val droppedChunks: Int get() = backlog.dropped
 
         /** What the codec can take, like upstream's clamp to the applicable encode bitrates. */
         val bitrate: Int
@@ -509,19 +488,30 @@ class AudioPipeline(
             }
         }
 
+        /**
+         * Queues [chunk] after the chunks still waiting. Only the first input buffer is waited for,
+         * a little: a codec backed up keeps them waiting in the [backlog] rather than block the
+         * feeding thread, and gets them, in order, from the next feed on.
+         */
         private fun queue(chunk: ShortArray, ptsNanos: Long) {
-            val inputIndex = codec.dequeueInputBuffer(10_000)
-            if (inputIndex < 0) {
-                droppedChunks++
-                return // Encoder backed up; drop this chunk rather than block capture.
+            var timeoutUs = INPUT_TIMEOUT_US
+            backlog.offer(chunk, ptsNanos) { pcm, pts ->
+                val inputIndex = codec.dequeueInputBuffer(timeoutUs)
+                timeoutUs = 0
+                inputIndex >= 0 && queue(inputIndex, pcm, pts)
             }
-            val buffer = codec.getInputBuffer(inputIndex) ?: return
+        }
+
+        /** Fills input buffer [inputIndex] with [chunk]; false when the codec gives no buffer for it. */
+        private fun queue(inputIndex: Int, chunk: ShortArray, ptsNanos: Long): Boolean {
+            val buffer = codec.getInputBuffer(inputIndex) ?: return false
             buffer.clear()
             // PCM must be in native (little-endian) order; ByteBuffer defaults to big-endian.
             buffer.order(java.nio.ByteOrder.nativeOrder())
             buffer.asShortBuffer().put(chunk)
             codec.queueInputBuffer(inputIndex, 0, chunk.size * 2, ptsNanos / 1000, 0)
             encoderInputListener?.invoke(format, ptsNanos, chunk.size / channels)
+            return true
         }
 
         private fun drain() {
