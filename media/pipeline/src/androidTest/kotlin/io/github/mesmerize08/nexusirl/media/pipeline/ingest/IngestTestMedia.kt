@@ -4,6 +4,7 @@ import android.graphics.SurfaceTexture
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.opengl.EGL14
 import android.opengl.EGLConfig
@@ -21,6 +22,8 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import kotlin.math.PI
+import kotlin.math.sin
 
 /** A test stream as an RTMP publisher sends it: an avcC/hvcC record and length-prefixed access units. */
 class EncodedStream(val codec: IngestVideoCodec, val config: ByteArray, val units: List<IngestVideoAccessUnit>)
@@ -240,5 +243,95 @@ class TextureSink : AutoCloseable {
             EGL14.eglDestroyContext(display, context)
         }
         thread.quitSafely()
+    }
+}
+
+/** An AAC test stream as an RTMP publisher sends it: the AudioSpecificConfig and raw AAC frames (no ADTS). */
+class EncodedAudio(val audioSpecificConfig: ByteArray, val frames: List<Pair<ByteArray, Long>>)
+
+/** Encodes a sine with the device's AAC encoder, with exact presentation times. */
+object AacTestEncoder {
+    private const val MIME = "audio/mp4a-latm"
+
+    fun has(): Boolean = try {
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+            info.isEncoder && info.supportedTypes.any { it.equals(MIME, ignoreCase = true) }
+        }
+    } catch (e: Throwable) {
+        false
+    }
+
+    /**
+     * [seconds] of a [frequency] Hz sine at [sampleRate] / [channels] (the same tone in every
+     * channel). Each frame's PTS is the encoder's (whole microseconds) plus 7 ns plus [startNanos].
+     */
+    fun encode(
+        sampleRate: Int,
+        channels: Int,
+        seconds: Double = 2.0,
+        frequency: Double = 1000.0,
+        startNanos: Long = 5_000_000_000,
+    ): EncodedAudio {
+        val encoder = MediaCodec.createEncoderByType(MIME)
+        val format = MediaFormat.createAudioFormat(MIME, sampleRate, channels).apply {
+            setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+            setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 1024 * channels * 2 * 4)
+        }
+        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        encoder.start()
+        val totalFrames = (seconds * sampleRate).toInt()
+        var written = 0
+        var inputDone = false
+        var done = false
+        var config: ByteArray? = null
+        val frames = ArrayList<Pair<ByteArray, Long>>()
+        val info = MediaCodec.BufferInfo()
+        val deadline = System.nanoTime() + 30_000_000_000
+        try {
+            while (!done) {
+                check(System.nanoTime() < deadline) { "encoder timed out after ${frames.size} frames" }
+                if (!inputDone) {
+                    val index = encoder.dequeueInputBuffer(5_000)
+                    if (index >= 0) {
+                        val pts = written * 1_000_000L / sampleRate
+                        val count = minOf(1024, totalFrames - written)
+                        if (count <= 0) {
+                            encoder.queueInputBuffer(index, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            inputDone = true
+                        } else {
+                            val buffer = encoder.getInputBuffer(index)!!.order(java.nio.ByteOrder.nativeOrder())
+                            buffer.clear()
+                            for (i in 0 until count) {
+                                val value = (sin(2 * PI * frequency * (written + i) / sampleRate) * 12_000).toInt().toShort()
+                                repeat(channels) { buffer.putShort(value) }
+                            }
+                            encoder.queueInputBuffer(index, 0, count * channels * 2, pts, 0)
+                            written += count
+                        }
+                    }
+                }
+                val index = encoder.dequeueOutputBuffer(info, 5_000)
+                if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    val csd = encoder.outputFormat.getByteBuffer("csd-0")
+                    if (config == null && csd != null) config = ByteArray(csd.remaining()).also { csd.get(it) }
+                } else if (index >= 0) {
+                    val buffer = encoder.getOutputBuffer(index)!!
+                    buffer.position(info.offset)
+                    val bytes = ByteArray(info.size).also { buffer.get(it) }
+                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
+                        config = config ?: bytes
+                    } else if (bytes.isNotEmpty()) {
+                        frames += bytes to startNanos + info.presentationTimeUs * 1000 + 7
+                    }
+                    encoder.releaseOutputBuffer(index, false)
+                    done = info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                }
+            }
+        } finally {
+            encoder.stop()
+            encoder.release()
+        }
+        return EncodedAudio(checkNotNull(config) { "encoder gave no AudioSpecificConfig" }, frames)
     }
 }
