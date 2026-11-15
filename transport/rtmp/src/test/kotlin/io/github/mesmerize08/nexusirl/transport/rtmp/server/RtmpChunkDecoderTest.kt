@@ -112,6 +112,35 @@ class RtmpChunkDecoderTest {
     }
 
     @Test
+    fun partialBudgetCountsAllocatedCapacity() {
+        // 1152 bytes received, under 3000, but growing the array to 2000 would hold 1024 + 2000.
+        val d = decoder(RtmpServerLimits(maxPartialBytes = 3000))
+        val chunks = encodeChunks(0, 3, RtmpMessage(RtmpMessageType.VIDEO, 1, 0, payload(2000)), 128)
+        val reason = failure { chunks.take(9).forEach { d.feed(it, 0, it.size) {} } }
+        assertEquals("Too much incomplete data", reason)
+    }
+
+    @Test
+    fun partialBudgetIsReleasedWhenMessageCompletes() {
+        val d = decoder(RtmpServerLimits(maxPartialBytes = 3000))
+        repeat(3) {
+            val m = d.collect(encode(0, 3, RtmpMessage(RtmpMessageType.VIDEO, 1, 0, payload(1500))))
+            assertEquals(1, m.size)
+        }
+    }
+
+    @Test
+    fun decoderStaysFailedAfterAnError() {
+        val d = decoder()
+        failure { d.feed(byteArrayOf(0), 0, 1) {} }
+        val good = encode(0, 3, RtmpMessage(RtmpMessageType.VIDEO, 1, 0, payload(5)))
+        var emitted = 0
+        failure { d.feed(byteArrayOf(0x03, 0), 0, 2) { emitted++ } }
+        failure { d.feed(good, 0, good.size) { emitted++ } }
+        assertEquals(0, emitted)
+    }
+
+    @Test
     fun zeroLengthMessageRejected() {
         val header = byteArrayOf(3, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0)
         assertEquals("Unexpected data", failure { decoder().feed(header, 0, 12) {} })

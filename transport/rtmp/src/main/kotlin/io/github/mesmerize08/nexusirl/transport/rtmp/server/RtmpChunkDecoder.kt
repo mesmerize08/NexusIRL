@@ -16,7 +16,9 @@ class RtmpDecodedMessage(
  * Reassembles messages from the client's chunks. Only incomplete headers (at most 16 bytes) are
  * buffered; a message's announced length is checked against [maxMessageSize] and the connection's
  * partial-data budget before any of its payload is stored, and the payload array grows with the
- * bytes actually received.
+ * bytes actually received. The budget ([RtmpServerLimits.maxPartialBytes]) is charged for the
+ * capacity of the arrays held, not the bytes received. After a [RtmpProtocolException] the decoder
+ * is failed: later feeds throw it again.
  */
 class RtmpChunkDecoder(private val limits: RtmpServerLimits, private val maxMessageSize: (typeId: Int) -> Int) {
     /** The client's chunk size, set by the session from SetChunkSize. */
@@ -44,8 +46,24 @@ class RtmpChunkDecoder(private val limits: RtmpServerLimits, private val maxMess
     private var chunkRemaining = 0
     private var partialBytes = 0L
 
+    private var failure: RtmpProtocolException? = null
+
+    /**
+     * Consumes [length] bytes. A protocol violation throws [RtmpProtocolException] and fails the
+     * decoder for good: every later call throws the same exception without touching any state.
+     */
     fun feed(data: ByteArray, offset: Int, length: Int, onMessage: (RtmpDecodedMessage) -> Unit) {
         require(offset >= 0 && length >= 0 && offset + length <= data.size) { "Range outside the array" }
+        failure?.let { throw it }
+        try {
+            process(data, offset, length, onMessage)
+        } catch (e: RtmpProtocolException) {
+            failure = e
+            throw e
+        }
+    }
+
+    private fun process(data: ByteArray, offset: Int, length: Int, onMessage: (RtmpDecodedMessage) -> Unit) {
         var position = offset
         val end = offset + length
         while (position < end) {
@@ -146,39 +164,42 @@ class RtmpChunkDecoder(private val limits: RtmpServerLimits, private val maxMess
         if (stream.length > maxMessageSize(stream.typeId)) {
             throw RtmpProtocolException("Message of ${stream.length} bytes is too large")
         }
-        stream.payload = ByteArray(minOf(stream.length, INITIAL_CAPACITY))
+        val capacity = minOf(stream.length, INITIAL_CAPACITY)
+        chargeCapacity(capacity)
+        stream.payload = ByteArray(capacity)
         stream.received = 0
+        partialBytes += capacity
+    }
+
+    /** The budget covers memory held, so a new array is checked while the old one is still held. */
+    private fun chargeCapacity(newBytes: Int) {
+        if (partialBytes + newBytes > limits.maxPartialBytes) {
+            throw RtmpProtocolException("Too much incomplete data")
+        }
     }
 
     private fun append(stream: ChunkStream, data: ByteArray, position: Int, count: Int) {
-        if (partialBytes + count > limits.maxPartialBytes) {
-            throw RtmpProtocolException("Too much incomplete data")
-        }
         var payload = stream.payload!!
         val needed = stream.received + count
         if (needed > payload.size) {
-            payload = payload.copyOf(minOf(stream.length, maxOf(needed, payload.size * 2)))
+            val capacity = minOf(stream.length, maxOf(needed, payload.size * 2))
+            chargeCapacity(capacity)
+            partialBytes += capacity - payload.size
+            payload = payload.copyOf(capacity)
             stream.payload = payload
         }
         System.arraycopy(data, position, payload, stream.received, count)
         stream.received += count
-        partialBytes += count
     }
 
     private fun complete(stream: ChunkStream, onMessage: (RtmpDecodedMessage) -> Unit) {
+        // Capacity is capped at the length, so a complete message's array is exactly its size.
         val payload = stream.payload!!
         stream.payload = null
         stream.received = 0
-        partialBytes -= stream.length
+        partialBytes -= payload.size
         onMessage(
-            RtmpDecodedMessage(
-                stream.id,
-                stream.typeId,
-                stream.messageStreamId,
-                stream.timestamp,
-                stream.isAbsolute,
-                if (payload.size == stream.length) payload else payload.copyOf(stream.length),
-            ),
+            RtmpDecodedMessage(stream.id, stream.typeId, stream.messageStreamId, stream.timestamp, stream.isAbsolute, payload),
         )
     }
 
