@@ -1,7 +1,10 @@
 package io.github.mesmerize08.nexusirl.media.pipeline.ingest
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.hardware.camera2.CameraManager
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,6 +12,7 @@ import io.github.mesmerize08.nexusirl.core.clock.MediaTime
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsAudioConfig
 import io.github.mesmerize08.nexusirl.media.mux.ts.MpegTsVideoConfig
 import io.github.mesmerize08.nexusirl.media.pipeline.MediaSink
+import io.github.mesmerize08.nexusirl.media.pipeline.SceneSwitchTransitionKind
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoEncoderSettings
 import io.github.mesmerize08.nexusirl.media.pipeline.VideoPipeline
 import org.junit.After
@@ -16,6 +20,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CopyOnWriteArrayList
@@ -25,9 +30,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The pipeline showing an [IngestSource] instead of the camera. The test package has no camera
- * permission, so the camera never delivers a picture: without the source the canvas is black on
- * every device (CI's emulator has no camera at all).
+ * The pipeline showing an [IngestSource] instead of the camera. The test package declares the
+ * camera permission but only [frozenCameraImageEndsWithTheTransition] grants it, so in the other
+ * tests the camera usually cannot open (and CI's emulator has none). They use the Freeze
+ * transition, so a camera image that did arrive is never shown while the source has no picture,
+ * and [backToCamera] checks for black only when no camera can deliver one.
  */
 @RunWith(AndroidJUnit4::class)
 class VideoPipelineIngestTest {
@@ -50,7 +57,14 @@ class VideoPipelineIngestTest {
     }
 
     private fun pipeline(): VideoPipeline = VideoPipeline(context, settings, onError = { errors.add(it) })
-        .also { cleanup += { it.stop() } }
+        .also {
+            it.sceneSwitchTransition = SceneSwitchTransitionKind.FREEZE
+            cleanup += { it.stop() }
+        }
+
+    /** The camera can deliver a picture here: permission granted (by an earlier test) and a camera present. */
+    private fun cameraUsable(): Boolean = context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+        context.getSystemService(CameraManager::class.java).cameraIdList.isNotEmpty()
 
     /** Counts encoded frames. */
     private class CountingSink : MediaSink {
@@ -92,12 +106,12 @@ class VideoPipelineIngestTest {
         return result
     }
 
-    /** Average luminance (0..1) of a column range of the snapshot, or 0 without one. */
-    private fun Bitmap?.luminance(fromX: Int = 0, toX: Int = WIDTH): Double {
+    /** Average luminance (0..1) of a region of the snapshot, or 0 without one. */
+    private fun Bitmap?.luminance(fromX: Int = 0, toX: Int = WIDTH, fromY: Int = 0, toY: Int = HEIGHT): Double {
         this ?: return 0.0
         var sum = 0.0
         var count = 0
-        for (y in 0 until height step 4) {
+        for (y in fromY until toY step 4) {
             for (x in fromX until toX step 4) {
                 val pixel = getPixel(x, y)
                 sum += (0.299 * Color.red(pixel) + 0.587 * Color.green(pixel) + 0.114 * Color.blue(pixel)) / 255
@@ -245,8 +259,10 @@ class VideoPipelineIngestTest {
         source.feed(stream)
         assertTrue(pipeline.awaitLuminance(LATENCY / 1_000_000 + 1500) { it > 0.2 } > 0.2)
         pipeline.showIngestSource(null, cameraIdWhenNull = null)
-        val luminance = pipeline.awaitLuminance(1000) { it < 0.05 }
-        assertTrue("not black without the source: $luminance", luminance < 0.05)
+        if (!cameraUsable()) {
+            val luminance = pipeline.awaitLuminance(1000) { it < 0.05 }
+            assertTrue("not black without the source: $luminance", luminance < 0.05)
+        }
         val rendered = source.lastRenderedPtsNanos
         val frames = sink.frames.get()
         Thread.sleep(600)
@@ -254,6 +270,63 @@ class VideoPipelineIngestTest {
         assertTrue("no black frames encoded after detaching", sink.frames.get() > frames + 5)
         assertFalse("the pipeline closed the source", source.isEnded)
         assertNull("ended", ended.peek())
+    }
+
+    /**
+     * The camera had a picture, then a source that never sends data is shown: the camera's last
+     * image stays for the transition (Blur: 2 s) only, then black, and the switching state ends.
+     */
+    @Test
+    fun frozenCameraImageEndsWithTheTransition() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.CAMERA)
+        assumeTrue("no camera", context.getSystemService(CameraManager::class.java).cameraIdList.isNotEmpty())
+        val pipeline = pipeline()
+        pipeline.sceneSwitchTransition = SceneSwitchTransitionKind.BLUR
+        pipeline.start()
+        val deadline = System.nanoTime() + 5_000_000_000
+        var cameraImage = pipeline.snapshot()
+        while (cameraImage == null && System.nanoTime() < deadline) {
+            Thread.sleep(100)
+            cameraImage = pipeline.snapshot()
+        }
+        assumeTrue("the camera gave no picture: $errors", cameraImage != null)
+        Log.i(TAG, "camera luminance ${cameraImage.luminance()}")
+        val source = source()
+        val start = System.nanoTime()
+        pipeline.showIngestSource(source)
+        Thread.sleep(300)
+        assertTrue("no transition while the source has no picture", pipeline.isTransitionRunning)
+        Log.i(TAG, "during the transition: luminance ${pipeline.snapshot().luminance()}")
+        val end = start + (SceneSwitchTransitionKind.BLUR.durationSeconds * 1e9).toLong() + 200_000_000
+        Thread.sleep(maxOf(0, (end - System.nanoTime()) / 1_000_000))
+        val luminance = pipeline.snapshot().luminance()
+        assertTrue("not black after the transition: $luminance", luminance < 0.02)
+        assertFalse("still switching after the transition", pipeline.isTransitionRunning)
+        assertNull("ended", ended.peek())
+    }
+
+    /** A picture with only its top-left quadrant bright arrives upright and not mirrored. */
+    @Test
+    fun orientationIsKept() {
+        val stream = TestEncoder.encode(IngestVideoCodec.H264, WIDTH, HEIGHT, frames = 90) { x, y ->
+            if (x < WIDTH / 2 && y < HEIGHT / 2) 235 else 16
+        }
+        val pipeline = pipeline()
+        val source = source()
+        pipeline.showIngestSource(source)
+        pipeline.start()
+        source.feed(stream)
+        assertTrue(pipeline.awaitLuminance(LATENCY / 1_000_000 + 1500) { it > 0.1 } > 0.1)
+        val snapshot = pipeline.snapshot()
+        val margin = 16
+        val topLeft = snapshot.luminance(margin, WIDTH / 2 - margin, margin, HEIGHT / 2 - margin)
+        val topRight = snapshot.luminance(WIDTH / 2 + margin, WIDTH - margin, margin, HEIGHT / 2 - margin)
+        val bottomLeft = snapshot.luminance(margin, WIDTH / 2 - margin, HEIGHT / 2 + margin, HEIGHT - margin)
+        Log.i(TAG, "top left $topLeft, top right $topRight, bottom left $bottomLeft")
+        assertTrue("top left is dark: $topLeft", topLeft > 0.7)
+        assertTrue("flipped: bottom left $bottomLeft", bottomLeft < 0.15)
+        assertTrue("mirrored: top right $topRight", topRight < 0.15)
     }
 
     private companion object {

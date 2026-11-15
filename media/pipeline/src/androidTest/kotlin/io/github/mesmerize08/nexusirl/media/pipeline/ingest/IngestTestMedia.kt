@@ -34,9 +34,18 @@ object TestEncoder {
 
     /**
      * [frames] frames at 30 fps, a key frame every second. Each unit's PTS is the encoder's (whole
-     * microseconds) plus 7 ns, so a test sees whether the decoder keeps nanoseconds.
+     * microseconds) plus 7 ns, so a test sees whether the decoder keeps nanoseconds. With [luma],
+     * each pixel's luma is `luma(x, y)` (top-left origin) and the chroma neutral grey instead of the
+     * moving pattern.
      */
-    fun encode(codec: IngestVideoCodec, width: Int, height: Int, frames: Int = 60, startMicros: Long = 1_000_000): EncodedStream {
+    fun encode(
+        codec: IngestVideoCodec,
+        width: Int,
+        height: Int,
+        frames: Int = 60,
+        startMicros: Long = 1_000_000,
+        luma: ((x: Int, y: Int) -> Int)? = null,
+    ): EncodedStream {
         val info = EncoderCapabilities.best(codec.mimeType) ?: error("no ${codec.mimeType} encoder")
         val encoder = MediaCodec.createByCodecName(info.name)
         val format = MediaFormat.createVideoFormat(codec.mimeType, width, height).apply {
@@ -63,7 +72,7 @@ object TestEncoder {
                         if (queued == frames) {
                             encoder.queueInputBuffer(index, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         } else {
-                            fill(encoder.getInputImage(index)!!, queued)
+                            fill(encoder.getInputImage(index)!!, queued, luma)
                             encoder.queueInputBuffer(index, 0, width * height * 3 / 2, pts, 0)
                         }
                         queued++
@@ -110,7 +119,7 @@ object TestEncoder {
         return EncodedStream(codec, config, units)
     }
 
-    private fun fill(image: Image, frame: Int) {
+    private fun fill(image: Image, frame: Int, luma: ((x: Int, y: Int) -> Int)?) {
         for ((plane, value) in image.planes.withIndex()) {
             val subsampling = if (plane == 0) 1 else 2
             val width = image.width / subsampling
@@ -119,7 +128,11 @@ object TestEncoder {
             val row = ByteArray(width)
             for (y in 0 until height) {
                 for (x in 0 until width) {
-                    row[x] = if (plane == 0) (x + 2 * y + 8 * frame).toByte() else (128 + plane * 20 + (x / 16 + frame) % 32).toByte()
+                    row[x] = when {
+                        luma != null -> if (plane == 0) luma(x, y).toByte() else 128.toByte()
+                        plane == 0 -> (x + 2 * y + 8 * frame).toByte()
+                        else -> (128 + plane * 20 + (x / 16 + frame) % 32).toByte()
+                    }
                 }
                 if (value.pixelStride == 1) {
                     buffer.position(y * value.rowStride)

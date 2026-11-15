@@ -24,4 +24,17 @@ class SceneSwitchTransitionTest {
         assertEquals(1f, SceneSwitchTransitionKind.BLUR.zoom(3.0))
         assertEquals(1f, SceneSwitchTransitionKind.FREEZE.zoom(3.0))
     }
+
+    /** Where each animation stops changing: blur at 2 s, blur and zoom at 5 s, freeze never animates. */
+    @Test
+    fun durationIsWhereTheAnimationEnds() {
+        assertEquals(2.0, SceneSwitchTransitionKind.BLUR.durationSeconds)
+        assertEquals(5.0, SceneSwitchTransitionKind.BLUR_AND_ZOOM.durationSeconds)
+        assertEquals(0.0, SceneSwitchTransitionKind.FREEZE.durationSeconds)
+        for (kind in SceneSwitchTransitionKind.entries) {
+            val end = kind.durationSeconds
+            assertEquals(kind.blurRadius(end, 1920), kind.blurRadius(end + 10, 1920))
+            assertEquals(kind.zoom(end), kind.zoom(end + 10))
+        }
+    }
 }

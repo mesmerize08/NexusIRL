@@ -20,6 +20,17 @@ enum class SceneSwitchTransitionKind {
         FREEZE -> 0f
     } * (longSide / 1920f)
 
+    /**
+     * How long the animation runs: 2 s (Blur), 5 s (Blur & zoom), none (Freeze). Not upstream: it
+     * bounds how long the last camera image stays while an ingest source has no picture yet.
+     */
+    val durationSeconds: Double
+        get() = when (this) {
+            BLUR -> 2.0
+            BLUR_AND_ZOOM -> 5.0
+            FREEZE -> 0.0
+        }
+
     /** How much the frame is enlarged: the centre 1 - 0.05 per second (up to 5 s) fills it. */
     fun zoom(seconds: Double): Float = if (this == BLUR_AND_ZOOM) (1 / (1 - seconds.coerceIn(0.0, 5.0) * 0.05)).toFloat() else 1f
 }

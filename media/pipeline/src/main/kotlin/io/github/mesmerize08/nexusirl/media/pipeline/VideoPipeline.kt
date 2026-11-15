@@ -123,8 +123,16 @@ class VideoPipeline(
     @Volatile
     var sceneSwitchTransition = SceneSwitchTransitionKind.BLUR
 
-    // GL thread only.
+    // Written on the GL thread only (volatile for [isTransitionRunning]).
+    @Volatile
     private var transitionStartNanos: Long? = null
+
+    /** A scene switch transition is running (the still-picture "switching" state), for tests. */
+    internal val isTransitionRunning: Boolean
+        get() = transitionStartNanos != null
+
+    /** The camera to go back to when [showIngestSource] gets null without an id (GL thread only). */
+    private var lastCameraId: String? = null
 
     private class OverlayTexture(val textureId: Int, var x: Float, var y: Float, var width: Float, var height: Float)
 
@@ -225,6 +233,7 @@ class VideoPipeline(
             surfaceTexture = texture
             texture.setOnFrameAvailableListener({ handleFrameAvailable() }, glHandler)
             running = true
+            lastCameraId = cameraId
             // A source shown before start: the camera is never opened (decision 6).
             val ingest = ingestSource
             if (ingest != null) {
@@ -699,6 +708,7 @@ class VideoPipeline(
             onError("No camera")
             return
         }
+        lastCameraId = cameraId
         val size = camera.chooseSize(cameraId, settings.width, settings.height)
         cameraAspect = size.width.toFloat() / size.height
         android.util.Log.i(
@@ -729,9 +739,16 @@ class VideoPipeline(
 
     /**
      * Shows [source] instead of the camera (the camera is released); null goes back to the camera
-     * given ([cameraIdWhenNull], null for the first back camera). The picture takes the camera's
-     * place only: LUTs, effects, transitions and widgets apply as for the camera. It is fitted into
-     * the canvas (black bars), and black until the source has rendered a frame or after it ended.
+     * given ([cameraIdWhenNull]; without one, the camera last shown or given to [start], else the
+     * first back camera). The picture takes the camera's place only: LUTs, effects, transitions
+     * and widgets apply as for the camera. It is fitted into the canvas (black bars).
+     *
+     * Until the source renders its first frame, the camera's last image is shown for the scene
+     * switch transition's duration ([SceneSwitchTransitionKind.durationSeconds], none for Freeze),
+     * then black. Handing over from one source to another shows black until the new source's
+     * first frame, and a source that ended (or was closed) shows black. Going back to the camera,
+     * the encoders get no frames for up to about 250 ms: ingest frames are stamped at "now", black
+     * camera-path frames 250 ms earlier, and output times never go back.
      *
      * The caller owns the source: the pipeline attaches its surface and drives it from the frame
      * timer, and null (or [stop]) only lets go of it; close it after that. A new pipeline given the
@@ -754,7 +771,7 @@ class VideoPipeline(
             }
             detachIngest()
             val texture = surfaceTexture ?: return@post
-            replaceCamera(texture, cameraIdWhenNull)
+            replaceCamera(texture, cameraIdWhenNull ?: lastCameraId)
         }
     }
 
@@ -913,7 +930,7 @@ class VideoPipeline(
             ingestLatched = false
             hasFrame = false
             transitionStartNanos = null
-            renderBlack(outputNanos)
+            render(outputNanos, black = true)
             return
         }
         if (texture.frameAvailable) {
@@ -932,11 +949,20 @@ class VideoPipeline(
             }
         }
         source.updateVideo(outputNanos)
+        // The camera's last image is shown for the transition's duration only, then black (no
+        // publisher may be connected for a long time).
+        transitionStartNanos?.let { start ->
+            if (!ingestLatched && now - start >= (sceneSwitchTransition.durationSeconds * 1e9).toLong()) {
+                transitionStartNanos = null
+                hasFrame = false
+            }
+        }
         when {
             ingestLatched -> render(outputNanos, ingest = true)
-            // The camera's last image, through the transition, until the source's first frame.
-            hasFrame -> render(outputNanos)
-            else -> renderBlack(outputNanos)
+            // The camera's last image, through the transition.
+            hasFrame && transitionStartNanos != null -> render(outputNanos)
+            // Composed even without outputs, so snapshots show it (unlike renderBlack).
+            else -> render(outputNanos, black = true)
         }
     }
 
@@ -952,13 +978,13 @@ class VideoPipeline(
         glHandler.postDelayed(::handleFrameTimer, ((nextTickNanos - now) / 1_000_000).coerceAtLeast(0))
     }
 
-    private fun render(presentationNanos: Long, ingest: Boolean = false) {
+    private fun render(presentationNanos: Long, ingest: Boolean = false, black: Boolean = false) {
         if (presentationNanos <= lastPresentationNanos) {
             return
         }
         lastPresentationNanos = presentationNanos
         updateDrawMatrix()
-        compose(camera = showCamera, ingest = ingest)
+        compose(camera = showCamera && !black, ingest = ingest)
         output(presentationNanos)
     }
 
