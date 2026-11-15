@@ -38,8 +38,14 @@ import kotlin.concurrent.withLock
  * recording a reason and closing its socket; the worker then closes the session with that reason.
  *
  * Admission happens on the accept thread before any byte is read or written: [acceptPeer], the
- * wrong-key lockout, [RtmpServerLimits.maxConnections] and [RtmpServerLimits.maxUnauthenticated]
- * (connections not publishing yet). A server starts once; after [stop] it cannot start again.
+ * wrong-key lockout, [RtmpServerLimits.maxConnections], [RtmpServerLimits.maxUnauthenticated]
+ * (connections not publishing yet) and [RtmpServerLimits.maxUnauthenticatedPerAddress]. Refusals
+ * are logged at most once per address every 10 s. Media of all clients shares one budget of
+ * [RtmpServerLimits.maxQueuedMediaBytes] waiting for the listener. A server starts once; after
+ * [stop] it cannot start again.
+ *
+ * [log] is called from all of these threads, also concurrently, so it must be thread-safe. [stop]
+ * can block for several seconds; call it off the main thread.
  */
 class RtmpServer(
     settings: RtmpServerSettings,
@@ -78,9 +84,17 @@ class RtmpServer(
     private val lock = Any()
     private val clients = HashSet<Client>()
     private val failures = HashMap<InetAddress, Failures>()
+    private val refusalLines = HashMap<InetAddress, RefusalLines>()
     private var started = false
     private var stopped = false
 
+    /**
+     * Media bytes of all clients posted to the executor and not yet handled, guarded by [budget]:
+     * one budget of [RtmpServerLimits.maxQueuedMediaBytes] for the whole server.
+     */
+    private var queuedMediaBytes = 0L
+    private val budget = ReentrantLock()
+    private val budgetFreed = budget.newCondition()
     private val peakQueuedMediaBytes = AtomicLong()
 
     /** Who publishes each stream; written on the executor only. */
@@ -91,8 +105,13 @@ class RtmpServer(
 
     @Volatile
     private var serverSocket: ServerSocket? = null
+
+    // Written in start() with lock held; read in stop() after taking it.
     private var acceptThread: Thread? = null
     private var housekeeping: Cancellable? = null
+
+    /** Runs in [start] right after the bind, with the bound port (for tests). */
+    internal var afterBind: (Int) -> Unit = {}
 
     /** The bound port: [RtmpServerSettings.port], or the one the system chose for 0. */
     val port: Int
@@ -112,20 +131,35 @@ class RtmpServer(
             stop()
             throw e
         }
-        serverSocket = server
-        running = true
-        executor.execute { executorThread = Thread.currentThread() }
-        housekeeping = executor.scheduleRepeating(HOUSEKEEPING_PERIOD_NANOS) { housekeep() }
-        acceptThread = Thread({ acceptLoop(server) }, "rtmp-server-accept").apply {
-            isDaemon = true
-            start()
+        afterBind(server.localPort)
+        // A stop() that ran during the bind has seen nothing to close: then nothing starts. Under
+        // the lock, a later stop() sees everything started here.
+        synchronized(lock) {
+            if (stopped) {
+                closeQuietly(server)
+                return
+            }
+            serverSocket = server
+            running = true
+            executor.execute { executorThread = Thread.currentThread() }
+            housekeeping = executor.scheduleRepeating(HOUSEKEEPING_PERIOD_NANOS) { housekeep() }
+            acceptThread = Thread({ acceptLoop(server) }, "rtmp-server-accept").apply {
+                isDaemon = true
+                start()
+            }
         }
         log("rtmp-server: Listening on port ${server.localPort}")
     }
 
     /**
-     * Closes every connection and the listening socket and ends all threads. The listener gets
-     * `onPublishStop(id, "Server stop")` for each publisher, and no call after this returns.
+     * Closes every connection and the listening socket and ends the threads. It blocks for up to
+     * about 6 s (2 s each for the accept thread, the listener and the workers), so call it off
+     * the main thread.
+     *
+     * With a responsive listener, each publisher gets `onPublishStop(id, "Server stop")` before
+     * this returns and there are no listener calls after. If the listener does not return within
+     * 2 s, stop() returns anyway: the stalled call, and possibly stops after it, still run after
+     * this returns, and a publisher may get no stop at all.
      */
     fun stop() {
         synchronized(lock) {
@@ -176,7 +210,7 @@ class RtmpServer(
 
     fun numberOfClients(): Int = synchronized(lock) { clients.size }
 
-    /** The most media bytes any one client had waiting for the listener (for tests). */
+    /** The most media bytes all clients together had waiting for the listener (for tests). */
     internal fun peakQueuedMediaBytes(): Long = peakQueuedMediaBytes.get()
 
     private fun acceptLoop(server: ServerSocket) {
@@ -215,7 +249,7 @@ class RtmpServer(
                 false
             }
         if (!allowed) {
-            log("rtmp-server: Refused $remote, not an allowed peer")
+            logRefusal(remote, "not an allowed peer")
             closeQuietly(socket)
             return
         }
@@ -226,6 +260,8 @@ class RtmpServer(
                 isLockedOut(remote) -> "locked out after wrong stream keys"
                 clients.size >= limits.maxConnections -> "too many connections"
                 clients.count { !it.publishing } >= limits.maxUnauthenticated -> "too many connections not publishing"
+                clients.count { !it.publishing && it.address == remote } >= limits.maxUnauthenticatedPerAddress ->
+                    "too many connections not publishing from this address"
                 else -> {
                     admitted = Client(socket).also { clients.add(it) }
                     null
@@ -234,7 +270,7 @@ class RtmpServer(
         }
         val client = admitted
         if (client == null) {
-            log("rtmp-server: Refused $remote, $refusal")
+            logRefusal(remote, refusal ?: "")
             closeQuietly(socket)
             return
         }
@@ -242,9 +278,38 @@ class RtmpServer(
             pool.execute { client.run() }
         } catch (e: RejectedExecutionException) {
             synchronized(lock) { clients.remove(client) }
-            log("rtmp-server: Refused $remote, no worker free")
+            logRefusal(remote, "no worker free")
             closeQuietly(socket)
         }
+    }
+
+    private class RefusalLines(var loggedAt: Long) {
+        var suppressed = 0
+    }
+
+    /**
+     * At most one refusal line per address per [REFUSAL_LOG_INTERVAL_MILLIS], so that a device
+     * reconnecting in a loop cannot flood the log; the next line counts the ones left out.
+     */
+    private fun logRefusal(address: InetAddress, reason: String) {
+        val line = synchronized(lock) {
+            val now = clock.nanoTime()
+            val interval = REFUSAL_LOG_INTERVAL_MILLIS * NANOS_PER_MILLI
+            val entry = refusalLines[address]
+            if (entry != null && now - entry.loggedAt < interval) {
+                entry.suppressed += 1
+                return
+            }
+            // Bounded: forget addresses with nothing left to count.
+            refusalLines.values.removeAll { now - it.loggedAt >= interval && it.suppressed == 0 }
+            if (refusalLines.size >= MAX_REFUSAL_ADDRESSES) {
+                refusalLines.clear()
+            }
+            val suppressed = entry?.suppressed ?: 0
+            refusalLines[address] = RefusalLines(now)
+            "rtmp-server: Refused $address, $reason" + if (suppressed > 0) " ($suppressed more not logged)" else ""
+        }
+        log(line)
     }
 
     private fun housekeep() {
@@ -340,10 +405,9 @@ class RtmpServer(
 
         private val closeReason = AtomicReference<String?>()
 
-        /** Media bytes posted to the executor and not yet handled, guarded by [budget]. */
-        private val queuedMediaBytes = AtomicLong()
-        private val budget = ReentrantLock()
-        private val budgetFreed = budget.newCondition()
+        /** While the worker waits for the media budget, which is not being idle. */
+        @Volatile
+        private var waitingForBudget = false
 
         // Worker thread only.
         private var output: OutputStream? = null
@@ -379,9 +443,14 @@ class RtmpServer(
                     // client trickling bytes cannot outlive its deadline by a housekeeping period.
                     deadlineReason(clock.nanoTime())?.let { session.close(it) }
                 }
-            } catch (e: Exception) {
-                // IOException from the socket, or anything unexpected: the connection ends.
-                session.close(closeReason.get() ?: error(e))
+            } catch (e: Throwable) {
+                // IOException from the socket, or anything unexpected, even an Error: this
+                // connection ends, and nothing escapes into the pool thread.
+                try {
+                    session.close(closeReason.get() ?: error(e))
+                } catch (inner: Throwable) {
+                    log("rtmp-server: Client $address close failed with ${inner.javaClass.simpleName}")
+                }
             } finally {
                 closeQuietly(socket)
                 synchronized(lock) { clients.remove(this) }
@@ -404,6 +473,7 @@ class RtmpServer(
                 phase == RtmpServerSession.State.CLOSED -> null
                 phase == RtmpServerSession.State.HANDSHAKE && age > limits.handshakeTimeoutMs * NANOS_PER_MILLI -> "Handshake timeout"
                 phase != RtmpServerSession.State.PUBLISHING && age > limits.publishTimeoutMs * NANOS_PER_MILLI -> "Publish timeout"
+                waitingForBudget -> null
                 now - lastReceivedAt > limits.idleTimeoutMs * NANOS_PER_MILLI -> "Receive timeout"
                 else -> null
             }
@@ -418,7 +488,12 @@ class RtmpServer(
             }
         }
 
-        private fun error(e: Exception) = "Error ${e.message ?: e.javaClass.simpleName}"
+        private fun error(e: Throwable) = if (e is Exception) {
+            "Error ${e.message ?: e.javaClass.simpleName}"
+        } else {
+            // An Error's message is not ours to show.
+            "Error ${e.javaClass.simpleName}"
+        }
 
         override fun onPublish(stream: RtmpServerStream) {
             synchronized(lock) { phase = RtmpServerSession.State.PUBLISHING }
@@ -433,29 +508,37 @@ class RtmpServer(
         }
 
         /**
-         * Waits while this client's media would exceed [RtmpServerLimits.maxQueuedMediaBytes]: the
-         * worker stops reading and TCP slows the publisher down. A close or stop ends the wait;
-         * nothing is dropped.
+         * Waits while the media of all clients would exceed [RtmpServerLimits.maxQueuedMediaBytes]
+         * (one message always fits when nothing waits): the worker stops reading and TCP slows the
+         * publisher down. The wait does not count as idle. A close or stop ends it; nothing is
+         * dropped.
          */
         override fun onMedia(media: RtmpIngestMedia) {
             val id = streamId ?: return
             val size = mediaSize(media)
             budget.withLock {
-                while (queuedMediaBytes.get() > 0 && queuedMediaBytes.get() + size > limits.maxQueuedMediaBytes) {
-                    val reason = closeReason.get() ?: if (running) null else SERVER_STOP
-                    if (reason != null) {
-                        // Stops the rest of this feed.
-                        session.close(reason)
-                        return
+                waitingForBudget = true
+                try {
+                    while (queuedMediaBytes > 0 && queuedMediaBytes + size > limits.maxQueuedMediaBytes) {
+                        val reason = closeReason.get() ?: if (running) null else SERVER_STOP
+                        if (reason != null) {
+                            // Stops the rest of this feed.
+                            session.close(reason)
+                            return
+                        }
+                        try {
+                            budgetFreed.await(BUDGET_RECHECK_MILLIS, TimeUnit.MILLISECONDS)
+                        } catch (e: InterruptedException) {
+                            session.close(closeReason.get() ?: SERVER_STOP)
+                            return
+                        }
                     }
-                    try {
-                        budgetFreed.await(BUDGET_RECHECK_MILLIS, TimeUnit.MILLISECONDS)
-                    } catch (e: InterruptedException) {
-                        session.close(closeReason.get() ?: SERVER_STOP)
-                        return
-                    }
+                } finally {
+                    lastReceivedAt = clock.nanoTime()
+                    waitingForBudget = false
                 }
-                peakQueuedMediaBytes.accumulateAndGet(queuedMediaBytes.addAndGet(size), ::maxOf)
+                queuedMediaBytes += size
+                peakQueuedMediaBytes.accumulateAndGet(queuedMediaBytes, ::maxOf)
             }
             executor.execute {
                 try {
@@ -464,7 +547,7 @@ class RtmpServer(
                     }
                 } finally {
                     budget.withLock {
-                        queuedMediaBytes.addAndGet(-size)
+                        queuedMediaBytes -= size
                         budgetFreed.signalAll()
                     }
                 }
@@ -499,6 +582,8 @@ class RtmpServer(
         const val JOIN_MILLIS = 2_000L
         const val ACCEPT_ERROR_PAUSE_MILLIS = 100L
         const val BUDGET_RECHECK_MILLIS = 100L
+        const val REFUSAL_LOG_INTERVAL_MILLIS = 10_000L
+        const val MAX_REFUSAL_ADDRESSES = 1_024
         const val SERVER_STOP = "Server stop"
         const val SAME_STREAM_KEY = "Same stream key"
     }

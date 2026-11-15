@@ -11,6 +11,8 @@ data class RtmpServerSettings(val port: Int, val streams: List<RtmpServerStream>
 data class RtmpServerLimits(
     val maxConnections: Int = 8,
     val maxUnauthenticated: Int = 4,
+    /** Connections not publishing yet from one address, so one device cannot take all of them. */
+    val maxUnauthenticatedPerAddress: Int = 2,
     val handshakeTimeoutMs: Long = 5_000,
     val publishTimeoutMs: Long = 10_000,
     val idleTimeoutMs: Long = 10_000,
@@ -23,7 +25,10 @@ data class RtmpServerLimits(
     val maxPartialBytes: Int = 16 * 1024 * 1024,
     val maxFailedKeys: Int = 5,
     val lockoutMs: Long = 60_000,
-    /** Media bytes one client may have waiting for the listener; past it, its reading waits. */
+    /**
+     * Media bytes all clients together may have waiting for the listener (one message always fits
+     * when nothing waits); past it, the reading of a client with more media waits.
+     */
     val maxQueuedMediaBytes: Long = 32L * 1024 * 1024,
 )
 

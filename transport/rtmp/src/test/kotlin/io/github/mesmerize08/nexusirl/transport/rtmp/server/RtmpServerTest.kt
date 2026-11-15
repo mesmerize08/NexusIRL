@@ -22,19 +22,24 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class RtmpServerTest {
     private val stream = RtmpServerStream(UUID.randomUUID(), "My stream", KEY, 2_000)
+    private val otherStream = RtmpServerStream(UUID.randomUUID(), "Other stream", OTHER_KEY, 2_000)
 
     private class Recorder : RtmpServerListener {
         val events = LinkedBlockingQueue<String>()
         val media: MutableList<RtmpIngestMedia> = Collections.synchronizedList(ArrayList())
+        val mediaStreams: MutableList<UUID> = Collections.synchronizedList(ArrayList())
         val threads: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
         /** When set, onMedia waits for it: a stalled consumer. */
@@ -54,23 +59,36 @@ class RtmpServerTest {
         override fun onMedia(streamId: UUID, media: RtmpIngestMedia) {
             threads += Thread.currentThread().name
             gate?.await(10, TimeUnit.SECONDS)
-            this.media += media
+            synchronized(this.media) {
+                this.media += media
+                mediaStreams += streamId
+            }
         }
 
         fun next(timeoutMs: Long = 5_000): String = events.poll(timeoutMs, TimeUnit.MILLISECONDS) ?: fail("no listener event")
 
         fun videoFrames() = synchronized(media) { media.filterIsInstance<RtmpIngestMedia.VideoFrame>() }
+
+        /** The first byte of each video frame of [streamId], in arrival order. */
+        fun frameIndexes(streamId: UUID) = synchronized(media) {
+            media.indices
+                .filter { mediaStreams[it] == streamId }
+                .mapNotNull { (media[it] as? RtmpIngestMedia.VideoFrame)?.data?.get(0)?.toInt() }
+        }
     }
 
     private val recorder = Recorder()
     private val logLines: MutableList<String> = Collections.synchronizedList(ArrayList())
 
+    private fun logs(): List<String> = synchronized(logLines) { logLines.toList() }
+
     private fun <T> withServer(
         limits: RtmpServerLimits = RtmpServerLimits(),
         acceptPeer: (InetAddress, InetAddress) -> Boolean = { _, _ -> true },
+        clock: HostClock = HostClock.system,
         body: (RtmpServer) -> T,
     ): T {
-        val server = RtmpServer(RtmpServerSettings(0, listOf(stream)), recorder, acceptPeer, limits, HostClock.system) { logLines += it }
+        val server = RtmpServer(RtmpServerSettings(0, listOf(stream, otherStream)), recorder, acceptPeer, limits, clock) { logLines += it }
         server.start()
         try {
             return body(server)
@@ -80,9 +98,10 @@ class RtmpServerTest {
     }
 
     /** A hand-made client: exact bytes in, and how the server ends the connection. */
-    private class RawClient(port: Int) : AutoCloseable {
+    private class RawClient(port: Int, from: InetAddress? = null) : AutoCloseable {
         val socket = Socket().apply {
             tcpNoDelay = true
+            from?.let { bind(InetSocketAddress(it, 0)) }
             connect(InetSocketAddress(InetAddress.getLoopbackAddress(), port), 2_000)
         }
         private val output = socket.getOutputStream()
@@ -266,7 +285,7 @@ class RtmpServerTest {
             client.write(byteArrayOf(3) + ByteArray(1536))
             assertEquals(3, client.firstByte(3_000), "S0 again")
         }
-        assertTrue(logLines.any { "Locking out /127.0.0.1" in it }, "$logLines")
+        assertTrue(logs().any { "Locking out /127.0.0.1" in it }, "${logs()}")
     }
 
     @Test
@@ -295,7 +314,7 @@ class RtmpServerTest {
             assertTrue((System.nanoTime() - started) / 1_000_000 >= 500, "not before the deadline")
             assertTrue(waitUntil(1_000) { server.numberOfClients() == 0 })
         }
-        assertTrue(logLines.any { "Handshake timeout" in it }, "$logLines")
+        assertTrue(logs().any { "Handshake timeout" in it }, "${logs()}")
     }
 
     @Test
@@ -316,11 +335,11 @@ class RtmpServerTest {
             }
             assertTrue(closed, "closed within 5 s after $sent bytes")
         }
-        assertTrue(logLines.any { "Handshake timeout" in it }, "$logLines")
+        assertTrue(logs().any { "Handshake timeout" in it }, "${logs()}")
     }
 
     @Test
-    fun unauthenticatedLimit() = withServer(RtmpServerLimits(maxUnauthenticated = 2)) { server ->
+    fun unauthenticatedLimit() = withServer(RtmpServerLimits(maxUnauthenticated = 2, maxUnauthenticatedPerAddress = 4)) { server ->
         RawClient(server.port).use { publisher ->
             publisher.publish(KEY)
             assertEquals("start ${stream.id}", recorder.next())
@@ -335,6 +354,44 @@ class RtmpServerTest {
                     assertEquals(null, publisher.bytesUntilClosed(200), "still open")
                 }
             }
+        }
+    }
+
+    @Test
+    fun unauthenticatedLimitPerAddress() = withServer { server ->
+        val other = InetAddress.getByName("127.0.0.2")
+        RawClient(server.port).use { idle1 ->
+            RawClient(server.port).use { idle2 ->
+                assertTrue(waitUntil(2_000) { server.numberOfClients() == 2 })
+                RawClient(server.port).use { third ->
+                    assertEquals(0, third.bytesUntilClosed(2_000), "a third idle connection from the same address is closed at once")
+                }
+                RawClient(server.port, other).use { elsewhere ->
+                    assertEquals(null, elsewhere.bytesUntilClosed(300), "another address is still admitted")
+                    assertEquals(3, server.numberOfClients())
+                }
+                assertEquals(null, idle1.bytesUntilClosed(200), "still open")
+                assertEquals(null, idle2.bytesUntilClosed(200), "still open")
+            }
+        }
+        assertTrue(logs().any { "Refused /127.0.0.1, too many connections not publishing from this address" in it }, "${logs()}")
+    }
+
+    @Test
+    fun refusalLinesAreRateLimitedPerAddress() {
+        val offsetNanos = AtomicLong()
+        val clock = HostClock { System.nanoTime() + offsetNanos.get() }
+        withServer(acceptPeer = { _, _ -> false }, clock = clock) { server ->
+            fun refuse() = RawClient(server.port).use { assertEquals(0, it.bytesUntilClosed(2_000)) }
+            fun refusals() = logs().filter { "Refused" in it }
+            repeat(3) { refuse() }
+            assertTrue(waitUntil(1_000) { refusals().size == 1 }, "${logs()}")
+            Thread.sleep(200)
+            assertEquals(1, refusals().size, "one line per address per 10 s: ${logs()}")
+            offsetNanos.set(11_000_000_000L)
+            refuse()
+            assertTrue(waitUntil(1_000) { refusals().size == 2 }, "${logs()}")
+            assertTrue("(2 more not logged)" in refusals()[1], "${logs()}")
         }
     }
 
@@ -379,6 +436,49 @@ class RtmpServerTest {
     }
 
     @Test
+    fun stopDuringStartLeavesNothingRunning() {
+        val server = RtmpServer(RtmpServerSettings(0, listOf(stream)), recorder, { _, _ -> true }, RtmpServerLimits(), HostClock.system)
+        var boundPort = 0
+        server.afterBind = { port ->
+            boundPort = port
+            server.stop()
+        }
+        server.start()
+        assertTrue(boundPort > 0)
+        assertTrue(waitUntil(2_000) { serverThreads().isEmpty() }, "threads still alive: ${serverThreads().map { it.name }}")
+        assertFailsWith<IOException>("the port is closed") {
+            Socket().use { it.connect(InetSocketAddress(InetAddress.getLoopbackAddress(), boundPort), 1_000) }
+        }
+    }
+
+    @Test
+    fun anErrorInAWorkerClosesThatSessionOnly() {
+        val failing = AtomicBoolean()
+        val clock = HostClock {
+            if (failing.get() && Thread.currentThread().name.startsWith("rtmp-server-client")) {
+                throw AssertionError("test")
+            }
+            System.nanoTime()
+        }
+        withServer(clock = clock) { server ->
+            RawClient(server.port).use { client ->
+                client.publish(KEY)
+                assertEquals("start ${stream.id}", recorder.next())
+                failing.set(true)
+                client.video(0, 10)
+                assertEquals("stop ${stream.id} Error AssertionError", recorder.next())
+                assertTrue(client.bytesUntilClosed(2_000) != null, "closed")
+                assertTrue(waitUntil(2_000) { server.numberOfClients() == 0 })
+            }
+            failing.set(false)
+            RawClient(server.port).use { client ->
+                client.publish(KEY)
+                assertEquals("start ${stream.id}", recorder.next(), "the server carries on")
+            }
+        }
+    }
+
+    @Test
     fun keyNeverLogged() = withServer { server ->
         RawClient(server.port).use { client ->
             client.publish(WRONG_KEY)
@@ -396,9 +496,9 @@ class RtmpServerTest {
     }
 
     /** A publisher sends far more than the budget while the listener is stalled. */
-    private fun publishPastTheBudget(server: RtmpServer, client: RawClient): Thread {
-        client.publish(KEY)
-        assertEquals("start ${stream.id}", recorder.next())
+    private fun publishPastTheBudget(server: RtmpServer, client: RawClient, publishing: RtmpServerStream = stream): Thread {
+        client.publish(publishing.streamKey)
+        assertEquals("start ${publishing.id}", recorder.next())
         return Thread {
             try {
                 repeat(FRAMES) { client.video(it, FRAME_SIZE) }
@@ -428,6 +528,51 @@ class RtmpServerTest {
             assertTrue(server.peakQueuedMediaBytes() <= BUDGET, "peak ${server.peakQueuedMediaBytes()}")
             writer.join(5_000)
             assertEquals(1, server.numberOfClients())
+        }
+    }
+
+    @Test
+    fun mediaBudgetIsSharedByAllClients() = withServer(RtmpServerLimits(maxQueuedMediaBytes = BUDGET)) { server ->
+        val release = CountDownLatch(1)
+        recorder.gate = release
+        RawClient(server.port).use { first ->
+            RawClient(server.port).use { second ->
+                val writers = listOf(publishPastTheBudget(server, first), publishPastTheBudget(server, second, otherStream))
+                assertTrue(waitUntil(5_000) { server.peakQueuedMediaBytes() > BUDGET - FRAME_SIZE }, "the budget fills")
+                Thread.sleep(500)
+                assertTrue(server.peakQueuedMediaBytes() <= BUDGET, "server-wide peak ${server.peakQueuedMediaBytes()}")
+                assertEquals(2, server.numberOfClients(), "both wait, neither is closed")
+                release.countDown()
+                assertTrue(
+                    waitUntil(15_000) { recorder.videoFrames().size == 2 * FRAMES },
+                    "all frames of both, got ${recorder.videoFrames().size}",
+                )
+                assertEquals((0 until FRAMES).toList(), recorder.frameIndexes(stream.id), "the first in order, none dropped")
+                assertEquals((0 until FRAMES).toList(), recorder.frameIndexes(otherStream.id), "the second in order, none dropped")
+                assertTrue(server.peakQueuedMediaBytes() <= BUDGET, "server-wide peak ${server.peakQueuedMediaBytes()}")
+                writers.forEach { it.join(5_000) }
+            }
+        }
+    }
+
+    @Test
+    fun waitingForTheBudgetIsNotIdle() = withServer(
+        RtmpServerLimits(maxQueuedMediaBytes = BUDGET, idleTimeoutMs = 1_000, readTimeoutMs = 200),
+    ) { server ->
+        val release = CountDownLatch(1)
+        recorder.gate = release
+        RawClient(server.port).use { client ->
+            publishPastTheBudget(server, client)
+            assertTrue(waitUntil(5_000) { server.peakQueuedMediaBytes() > BUDGET - FRAME_SIZE }, "the budget fills")
+            // Longer than the idle timeout and a housekeeping period.
+            Thread.sleep(3_800)
+            assertTrue(logs().none { "Receive timeout" in it }, "${logs()}")
+            assertEquals(1, server.numberOfClients(), "the waiting publisher is not closed")
+            assertEquals(setOf(stream.id), server.connectedStreamIds())
+            release.countDown()
+            assertTrue(waitUntil(10_000) { recorder.videoFrames().size == FRAMES }, "all frames, got ${recorder.videoFrames().size}")
+            assertEquals((0 until FRAMES).toList(), recorder.frameIndexes(stream.id), "in order, none dropped")
+            assertNull(recorder.events.poll(), "still publishing after the wait")
         }
     }
 
@@ -466,5 +611,6 @@ class RtmpServerTest {
         const val FRAMES = 40
         const val KEY = "secret-key-4711"
         const val WRONG_KEY = "wrong-key-0815"
+        const val OTHER_KEY = "other-key-2342"
     }
 }
