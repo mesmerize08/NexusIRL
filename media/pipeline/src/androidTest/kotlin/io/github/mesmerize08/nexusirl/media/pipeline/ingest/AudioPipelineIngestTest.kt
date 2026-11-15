@@ -40,6 +40,9 @@ class AudioPipelineIngestTest {
     /** The PTS (microseconds) of every chunk queued to the test pipeline's encoder. */
     private val encoderInputs = CopyOnWriteArrayList<Long>()
 
+    /** When ([System.nanoTime]) each of [encoderInputs] was queued. */
+    private val encoderInputTimes = CopyOnWriteArrayList<Long>()
+
     /** Every encoded audio frame with its PTS (microseconds), and the config. */
     private class RecordingSink : MediaSink {
         @Volatile
@@ -80,7 +83,10 @@ class AudioPipelineIngestTest {
     private fun pipeline(sink: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC): AudioPipeline {
         val pipeline = AudioPipeline(channels = CHANNELS)
         cleanup += { pipeline.stop() }
-        pipeline.encoderInputListener = { _, ptsNanos, _ -> encoderInputs += ptsNanos / 1000 }
+        pipeline.encoderInputListener = { _, ptsNanos, _ ->
+            encoderInputTimes += System.nanoTime()
+            encoderInputs += ptsNanos / 1000
+        }
         val encoded = pipeline.addEncoder(AudioEncoderKey(format, 128_000), sink)
         assumeTrue("no $format encoder", encoded.format == format)
         return pipeline
@@ -91,13 +97,19 @@ class AudioPipelineIngestTest {
         if (millis > 0) Thread.sleep(millis)
     }
 
+    /** [seconds] of a 1 kHz tone, encoded before a test's timeline starts: a slow device takes over a second for it. */
+    private fun tone(seconds: Double) = AacTestEncoder.encode(48_000, CHANNELS, seconds = seconds, startNanos = 0)
+
     /**
-     * Sends a 1 kHz tone to [source] in real time, as a publisher would: its first frame's PTS is
-     * [firstPts], each frame arrives a latency before its PTS, frames in [gap] are not sent.
+     * Sends [audio] (a [tone]) to [source] in real time, as a publisher would: its first frame's PTS
+     * is [firstPts], each frame arrives a latency before its PTS, frames in [gap] are not sent.
      * Returns the last PTS sent.
      */
-    private fun sendTone(source: IngestSource, firstPts: Long, seconds: Double = 2.0, gap: LongRange = LongRange.EMPTY): Long {
-        val audio = AacTestEncoder.encode(48_000, CHANNELS, seconds = seconds, startNanos = 0)
+    private fun sendTone(source: IngestSource, firstPts: Long, audio: EncodedAudio, gap: LongRange = LongRange.EMPTY): Long {
+        // Frames sent after their output time are stale and dropped, as they should be: the
+        // test itself must keep to its schedule.
+        val behind = System.nanoTime() - (firstPts - LATENCY)
+        assertTrue("the test started sending ${behind / 1_000_000} ms late", behind < LATENCY / 2)
         source.setAudioConfig(audio.audioSpecificConfig)
         val shift = firstPts - audio.frames.first().second
         val frames = audio.frames.map { (data, pts) -> data to pts + shift }.filter { it.second !in gap }
@@ -169,6 +181,19 @@ class AudioPipelineIngestTest {
         }
     }
 
+    /**
+     * The PTS (µs) of the first chunk queued to the encoder after [nanos], less the encoder's
+     * rounding. Called with the time [AudioPipeline.useIngestAudio] returned: from then on only the
+     * ingest output feeds. Its PTS, not the switch time, starts the output to check: the
+     * microphone's last chunks before the switch may be timed after it (the emulator's timestamps
+     * run ahead under load), and then the gap at the switch would be counted as a hole.
+     */
+    private fun firstPtsQueuedAfter(nanos: Long): Long {
+        val index = encoderInputTimes.indexOfFirst { it >= nanos }
+        assertTrue("nothing queued after the switch", index >= 0)
+        return encoderInputs[index] - 2
+    }
+
     private fun ingestThreads() = Thread.getAllStackTraces().keys.filter { it.name == "audio-ingest" && it.isAlive }
 
     @Test
@@ -177,10 +202,12 @@ class AudioPipelineIngestTest {
         val pipeline = pipeline(sink)
         pipeline.start()
         val source = source()
+        val audio = tone(2.0)
         val start = System.nanoTime()
         pipeline.useIngestAudio(source, videoDelayNanos = 0)
+        val switched = System.nanoTime()
         val firstPts = start + LATENCY
-        val lastPts = sendTone(source, firstPts)
+        val lastPts = sendTone(source, firstPts, audio)
         var loudest = -160f
         while (System.nanoTime() < lastPts + 300_000_000) {
             Thread.sleep(20)
@@ -189,7 +216,8 @@ class AudioPipelineIngestTest {
         pipeline.stop()
         assertTrue("the output thread still runs after stop", ingestThreads().isEmpty())
         assertNull("ended", ended.peek())
-        val frames = sink.frames.filter { it.second >= start / 1000 }
+        val ingestFrom = firstPtsQueuedAfter(switched)
+        val frames = sink.frames.filter { it.second >= ingestFrom }
         val pts = frames.map { it.second }
         assertStrictlyIncreasing(pts)
         val steps = (1 until pts.size).map { pts[it] - pts[it - 1] }
@@ -215,15 +243,18 @@ class AudioPipelineIngestTest {
         val pipeline = pipeline(sink)
         pipeline.start()
         val source = source()
+        val audio = tone(2.0)
         val start = System.nanoTime()
         pipeline.useIngestAudio(source, videoDelayNanos = 0)
+        val switched = System.nanoTime()
         val firstPts = start + LATENCY
         val gap = firstPts + 800_000_000 until firstPts + 1_200_000_000
-        val lastPts = sendTone(source, firstPts, gap = gap)
+        val lastPts = sendTone(source, firstPts, audio, gap = gap)
         sleepUntil(lastPts + 300_000_000)
         pipeline.stop()
         assertNull("ended", ended.peek())
-        val frames = sink.frames.filter { it.second >= start / 1000 }
+        val ingestFrom = firstPtsQueuedAfter(switched)
+        val frames = sink.frames.filter { it.second >= ingestFrom }
         val pts = frames.map { it.second }
         assertStrictlyIncreasing(pts)
         val longest = (1 until pts.size).maxOf { pts[it] - pts[it - 1] }
@@ -262,9 +293,10 @@ class AudioPipelineIngestTest {
         Thread.sleep(500)
         assumeTrue("the microphone (or its silence) delivered nothing", sink.frames.size >= 5)
         val source = source()
+        val audio = tone(1.5)
         val switched = System.nanoTime()
         pipeline.useIngestAudio(source, videoDelayNanos = 0)
-        sendTone(source, switched + LATENCY, seconds = 1.5)
+        sendTone(source, switched + LATENCY, audio)
         Thread.sleep(1_200)
         val switchedBack = System.nanoTime()
         pipeline.useIngestAudio(null, videoDelayNanos = 0)
@@ -294,10 +326,11 @@ class AudioPipelineIngestTest {
         pipeline.muted = true
         pipeline.start()
         val source = source()
+        val audio = tone(1.0)
         val start = System.nanoTime()
         pipeline.useIngestAudio(source, videoDelayNanos = 0)
         val firstPts = start + LATENCY
-        val lastPts = sendTone(source, firstPts, seconds = 1.0)
+        val lastPts = sendTone(source, firstPts, audio)
         var loudest = -160f
         while (System.nanoTime() < lastPts + 200_000_000) {
             Thread.sleep(20)

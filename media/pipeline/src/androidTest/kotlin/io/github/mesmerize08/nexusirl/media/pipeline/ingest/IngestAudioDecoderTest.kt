@@ -77,8 +77,13 @@ class IngestAudioDecoderTest {
             assertTrue("chunk $i step $step ns", abs(step - chunkNanos) <= 1_000_000)
         }
         val duration = chunks.size * 1024 / 48_000.0
-        Log.i("IngestAudioDecoderTest", "$sampleRate Hz × $channels → $outputChannels: ${chunks.size} chunks, $duration s")
-        assertEquals(2.0, duration, 0.05)
+        // What was encoded: encoders differ (Android 14's adds no priming frames and drops the
+        // partial last frame; later ones add both), so the expected length comes from the frames.
+        val encoded = audio.frames.size * 1024.0 / sampleRate
+        Log.i("IngestAudioDecoderTest", "$sampleRate Hz × $channels → $outputChannels: ${chunks.size} chunks, $duration s of $encoded s")
+        // Without an end of stream the decoder holds its last frames (about 60 ms), and the
+        // resampler less than a chunk: no more may be missing, and nothing may be added.
+        assertTrue("decoded $duration s of $encoded s", duration in encoded - 0.1..encoded + 0.03)
         // The tone: rising zero crossings of the first channel, away from the encoder's priming.
         val samples = chunks.drop(5).dropLast(5).flatMap { (pcm, _) -> (pcm.indices step outputChannels).map { pcm[it].toInt() } }
         var first = -1.0
