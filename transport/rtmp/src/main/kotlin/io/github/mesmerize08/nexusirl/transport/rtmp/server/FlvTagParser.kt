@@ -108,13 +108,14 @@ object FlvTagParser {
     }
 
     private fun parseExtendedVideo(body: ByteArray, control: Int): FlvVideoTag {
-        requireSize(body, VIDEO_HEADER_SIZE)
         val frameType = frameType(control)
         if (frameType == Flv.FRAME_TYPE_VIDEO_COMMAND) {
-            // A video command (start or end of seeking) carries no coded video; upstream closes the
-            // session, but ffmpeg's FLV muxer sends these to a healthy server.
+            // A video command (start or end of seeking) is a control byte and a command byte, no
+            // coded video; upstream closes the session, but ffmpeg's FLV muxer sends these to a
+            // healthy server.
             return FlvVideoTag.Ignored("Dropping video command frame")
         }
+        requireSize(body, VIDEO_HEADER_SIZE)
         if (frameType != Flv.FRAME_TYPE_KEY && frameType != Flv.FRAME_TYPE_INTER) {
             throw FlvParseException("Unsupported video frame type $frameType")
         }

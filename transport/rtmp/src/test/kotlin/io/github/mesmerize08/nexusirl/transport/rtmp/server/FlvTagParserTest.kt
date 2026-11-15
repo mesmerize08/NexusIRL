@@ -111,6 +111,9 @@ class FlvTagParserTest {
     @Test
     fun extendedVideoCommandFrameIsIgnored() {
         assertIs<FlvVideoTag.Ignored>(FlvTagParser.parseVideo(bytes(0xD0, 0, 0, 0, 0)))
+        // The spec shape: a control byte and a command byte.
+        val twoBytes = FlvTagParser.parseVideo(bytes(0xD0, 1))
+        assertEquals("Dropping video command frame", assertIs<FlvVideoTag.Ignored>(twoBytes).reason)
         assertIs<FlvVideoTag.Ignored>(FlvTagParser.parseVideo(bytes(0xD1, 1, 2, 3, 4)))
     }
 

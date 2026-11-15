@@ -107,18 +107,40 @@ class RtmpServerInteropTest {
         format: String,
     ): List<RtmpIngestMedia.VideoFrame> {
         val directory = Files.createTempDirectory("rtmp-server-interop").toFile()
+        try {
+            if (codec == IngestVideoCodec.H265) {
+                assumeHevcInFlv(directory)
+            }
+            return publishAndCheck(directory, videoArgs, codec, outputName, format)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    /** Skips when this ffmpeg cannot even write HEVC into FLV locally (no libx265 or no enhanced RTMP). */
+    private fun assumeHevcInFlv(directory: File) {
+        val (exit, log) = Ffmpeg.run(
+            "ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30", "-t", "1",
+            "-c:v", "libx265", "-pix_fmt", "yuv420p", "-x265-params", "log-level=error",
+            "-f", "flv", File(directory, "probe.flv").path,
+        )
+        if (exit != 0) {
+            val version = Ffmpeg.run("ffmpeg", "-version").second.lineSequence().first()
+            assumeTrue(false, "$version cannot write HEVC in FLV (enhanced RTMP): $log")
+        }
+    }
+
+    private fun publishAndCheck(
+        directory: File,
+        videoArgs: List<String>,
+        codec: IngestVideoCodec,
+        outputName: String,
+        format: String,
+    ): List<RtmpIngestMedia.VideoFrame> {
         withServer { server ->
             val process = publisher(server.port, stream.streamKey, videoArgs)
             try {
-                val started = recorder.events.poll(20, TimeUnit.SECONDS)
-                if (started == null) {
-                    // Without enhanced RTMP HEVC muxing ffmpeg exits before publishing.
-                    if (codec == IngestVideoCodec.H265 && process.waitFor(5, TimeUnit.SECONDS) && process.process.exitValue() != 0) {
-                        val version = Ffmpeg.run("ffmpeg", "-version").second.lineSequence().first()
-                        assumeTrue(false, "this ffmpeg cannot publish enhanced-RTMP HEVC ($version): ${process.log}")
-                    }
-                    fail("no publish start\n${process.log}")
-                }
+                val started = recorder.events.poll(20, TimeUnit.SECONDS) ?: fail("no publish start\n${process.log}")
                 assertEquals("start", started)
                 assertTrue(process.waitFor(30, TimeUnit.SECONDS), "ffmpeg did not finish\n${process.log}")
                 assertEquals(0, process.process.exitValue(), process.log)
