@@ -180,6 +180,34 @@ class IngestSourceTest {
         assertTrue(offsets.count { it in -2_000_000..chunkNanos + 2_000_000 } >= offsets.size * 9 / 10)
     }
 
+    /**
+     * A pipeline re-created while the source decodes: the old surface is detached and released at
+     * once, the decoder keeps decoding what it was given, and the new surface gets frames again.
+     */
+    @Test
+    fun detachedSurfaceCanBeReleasedWhileDecoding() {
+        val stream = TestEncoder.encode(IngestVideoCodec.H264, 640, 360, frames = 150)
+        val first = TextureSink()
+        val source = source()
+        val units = shifted(stream.units, System.nanoTime() + LATENCY)
+        source.setVideoConfig(stream.codec, stream.config)
+        source.attachSurface(first.surface)
+        source.add(units)
+        drive(source, units[15].ptsNanos).let { assertTrue("rendered ${it.size}", it.isNotEmpty()) }
+        source.detachSurface(first.surface)
+        first.close()
+        // The decoder still busy: units fed now (a tick racing the detach) are decoded meanwhile.
+        source.updateVideo(units[40].ptsNanos)
+        Thread.sleep(500)
+        assertNull("ended after the detach", ended.peek())
+        val second = sink()
+        source.attachSurface(second.surface)
+        val rendered = drive(source, System.nanoTime() + 1_000_000_000)
+        assertNull("ended", ended.peek())
+        assertTrue("rendered ${rendered.size} after re-attaching", rendered.size >= 15)
+        assertTrue("second sink got ${second.timestamps.size}", second.timestamps.size >= 10)
+    }
+
     @Test
     fun newConfigMidStreamContinues() {
         // A publisher changing resolution: a new config, then the new stream from its key frame.

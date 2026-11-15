@@ -1,6 +1,8 @@
 package io.github.mesmerize08.nexusirl.media.pipeline.ingest
 
+import android.graphics.SurfaceTexture
 import android.util.Log
+import android.util.Size
 import android.view.Surface
 import io.github.mesmerize08.nexusirl.core.clock.HostClock
 import java.util.concurrent.atomic.AtomicBoolean
@@ -33,8 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * progress, unless made from it), and without any of the source's state locks held; it must not
  * wait for a thread that is calling [close]. After it the source is closed: every call is a no-op.
  *
- * Threading: the config and add calls come from the RTMP server's thread, [attachSurface] and
- * [updateVideo] from the pipeline's GL thread, [audioChunk] from the audio output thread, and the
+ * Threading: the config and add calls come from the RTMP server's thread, [attachSurface],
+ * [detachSurface] and [updateVideo] from the pipeline's GL thread, [audioChunk] from the audio output thread, and the
  * decoders call back on their own threads. Video state and audio state each have a lock; a
  * decoder's close() is never called with one held.
  */
@@ -76,6 +78,9 @@ class IngestSource(
     private var videoCodec: IngestVideoCodec? = null
     private var videoConfig: ByteArray? = null
     private var surface: Surface? = null
+
+    /** The source's own surface, decoded into while no pipeline holds the source (see [detachSurface]). */
+    private var parking: Pair<SurfaceTexture, Surface>? = null
     private var decoderConfigured = false
 
     /** The decoder generation whose start the video state already accounts for. */
@@ -103,6 +108,14 @@ class IngestSource(
     @Volatile
     var hasVideo = false
         private set
+
+    /** The decoded picture size (cropped) as the decoder last reported it; null until known. */
+    @Volatile
+    var videoSize: Size? = null
+        private set
+
+    /** Ended or closed: nothing more is decoded or rendered. */
+    val isEnded: Boolean get() = !isActive
 
     /** The PTS of the frame [updateVideo] rendered last (for tests). */
     @Volatile
@@ -184,6 +197,27 @@ class IngestSource(
                 val codec = videoCodec ?: return
                 configureDecoder(codec, checkNotNull(videoConfig), surface)
             }
+        }
+    }
+
+    /**
+     * The pipeline lets go of [surface] (it stops, or shows something else) and is about to release
+     * it: the decoder moves to a surface of the source's own, where nothing is shown, until the next
+     * [attachSurface]. A codec still decoding into a released surface fails ("BufferQueue has been
+     * abandoned"). Ignored when [surface] is not the one attached.
+     */
+    fun detachSurface(surface: Surface) {
+        if (!isActive) return
+        synchronized(videoLock) {
+            if (!isActive || this.surface !== surface) return
+            if (!decoderConfigured) {
+                this.surface = null
+                return
+            }
+            // Not attached to a GL context: its frames are never latched, only decoded into.
+            val parked = parking ?: SurfaceTexture(false).let { it to Surface(it) }.also { parking = it }
+            this.surface = parked.second
+            videoDecoder.setSurface(parked.second)
         }
     }
 
@@ -308,6 +342,12 @@ class IngestSource(
             jitter.clear()
             video.clear()
             inFlight.clear()
+            // The decoder is closed: nothing decodes into it any more.
+            parking?.let { (texture, surface) ->
+                surface.release()
+                texture.release()
+            }
+            parking = null
         }
         synchronized(audioLock) { audio.clear() }
         place.give()
@@ -334,6 +374,7 @@ class IngestSource(
 
         override fun onFormat(width: Int, height: Int) {
             Log.i(TAG, "$name: video $width×$height")
+            videoSize = Size(width, height)
         }
 
         override fun onFailed(reason: String) = end(reason)

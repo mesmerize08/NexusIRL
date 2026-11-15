@@ -5,6 +5,9 @@
 //
 // The pipeline runs whenever the camera is needed (preview while the app is open, or streaming);
 // encoders are attached while live or recording (startEncoder/stopEncoder), one per consumer.
+//
+// An ingested (RTMP) stream can take the camera's place (upstream: a buffered video source used as
+// the scene's camera): see showIngestSource.
 package io.github.mesmerize08.nexusirl.media.pipeline
 
 import android.content.Context
@@ -26,6 +29,7 @@ import io.github.mesmerize08.nexusirl.media.pipeline.gl.GlPrograms
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRectRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.OesRenderer
 import io.github.mesmerize08.nexusirl.media.pipeline.gl.TextureRenderer
+import io.github.mesmerize08.nexusirl.media.pipeline.ingest.IngestSource
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
@@ -136,6 +140,13 @@ class VideoPipeline(
 
     private val surfaceOverlays = HashMap<String, SurfaceOverlay>()
 
+    /** The ingest source shown instead of the camera, and the texture it decodes into (GL thread only). */
+    private var ingestSource: IngestSource? = null
+    private var ingestTexture: SurfaceOverlay? = null
+
+    /** The ingest texture holds a picture of the source (GL thread only). */
+    private var ingestLatched = false
+
     /** Ids and rectangles to draw, in scene order (bitmap and surface overlays mixed). */
     private var drawOrder: List<Overlay> = emptyList()
     private var oesRectRenderer: OesRectRenderer? = null
@@ -214,7 +225,13 @@ class VideoPipeline(
             surfaceTexture = texture
             texture.setOnFrameAvailableListener({ handleFrameAvailable() }, glHandler)
             running = true
-            startCamera(texture, cameraId)
+            // A source shown before start: the camera is never opened (decision 6).
+            val ingest = ingestSource
+            if (ingest != null) {
+                attachIngest(ingest)
+            } else {
+                startCamera(texture, cameraId)
+            }
             nextTickNanos = System.nanoTime()
             scheduleFrameTimer()
         }
@@ -297,7 +314,7 @@ class VideoPipeline(
             val egl = egl
             val canvas = composed
             val textureRenderer = textureRenderer
-            if (egl == null || canvas == null || textureRenderer == null || !hasFrame) {
+            if (egl == null || canvas == null || textureRenderer == null || !(hasFrame || ingestTexture != null)) {
                 snapshotExecutor.execute { onDone(null) }
                 return@post
             }
@@ -428,6 +445,10 @@ class VideoPipeline(
      */
     fun switchCamera(cameraId: String, force: Boolean = false) {
         glHandler.post {
+            // The camera is released while an ingest source is shown (decision 6).
+            if (ingestSource != null) {
+                return@post
+            }
             // The user chose a camera: stop waiting for a lost one.
             stopCameraRecovery()
             val texture = surfaceTexture ?: return@post
@@ -457,12 +478,17 @@ class VideoPipeline(
             return
         }
         val old = cameraSource ?: return startCamera(texture, cameraId)
+        closeCamera(texture, old)
+    }
+
+    /** Closes [old], then opens [nextCameraId] unless an ingest source is shown by then. GL thread only. */
+    private fun closeCamera(texture: SurfaceTexture, old: CameraSource) {
         cameraSource = null
         cameraClosing = true
         old.release {
             glHandler.post {
                 cameraClosing = false
-                if (running && surfaceTexture === texture) {
+                if (running && surfaceTexture === texture && ingestSource == null) {
                     startCamera(texture, nextCameraId)
                 }
             }
@@ -582,6 +608,9 @@ class VideoPipeline(
     /** Opens the current camera again, e.g. after the camera permission was granted. */
     fun restartCamera() {
         glHandler.post {
+            if (ingestSource != null) {
+                return@post
+            }
             val texture = surfaceTexture ?: return@post
             replaceCamera(texture, if (cameraClosing) nextCameraId else cameraSource?.current?.id)
         }
@@ -621,7 +650,7 @@ class VideoPipeline(
     private fun recoverCamera() {
         val cameraId = lostCameraId ?: return
         val texture = surfaceTexture ?: return
-        if (!running) {
+        if (!running || ingestSource != null) {
             return
         }
         val now = System.nanoTime()
@@ -698,6 +727,73 @@ class VideoPipeline(
         )
     }
 
+    /**
+     * Shows [source] instead of the camera (the camera is released); null goes back to the camera
+     * given ([cameraIdWhenNull], null for the first back camera). The picture takes the camera's
+     * place only: LUTs, effects, transitions and widgets apply as for the camera. It is fitted into
+     * the canvas (black bars), and black until the source has rendered a frame or after it ended.
+     *
+     * The caller owns the source: the pipeline attaches its surface and drives it from the frame
+     * timer, and null (or [stop]) only lets go of it; close it after that. A new pipeline given the
+     * same source takes it over (the source moves its decoder to the new surface). Given before
+     * [start], the camera is never opened.
+     */
+    fun showIngestSource(source: IngestSource?, cameraIdWhenNull: String? = null) {
+        glHandler.post {
+            if (source === ingestSource) {
+                return@post
+            }
+            if (egl == null) {
+                // Not started yet: start() attaches it.
+                ingestSource = source
+                return@post
+            }
+            if (source != null) {
+                attachIngest(source)
+                return@post
+            }
+            detachIngest()
+            val texture = surfaceTexture ?: return@post
+            replaceCamera(texture, cameraIdWhenNull)
+        }
+    }
+
+    /** Releases the camera and attaches [source] to a new texture. GL thread only. */
+    private fun attachIngest(source: IngestSource) {
+        val oes = oesRectRenderer ?: return
+        val cameraTexture = surfaceTexture ?: return
+        stopCameraRecovery()
+        cameraStarting = false
+        cameraSource?.let { closeCamera(cameraTexture, it) }
+        egl?.makeNothingCurrent()
+        detachIngest()
+        ingestSource = source
+        val textureId = oes.createTexture()
+        val texture = SurfaceTexture(textureId).apply { setDefaultBufferSize(settings.width, settings.height) }
+        val ingest = SurfaceOverlay(textureId, texture, Surface(texture))
+        texture.setOnFrameAvailableListener({ ingest.frameAvailable = true }, glHandler)
+        ingestTexture = ingest
+        ingestLatched = false
+        // The last picture stays (with the scene switch transition) until the source's first frame.
+        if (hasFrame) {
+            transitionStartNanos = System.nanoTime()
+        }
+        android.util.Log.i(TAG, "Showing ingest source ${source.name}")
+        source.attachSurface(ingest.surface)
+    }
+
+    /** Lets go of the ingest source and releases its texture (the source stays open). GL thread only. */
+    private fun detachIngest() {
+        ingestTexture?.let {
+            ingestSource?.detachSurface(it.surface)
+            egl?.makeNothingCurrent()
+            releaseSurfaceOverlay(it)
+        }
+        ingestTexture = null
+        ingestSource = null
+        ingestLatched = false
+    }
+
     /** Sets (or clears, with null) the on-screen preview surface. */
     fun setPreviewSurface(surface: Surface?) {
         val done = java.util.concurrent.CountDownLatch(1)
@@ -748,6 +844,10 @@ class VideoPipeline(
         // The latest camera image is now in the texture; the frame timer outputs it.
         texture.updateTexImage()
         texture.getTransformMatrix(textureMatrix)
+        // A late image of a camera closing for an ingest source: kept in the texture, not shown.
+        if (ingestSource != null) {
+            return
+        }
         val captureNanos = toHostClock(texture.timestamp)
         if (captureNanos <= lastCaptureNanos) {
             return
@@ -785,7 +885,11 @@ class VideoPipeline(
         val now = System.nanoTime()
         setStillPicture(stillPicture.tick(contentChanged, switching = transitionStartNanos != null))
         contentChanged = false
-        if (!hasFrame) {
+        val ingest = ingestSource
+        val ingestTexture = ingestTexture
+        if (ingest != null && ingestTexture != null) {
+            renderIngest(ingest, ingestTexture, now)
+        } else if (!hasFrame) {
             // Camera frames arrive some time after capture (about 85 ms on a Galaxy S26 Ultra) and
             // keep their capture time; stamping black frames "now" would make every camera frame
             // look older than the last output, and the monotonic-PTS rule would drop them all.
@@ -794,6 +898,46 @@ class VideoPipeline(
             render(frameClock.next(now - cameraLatencyNanos))
         }
         scheduleFrameTimer()
+    }
+
+    /**
+     * One frame time with an ingest source. Its timestamps are host times at which each frame is
+     * due, so the output time is the grid time nearest "now" (no capture delay). The frame the
+     * source renders for this time reaches the texture after this tick, so it is shown in the next
+     * one: a constant one-frame latch lag (spec section 5).
+     */
+    private fun renderIngest(source: IngestSource, texture: SurfaceOverlay, now: Long) {
+        val outputNanos = frameClock.next(now)
+        if (source.isEnded) {
+            // Ended (a decoder failure) or closed: black, not a frozen picture.
+            ingestLatched = false
+            hasFrame = false
+            transitionStartNanos = null
+            renderBlack(outputNanos)
+            return
+        }
+        if (texture.frameAvailable) {
+            texture.frameAvailable = false
+            egl?.makeNothingCurrent()
+            texture.surfaceTexture.updateTexImage()
+            texture.surfaceTexture.getTransformMatrix(texture.matrix)
+            setStillPicture(stillPicture.cameraImage())
+            if (!ingestLatched) {
+                android.util.Log.i(TAG, "First ingest frame")
+                ingestLatched = true
+                // The camera's last image is no longer the picture (and is stale when the camera
+                // comes back): black until the camera's first frame then.
+                hasFrame = false
+                transitionStartNanos = null
+            }
+        }
+        source.updateVideo(outputNanos)
+        when {
+            ingestLatched -> render(outputNanos, ingest = true)
+            // The camera's last image, through the transition, until the source's first frame.
+            hasFrame -> render(outputNanos)
+            else -> renderBlack(outputNanos)
+        }
     }
 
     /** Ticks on an absolute schedule, so millisecond-rounded delays do not add up to drift. */
@@ -808,13 +952,13 @@ class VideoPipeline(
         glHandler.postDelayed(::handleFrameTimer, ((nextTickNanos - now) / 1_000_000).coerceAtLeast(0))
     }
 
-    private fun render(presentationNanos: Long) {
+    private fun render(presentationNanos: Long, ingest: Boolean = false) {
         if (presentationNanos <= lastPresentationNanos) {
             return
         }
         lastPresentationNanos = presentationNanos
         updateDrawMatrix()
-        compose(camera = showCamera)
+        compose(camera = showCamera, ingest = ingest)
         output(presentationNanos)
     }
 
@@ -829,9 +973,10 @@ class VideoPipeline(
 
     /**
      * Builds the frame like upstream's effect chain: the camera (or black), then the global
-     * effects in upstream order, then the scene's widgets on top.
+     * effects in upstream order, then the scene's widgets on top. With [ingest], the ingest
+     * picture takes the camera's place.
      */
-    private fun compose(camera: Boolean) {
+    private fun compose(camera: Boolean, ingest: Boolean = false) {
         val egl = egl ?: return
         var target = canvas ?: return
         var other = scratch ?: return
@@ -840,7 +985,10 @@ class VideoPipeline(
         val effectRenderer = effectRenderer ?: return
         egl.makeNothingCurrent()
         target.bind()
-        if (camera) {
+        val ingestTexture = ingestTexture
+        if (camera && ingest && ingestTexture != null) {
+            drawIngest(ingestTexture, target)
+        } else if (camera) {
             renderer.draw(drawMatrix, target.width, target.height, sourceAspect)
         } else {
             renderer.drawBlack(target.width, target.height)
@@ -941,6 +1089,34 @@ class VideoPipeline(
         composed = target
     }
 
+    /** The ingest picture fitted into [target], centred, with black bars. */
+    private fun drawIngest(texture: SurfaceOverlay, target: Framebuffer) {
+        renderer?.drawBlack(target.width, target.height)
+        val size = ingestSource?.videoSize
+        val canvasWidth = target.width.toFloat()
+        val canvasHeight = target.height.toFloat()
+        var width = canvasWidth
+        var height = canvasHeight
+        if (size != null && size.width > 0 && size.height > 0) {
+            val videoAspect = size.width.toFloat() / size.height
+            if (videoAspect > canvasWidth / canvasHeight) {
+                height = canvasWidth / videoAspect
+            } else {
+                width = canvasHeight * videoAspect
+            }
+        }
+        oesRectRenderer?.drawRect(
+            texture.textureId,
+            texture.matrix,
+            (canvasWidth - width) / 2,
+            (canvasHeight - height) / 2,
+            width,
+            height,
+            target.width,
+            target.height,
+        )
+    }
+
     /** Copies the composed frame to every encoder and the preview. */
     private fun output(presentationNanos: Long) {
         val egl = egl ?: return
@@ -1030,6 +1206,9 @@ class VideoPipeline(
                 oesRectRenderer?.release()
                 surfaceOverlays.values.forEach { releaseSurfaceOverlay(it) }
                 surfaceOverlays.clear()
+                // The source is the caller's: it decodes into a surface of its own until a new
+                // pipeline attaches another.
+                detachIngest()
                 effectRenderer?.release()
                 luts.forEach { GLES20.glDeleteTextures(1, intArrayOf(it.textureId), 0) }
                 luts = emptyList()
