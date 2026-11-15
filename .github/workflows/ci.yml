@@ -81,7 +81,9 @@ jobs:
 
   ui-tests:
     # The app's UI smoke tests (app/src/androidTest) on an Android 14 emulator without cameras:
-    # every screen opens, and a stream added through the UI never shows its key.
+    # every screen opens, and a stream added through the UI never shows its key. Then the media
+    # pipeline's device tests (media/pipeline/src/androidTest): the ingest video decoder (tests that
+    # need an encoder the emulator lacks are skipped; the encoder probes do nothing unless asked).
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -107,7 +109,7 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: ./gradlew :app:connectedDebugAndroidTest --console=plain
+          script: ./gradlew :app:connectedDebugAndroidTest :media:pipeline:connectedDebugAndroidTest --console=plain
       - name: Upload UI test reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
