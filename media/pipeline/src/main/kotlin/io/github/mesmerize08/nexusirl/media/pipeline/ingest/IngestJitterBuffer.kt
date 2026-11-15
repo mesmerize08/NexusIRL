@@ -10,6 +10,13 @@ class IngestVideoAccessUnit(val isKeyFrame: Boolean, val ptsNanos: Long, val dts
  * newest queued key frame is dropped (the last GOP is kept). If that is not enough the whole queue
  * is dropped and non-key units are skipped until the next key frame.
  *
+ * A decoder can only start at a key frame, so the buffer starts out waiting for one and [clear]
+ * returns it to that state: non-key units are dropped until the next key frame arrives.
+ *
+ * A unit's DTS is clamped to at most its PTS and to at least the previous unit's DTS, so [takeDue]
+ * (which looks at the head only) returns DTS order and one bogus far-future DTS cannot block the
+ * queue.
+ *
  * Threading: not thread-safe; the caller serialises all calls.
  */
 class IngestJitterBuffer(
@@ -17,7 +24,8 @@ class IngestJitterBuffer(
     private val maxFrames: Int = 1200,
 ) {
     private val units = ArrayDeque<IngestVideoAccessUnit>()
-    private var waitingForKeyFrame = false
+    private var waitingForKeyFrame = true
+    private var lastDtsNanos = Long.MIN_VALUE
 
     var bytes: Long = 0
         private set
@@ -25,21 +33,24 @@ class IngestJitterBuffer(
     val size: Int get() = units.size
 
     /** Adds a unit, in DTS order as received. */
-    fun add(unit: IngestVideoAccessUnit) {
-        if (waitingForKeyFrame) {
-            if (!unit.isKeyFrame) return
-            waitingForKeyFrame = false
-        }
+    fun add(incoming: IngestVideoAccessUnit) {
+        if (waitingForKeyFrame && !incoming.isKeyFrame) return
+        val dts = maxOf(minOf(incoming.dtsNanos, incoming.ptsNanos), lastDtsNanos)
+        val unit =
+            if (dts == incoming.dtsNanos) {
+                incoming
+            } else {
+                IngestVideoAccessUnit(incoming.isKeyFrame, incoming.ptsNanos, dts, incoming.data)
+            }
         if (wouldOverflow(unit)) {
             dropBeforeNewestKeyFrame()
             if (wouldOverflow(unit)) {
                 clear()
-                if (wouldOverflow(unit) || !unit.isKeyFrame) {
-                    waitingForKeyFrame = true
-                    return
-                }
+                if (wouldOverflow(unit) || !unit.isKeyFrame) return
             }
         }
+        waitingForKeyFrame = false
+        lastDtsNanos = unit.dtsNanos
         units.addLast(unit)
         bytes += unit.data.size
     }
@@ -59,6 +70,8 @@ class IngestJitterBuffer(
     fun clear() {
         units.clear()
         bytes = 0
+        waitingForKeyFrame = true
+        lastDtsNanos = Long.MIN_VALUE
     }
 
     private fun wouldOverflow(unit: IngestVideoAccessUnit): Boolean = units.size + 1 > maxFrames || bytes + unit.data.size > maxBytes

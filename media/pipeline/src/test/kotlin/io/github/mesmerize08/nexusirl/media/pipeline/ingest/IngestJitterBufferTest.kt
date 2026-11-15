@@ -59,7 +59,8 @@ class IngestJitterBufferTest {
             assertTrue(buffer.bytes <= 1000, "held ${buffer.bytes}")
         }
         buffer.add(unit(true, 100, size = 400))
-        assertTrue(buffer.size > 0 && buffer.bytes <= 1000)
+        assertEquals(1, buffer.size)
+        assertEquals(400, buffer.bytes)
     }
 
     @Test
@@ -73,5 +74,76 @@ class IngestJitterBufferTest {
         buffer.takeDue(1)
         buffer.takeDue(1)
         assertEquals(30, buffer.newestPtsNanos())
+    }
+
+    @Test
+    fun nonKeyUnitsBeforeTheFirstKeyFrameAreDropped() {
+        val buffer = IngestJitterBuffer()
+        buffer.add(unit(false, 0))
+        buffer.add(unit(false, 1))
+        assertEquals(0, buffer.size)
+        buffer.add(unit(true, 2))
+        buffer.add(unit(false, 3))
+        assertEquals(2, buffer.size)
+    }
+
+    @Test
+    fun clearWaitsForTheNextKeyFrame() {
+        val buffer = IngestJitterBuffer()
+        buffer.add(unit(true, 0))
+        buffer.clear()
+        buffer.add(unit(false, 1))
+        assertEquals(0, buffer.size)
+        assertEquals(0, buffer.bytes)
+        buffer.add(unit(true, 2))
+        assertEquals(1, buffer.size)
+    }
+
+    @Test
+    fun outOfOrderDtsIsClamped() {
+        val buffer = IngestJitterBuffer()
+        buffer.add(unit(true, 10))
+        buffer.add(unit(false, 5, pts = 50))
+        buffer.add(unit(false, 1_000_000, pts = 30))
+        assertEquals(10, buffer.takeDue(10)?.dtsNanos)
+        val second = buffer.takeDue(10)
+        assertEquals(10, second?.dtsNanos)
+        assertEquals(50, second?.ptsNanos)
+        assertNull(buffer.takeDue(29))
+        assertEquals(30, buffer.takeDue(30)?.dtsNanos)
+    }
+
+    @Test
+    fun oversizedUnitIsDroppedAndWaits() {
+        val buffer = IngestJitterBuffer(maxBytes = 100)
+        buffer.add(unit(true, 0, size = 101))
+        assertEquals(0, buffer.size)
+        assertEquals(0, buffer.bytes)
+        buffer.add(unit(false, 1))
+        assertEquals(0, buffer.size)
+        buffer.add(unit(true, 2))
+        assertEquals(1, buffer.size)
+    }
+
+    @Test
+    fun bytesMatchHeldUnits() {
+        val buffer = IngestJitterBuffer(maxBytes = 1000, maxFrames = 7)
+        for (i in 0L until 60L) {
+            buffer.add(unit(i % 5 == 0L, i, size = 50 + (i % 7).toInt() * 40))
+            if (i % 3 == 0L) buffer.takeDue(i - 4)
+            val before = buffer.bytes
+            val size = buffer.size
+            var sum = 0L
+            var count = 0
+            // Drain a copy's worth by taking everything, then check, then refill from a key frame.
+            while (true) {
+                val u = buffer.takeDue(Long.MAX_VALUE) ?: break
+                sum += u.data.size
+                count++
+            }
+            assertEquals(before, sum, "step $i")
+            assertEquals(size, count, "step $i")
+            assertEquals(0, buffer.bytes)
+        }
     }
 }
