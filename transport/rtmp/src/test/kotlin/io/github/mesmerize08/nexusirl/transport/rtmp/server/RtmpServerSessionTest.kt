@@ -535,6 +535,67 @@ class RtmpServerSessionTest {
         assertEquals(before + 1, sends)
     }
 
+    /** A session whose `send` closes it on the [failAt]th send after the handshake, like a failed socket write. */
+    private fun closingOnSend(failAt: Int): Pair<RtmpServerSession, Recorder> {
+        val events = Recorder()
+        lateinit var session: RtmpServerSession
+        var sends = 0
+        session = RtmpServerSession({ listOf(stream1) }, RtmpServerLimits(), clock, {
+            sends += 1
+            // Send 1 is the handshake.
+            if (sends == failAt + 1) {
+                session.close("Write failed")
+            }
+        }, events)
+        session.feed(byteArrayOf(3) + ByteArray(1536) + ByteArray(1536))
+        return session to events
+    }
+
+    private fun connectBytes() = command("connect", 1, linkedMapOf("tcUrl" to AsValue.Str("rtmp://host/live")))
+
+    private fun publishBytes() = command("publish", 3, null, listOf(AsValue.Str("key-1")), streamId = 1)
+
+    @Test
+    fun closeFromSendDuringConnectStaysClosed() {
+        for (failAt in 1..4) {
+            val (session, events) = closingOnSend(failAt)
+            session.feed(connectBytes() + publishBytes())
+            session.feed(publishBytes())
+            session.close("Again")
+            assertEquals(listOf("Write failed"), events.closed, "send $failAt")
+            assertEquals(RtmpServerSession.State.CLOSED, session.state)
+            assertTrue(events.published.isEmpty())
+        }
+    }
+
+    @Test
+    fun closeFromSendDuringOnStatusStaysClosed() {
+        // Sends after the handshake: 4 connect replies, then onStatus.
+        val (session, events) = closingOnSend(5)
+        session.feed(connectBytes())
+        session.feed(publishBytes() + video(avcFrame(0), 0))
+        session.feed(video(avcFrame(0), 10))
+        session.close("Again")
+        assertEquals(listOf("Write failed"), events.closed)
+        assertEquals(RtmpServerSession.State.CLOSED, session.state)
+        assertTrue(events.published.isEmpty())
+        assertTrue(events.media.isEmpty())
+        assertNull(session.stream)
+    }
+
+    @Test
+    fun typeThreeHeaderStartsAMessageWithTheLastDelta() {
+        val client = Client()
+        client.publish("key-1")
+        val frame = avcFrame(0)
+        client.feed(video(frame, 100))
+        client.feed(video(frame, 33, chunkType = 1))
+        // A new message with only a type-3 basic header: same length, type and delta.
+        client.feed(byteArrayOf((0xC0 or 9).toByte()) + frame)
+        val dts = client.events.media.map { (it as RtmpIngestMedia.VideoFrame).dtsMs }
+        assertEquals(listOf(0L, 33L, 66L), dts.map { it - dts[0] })
+    }
+
     @Test
     fun closeStopsEverything() {
         val client = Client()

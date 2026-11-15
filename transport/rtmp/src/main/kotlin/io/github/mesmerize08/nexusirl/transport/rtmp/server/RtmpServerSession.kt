@@ -86,13 +86,13 @@ class RtmpServerSession(
             if (used < length) {
                 decoder.feed(data, offset + used, length - used) { handleMessage(it) }
             }
+            if (totalBytesReceived - totalBytesReceivedAcked > windowAcknowledgementSize) {
+                totalBytesReceivedAcked = totalBytesReceived
+                sendMessage(RtmpChunkStreamId.CONTROL, RtmpMessageType.ACK, 0, uint32Payload(totalBytesReceived and 0xFFFF_FFFFL))
+            }
         } catch (e: RtmpProtocolException) {
+            // A no-op when the session was closed from inside a callback.
             close(e.reason)
-            return
-        }
-        if (state != State.CLOSED && totalBytesReceived - totalBytesReceivedAcked > windowAcknowledgementSize) {
-            sendMessage(RtmpChunkStreamId.CONTROL, RtmpMessageType.ACK, 0, uint32Payload(totalBytesReceived and 0xFFFF_FFFFL))
-            totalBytesReceivedAcked = totalBytesReceived
         }
     }
 
@@ -138,7 +138,7 @@ class RtmpServerSession(
         val s2 = 1 + HANDSHAKE_SIZE
         System.arraycopy(c0c1, 1, reply, s2, 4)
         System.arraycopy(c0c1, 1 + 8, reply, s2 + 8, HANDSHAKE_SIZE - 8)
-        send(reply)
+        output(reply)
     }
 
     private fun maxMessageSize(typeId: Int): Int = if (state != State.PUBLISHING) {
@@ -153,10 +153,7 @@ class RtmpServerSession(
 
     // Errors are thrown as RtmpProtocolException, which also stops the decoder for good.
     private fun handleMessage(message: RtmpDecodedMessage) {
-        if (state == State.CLOSED) {
-            // An event closed the session: stop the decoder; close() is then a no-op.
-            throw RtmpProtocolException("Closed")
-        }
+        throwIfClosed()
         val timestamp = advanceTimeline(message)
         when (message.typeId) {
             RtmpMessageType.AMF0_COMMAND -> handleCommand(message)
@@ -212,9 +209,9 @@ class RtmpServerSession(
                 arguments.add(decoder.decode())
             }
         } catch (e: AmfException) {
-            throw RtmpProtocolException("AMF-0 decode error ${e.message}")
+            throw RtmpProtocolException(amfDecodeError(e))
         } catch (e: MuxException) {
-            throw RtmpProtocolException("AMF-0 decode error ${e.message}")
+            throw RtmpProtocolException(amfDecodeError(e))
         }
         when (name) {
             RtmpCommand.CONNECT -> if (state == State.HANDSHAKE) connect(message, transactionId, commandObject)
@@ -255,8 +252,8 @@ class RtmpServerSession(
             // Upstream puts the key in this reason; it must never be logged.
             throw RtmpProtocolException("Stream key not configured")
         }
-        stream = matched
         sendCommand(message, RtmpCommand.ON_STATUS, transactionId, status("NetStream.Publish.Start", "Start publishing."))
+        stream = matched
         state = State.PUBLISHING
         events.onPublish(matched)
     }
@@ -335,8 +332,26 @@ class RtmpServerSession(
 
     private fun sendMessage(chunkStreamId: Int, type: Int, messageStreamId: Long, payload: ByteArray) {
         val chunks = encodeChunks(0, chunkStreamId, RtmpMessage(type, messageStreamId, 0, payload), chunkSizeToClient)
-        send(if (chunks.size == 1) chunks[0] else chunks.reduce { a, b -> a + b })
+        output(if (chunks.size == 1) chunks[0] else chunks.reduce { a, b -> a + b })
     }
+
+    /**
+     * Sends, then stops if `send` closed the session (a failed socket write), so no state is
+     * written over CLOSED and no event follows onClosed.
+     */
+    private fun output(bytes: ByteArray) {
+        send(bytes)
+        throwIfClosed()
+    }
+
+    /** Stops the feed when a callback closed the session; close() is then a no-op. */
+    private fun throwIfClosed() {
+        if (state == State.CLOSED) {
+            throw RtmpProtocolException("Closed")
+        }
+    }
+
+    private fun amfDecodeError(e: Exception) = "AMF-0 decode error ${e.message ?: e.javaClass.simpleName}"
 
     private fun uint32(payload: ByteArray): Long = ((payload[0].toLong() and 0xFF) shl 24) or
         ((payload[1].toLong() and 0xFF) shl 16) or
