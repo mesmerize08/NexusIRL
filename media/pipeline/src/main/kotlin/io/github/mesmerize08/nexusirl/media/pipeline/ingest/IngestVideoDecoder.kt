@@ -21,13 +21,18 @@ enum class IngestVideoCodec(val mimeType: String) { H264("video/avc"), H265("vid
  * A new [configure] with a different codec or config recreates the codec: a new generation, and
  * frames of the old one are ignored by [release]. With [softwareDecoding] the first software-only
  * decoder is used; otherwise the default decoder, falling back to software once if it cannot be
- * configured or started. Untrusted input never throws: an access unit that is not valid
- * length-prefixed data is dropped, and anything else that goes wrong (a codec error, a bad config,
- * an output size over 3840×2160) ends the decoder with [Listener.onFailed]; after that every call is
- * a no-op.
+ * configured or started, or reports an error before its first decoded frame. That fallback keeps
+ * the config and surface; units queued since the last key frame are lost, so the picture returns at
+ * the next key frame.
+ *
+ * Untrusted input never throws: an access unit that is not valid length-prefixed data is dropped,
+ * and anything else that goes wrong (a codec error, a bad config, a picture larger than 3840×2160
+ * in either orientation or than the decoder supports, a [setSurface] the decoder refuses) ends the
+ * decoder with [Listener.onFailed]; after that every call is a no-op.
  *
  * Threading: the public methods may be called from any thread (they are serialised internally).
- * Every [Listener] callback comes on the decoder's own thread, "ingest-video-<name>".
+ * Every [Listener] callback comes on the decoder's own thread, "ingest-video-<name>", and none
+ * comes after [close] returns (close waits for a callback in progress, unless called from one).
  */
 class IngestVideoDecoder(private val name: String, private val softwareDecoding: Boolean, private val listener: Listener) {
     interface Listener {
@@ -37,7 +42,7 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         /** The decoded picture size (cropped), when it is first known and whenever it changes. */
         fun onFormat(width: Int, height: Int)
 
-        /** The decoder ended (codec error, size over 3840×2160); the source should end. */
+        /** The decoder ended (codec error, size over 3840×2160, surface refused); the source should end. */
         fun onFailed(reason: String)
     }
 
@@ -46,17 +51,24 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
     }
 
     private val lock = Any()
+
+    /** Held while a listener callback runs, so [close] can wait for it. Taken before [lock], never inside it. */
+    private val deliveryLock = Any()
     private val thread = HandlerThread("ingest-video-$name").apply { start() }
     private val handler = Handler(thread.looper)
     private var codec: MediaCodec? = null
     private var generation = 0
     private var currentCodec: IngestVideoCodec? = null
     private var currentConfig: ByteArray? = null
+    private var format: MediaFormat? = null
+    private var surface: Surface? = null
     private var nalLengthSize = 4
     private val freeInputs = ArrayDeque<Int>()
     private val held = HashSet<Int>()
     private var reportedWidth = 0
     private var reportedHeight = 0
+    private var fellBack = false
+    private var frameSeen = false
 
     /** Microsecond PTS (what MediaCodec keeps) to the unit's nanosecond PTS. */
     private val ptsNanos = object : LinkedHashMap<Long, Long>() {
@@ -87,25 +99,30 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
                 return
             }
             nalLengthSize = lengthSize
-            val first = if (softwareDecoding) softwareDecoderName(codec) else null
-            if (softwareDecoding && first == null) {
-                fail("No software ${codec.mimeType} decoder")
-                return
+            this.format = format
+            this.surface = surface
+            fellBack = false
+            if (softwareDecoding) {
+                val software = softwareDecoderName(codec)
+                if (software == null) {
+                    fail("No software ${codec.mimeType} decoder")
+                    return
+                }
+                start(software)?.let { fail(describe(it.second)) }
+            } else {
+                start(null)?.let { (tried, error) -> fallBack(tried, describe(error)) }
             }
-            val error = start(first, codec, format, surface) ?: return
-            val fallback = if (softwareDecoding) null else softwareDecoderName(codec)
-            if (fallback == null || fallback == error.first) {
-                fail(describe(error.second))
-                return
-            }
-            Log.w(TAG, "$name: ${error.first} failed (${describe(error.second)}), using $fallback")
-            start(fallback, codec, format, surface)?.let { fail(describe(it.second)) }
         }
     }
 
-    /** Moves the output to [surface] (the pipeline was re-created) without restarting decoding. */
+    /**
+     * Moves the output to [surface] (the pipeline was re-created) without restarting decoding. If
+     * the decoder refuses it, the decoder ends ([Listener.onFailed]) and the source should end.
+     */
     fun setSurface(surface: Surface) {
         synchronized(lock) {
+            if (failed || closed) return
+            this.surface = surface
             val codec = codec ?: return
             guardedOrFail { codec.setOutputSurface(surface) }
         }
@@ -151,16 +168,19 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         }
     }
 
+    /** Releases the codec. No listener callback comes after this returns. */
     fun close() {
         synchronized(lock) {
             if (closed) return
             closed = true
             stopCodec()
         }
+        // Waits for a callback in progress (re-entrant when close is called from one).
+        synchronized(deliveryLock) {}
         thread.quitSafely()
     }
 
-    // Everything below runs with the lock held.
+    // Everything below runs with the lock held, except deliver().
 
     private fun createFormat(codec: IngestVideoCodec, config: ByteArray): Pair<MediaFormat, Int>? {
         if (config.isEmpty() || config[0].toInt() != 1) return null
@@ -185,6 +205,7 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
                 format.setByteBuffer("csd-0", java.nio.ByteBuffer.wrap(withStartCodes(vps, sps, pps)))
             }
         }
+        // A hint only: the real limit is checked when the decoder reports the size.
         format.setInteger(MediaFormat.KEY_MAX_WIDTH, MAX_WIDTH)
         format.setInteger(MediaFormat.KEY_MAX_HEIGHT, MAX_HEIGHT)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -193,31 +214,45 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         return format to lengthSize
     }
 
-    /** Creates, configures and starts a codec ([decoderName], or the default for the type); returns the decoder tried and the error. */
-    private fun start(decoderName: String?, type: IngestVideoCodec, format: MediaFormat, surface: Surface): Pair<String?, Exception>? {
+    /**
+     * Creates, configures and starts a codec ([decoderName], or the default for the type) with the
+     * current format and surface; on failure returns the decoder tried and the error.
+     */
+    private fun start(decoderName: String?): Pair<String?, Throwable>? {
+        val type = checkNotNull(currentCodec)
         var created: MediaCodec? = null
         return try {
-            val codec = if (decoderName !=
-                null
-            ) {
-                MediaCodec.createByCodecName(decoderName)
-            } else {
-                MediaCodec.createDecoderByType(type.mimeType)
-            }
+            val codec = decoderName?.let { MediaCodec.createByCodecName(it) } ?: MediaCodec.createDecoderByType(type.mimeType)
             created = codec
             generation++
             codec.setCallback(Callback(generation), handler)
             this.codec = codec
-            codec.configure(format, surface, null, 0)
+            codec.configure(checkNotNull(format), checkNotNull(surface), null, 0)
             codec.start()
             Log.i(TAG, "$name: decoding ${type.mimeType} with ${codec.name}")
             null
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             val tried = decoderName ?: guarded { created?.name }
             stopCodec()
             guarded { created?.release() }
             tried to e
         }
+    }
+
+    /**
+     * The default decoder [failedName] failed ([reason]): moves to the first software decoder, once
+     * per [configure], or ends the decoder.
+     */
+    private fun fallBack(failedName: String?, reason: String) {
+        val fallback = if (softwareDecoding || fellBack) null else softwareDecoderName(checkNotNull(currentCodec))
+        if (fallback == null || fallback == failedName) {
+            fail(reason)
+            return
+        }
+        fellBack = true
+        Log.w(TAG, "$name: $failedName failed ($reason), using $fallback")
+        stopCodec()
+        start(fallback)?.let { fail(describe(it.second)) }
     }
 
     private fun stopCodec() {
@@ -229,6 +264,7 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         ptsNanos.clear()
         reportedWidth = 0
         reportedHeight = 0
+        frameSeen = false
         guarded { codec.release() }
     }
 
@@ -239,24 +275,32 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         stopCodec()
         handler.post {
             try {
-                listener.onFailed(reason)
-            } catch (e: Exception) {
+                deliver { listener.onFailed(reason) }
+            } catch (e: Throwable) {
                 Log.e(TAG, "$name: onFailed threw", e)
             }
+        }
+    }
+
+    /** Runs a listener callback (on the decoder thread, without [lock]) unless the decoder is closed; [close] waits for it. */
+    private inline fun deliver(block: () -> Unit) {
+        synchronized(deliveryLock) {
+            if (synchronized(lock) { closed }) return
+            block()
         }
     }
 
     private inline fun guardedOrFail(block: () -> Unit) {
         try {
             block()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             fail(describe(e))
         }
     }
 
     private inline fun <T> guarded(block: () -> T): T? = try {
         block()
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         null
     }
 
@@ -267,32 +311,43 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         }
     }
 
-    /** The cropped output size when it changed (to report), else null; a size that is too large ends the decoder. */
-    private fun reportFormat(format: MediaFormat): Pair<Int, Int>? {
+    /**
+     * The cropped output size when it changed (to report), else null. A size over the limit, or one
+     * that [codec] does not support, ends the decoder.
+     */
+    private fun reportFormat(codec: MediaCodec, format: MediaFormat): Pair<Int, Int>? {
         fun int(key: String) = if (format.containsKey(key)) format.getInteger(key) else null
         val left = int("crop-left")
         val right = int("crop-right")
         val top = int("crop-top")
         val bottom = int("crop-bottom")
-        val width = if (left != null && right != null) right - left + 1 else format.getInteger(MediaFormat.KEY_WIDTH)
-        val height = if (top != null && bottom != null) bottom - top + 1 else format.getInteger(MediaFormat.KEY_HEIGHT)
-        if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+        val codedWidth = format.getInteger(MediaFormat.KEY_WIDTH)
+        val codedHeight = format.getInteger(MediaFormat.KEY_HEIGHT)
+        val width = if (left != null && right != null) right - left + 1 else codedWidth
+        val height = if (top != null && bottom != null) bottom - top + 1 else codedHeight
+        if (!isSizeAllowed(width, height)) {
             fail("Video size $width×$height is too large")
             return null
         }
         if (width == reportedWidth && height == reportedHeight) return null
+        val video = codec.codecInfo.getCapabilitiesForType(checkNotNull(currentCodec).mimeType).videoCapabilities
+        // The coded size counts too: a decoder's alignment rule may refuse the cropped size it decodes.
+        if (video != null && !video.isSizeSupported(width, height) && !video.isSizeSupported(codedWidth, codedHeight)) {
+            fail("Video size $width×$height is not supported by ${codec.name}")
+            return null
+        }
         reportedWidth = width
         reportedHeight = height
         return width to height
     }
 
     private inner class Callback(private val generation: Int) : MediaCodec.Callback() {
-        /** Runs [block] with the lock held if this codec is still the current one; any exception ends the decoder. */
+        /** Runs [block] with the lock held if this codec is still the current one; anything thrown ends the decoder. */
         private inline fun <T> current(block: () -> T): T? = synchronized(lock) {
             if (generation != this@IngestVideoDecoder.generation || failed || closed) return null
             try {
                 block()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 fail(describe(e))
                 null
             }
@@ -305,42 +360,49 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
             var size: Pair<Int, Int>? = null
             val frame = current {
-                if (reportedWidth == 0) size = reportFormat(codec.outputFormat)
+                if (reportedWidth == 0) size = reportFormat(codec, codec.outputFormat)
                 if (failed) return@current null
+                frameSeen = true
                 held.add(index)
                 val pts = ptsNanos.remove(info.presentationTimeUs) ?: (info.presentationTimeUs * 1000)
                 DecodedFrame(pts, index, generation)
             }
-            size?.let { (width, height) -> deliver { listener.onFormat(width, height) } }
-            frame?.let { deliver { listener.onFrame(it) } }
+            size?.let { (width, height) -> guardedDeliver { listener.onFormat(width, height) } }
+            frame?.let { guardedDeliver { listener.onFrame(it) } }
         }
 
         override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
-            current { reportFormat(format) }?.let { (width, height) -> deliver { listener.onFormat(width, height) } }
+            current { reportFormat(codec, format) }?.let { (width, height) -> guardedDeliver { listener.onFormat(width, height) } }
         }
 
         override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) {
-            current { fail(describe(e)) }
+            current {
+                // Before its first frame a default decoder may just not handle this stream: software, once.
+                if (frameSeen) fail(describe(e)) else fallBack(guarded { codec.name }, describe(e))
+            }
         }
 
-        private inline fun deliver(block: () -> Unit) {
+        private inline fun guardedDeliver(block: () -> Unit) {
             try {
-                block()
-            } catch (e: Exception) {
+                deliver(block)
+            } catch (e: Throwable) {
                 synchronized(lock) { fail("Listener: ${describe(e)}") }
             }
         }
     }
 
-    private companion object {
-        const val TAG = "IngestVideoDecoder"
-        const val MAX_WIDTH = 3840
-        const val MAX_HEIGHT = 2160
-        const val MAX_PENDING_PTS = 64
+    internal companion object {
+        private const val TAG = "IngestVideoDecoder"
+        private const val MAX_WIDTH = 3840
+        private const val MAX_HEIGHT = 2160
+        private const val MAX_PENDING_PTS = 64
 
-        fun describe(e: Exception) = "${e.javaClass.simpleName}: ${e.message}"
+        /** At most 3840×2160 in either orientation (landscape or portrait). */
+        fun isSizeAllowed(width: Int, height: Int): Boolean = maxOf(width, height) <= MAX_WIDTH && minOf(width, height) <= MAX_HEIGHT
 
-        fun withStartCodes(vararg nalUnits: ByteArray): ByteArray {
+        private fun describe(e: Throwable) = "${e.javaClass.simpleName}: ${e.message}"
+
+        private fun withStartCodes(vararg nalUnits: ByteArray): ByteArray {
             val output = java.io.ByteArrayOutputStream()
             for (nalUnit in nalUnits) {
                 output.write(byteArrayOf(0, 0, 0, 1))
@@ -350,11 +412,11 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         }
 
         /** The first software-only decoder for the type. */
-        fun softwareDecoderName(codec: IngestVideoCodec): String? = try {
+        private fun softwareDecoderName(codec: IngestVideoCodec): String? = try {
             MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.firstOrNull { info ->
                 !info.isEncoder && info.isSoftwareOnly && info.supportedTypes.any { it.equals(codec.mimeType, ignoreCase = true) }
             }?.name
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             null
         }
     }

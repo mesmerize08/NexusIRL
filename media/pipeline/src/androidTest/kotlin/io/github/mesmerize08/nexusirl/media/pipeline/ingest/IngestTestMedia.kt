@@ -33,7 +33,7 @@ object TestEncoder {
      * [frames] frames at 30 fps, a key frame every second. Each unit's PTS is the encoder's (whole
      * microseconds) plus 7 ns, so a test sees whether the decoder keeps nanoseconds.
      */
-    fun encode(codec: IngestVideoCodec, width: Int, height: Int, frames: Int = 60): EncodedStream {
+    fun encode(codec: IngestVideoCodec, width: Int, height: Int, frames: Int = 60, startMicros: Long = 1_000_000): EncodedStream {
         val info = EncoderCapabilities.best(codec.mimeType) ?: error("no ${codec.mimeType} encoder")
         val encoder = MediaCodec.createByCodecName(info.name)
         val format = MediaFormat.createVideoFormat(codec.mimeType, width, height).apply {
@@ -56,7 +56,7 @@ object TestEncoder {
                 if (queued <= frames) {
                     val index = encoder.dequeueInputBuffer(5_000)
                     if (index >= 0) {
-                        val pts = 1_000_000L + queued * 1_000_000L / 30
+                        val pts = startMicros + queued * 1_000_000L / 30
                         if (queued == frames) {
                             encoder.queueInputBuffer(index, 0, 0, pts, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         } else {
