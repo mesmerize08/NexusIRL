@@ -609,8 +609,8 @@ class RtmpServerTest {
         const val BUDGET = 200_000L
         const val FRAME_SIZE = 50_000
         const val FRAMES = 40
-        const val KEY = "secret-key-4711"
-        const val WRONG_KEY = "wrong-key-0815"
-        const val OTHER_KEY = "other-key-2342"
+        const val KEY = "fakekey-aaaaaaaaaaaa"
+        const val WRONG_KEY = "fakekey-bbbbbbbbbbbb"
+        const val OTHER_KEY = "fakekey-cccccccccccc"
     }
 }

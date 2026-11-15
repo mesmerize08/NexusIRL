@@ -1,3 +1,5 @@
 # Reviewed findings that are not secrets (gitleaks fingerprints: commit:file:rule:line).
 # A made-up test token for the harness runner, replaced by "a" * 32 in the next commit.
 2c831e545bf0174560c4f0960b8b11b023a80da3:tools/moblin-harness/run_android.py:generic-api-key:23
+# A made-up wrong stream key in the RTMP server tests, replaced by "fakekey-bbbbbbbbbbbb" in the next commit.
+41771014febefc5d8fb8b122cbb6723e767834f4:transport/rtmp/src/test/kotlin/io/github/mesmerize08/nexusirl/transport/rtmp/server/RtmpServerTest.kt:generic-api-key:389
