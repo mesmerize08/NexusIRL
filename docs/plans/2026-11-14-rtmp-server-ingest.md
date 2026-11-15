@@ -271,3 +271,24 @@ feature should work as much like Moblin as possible.
 | 7 | Sources decoding at once | At most 2 in the MVP | Android limit (decoder count and heat) |
 | 8 | Enhanced-RTMP Opus audio | Rejected with upstream's "Only AAC is supported" message; may come later | Yes |
 | 9 | Video-source widget in the first release | No, it stays in "Later" | Yes (upstream added it after the server) |
+
+## 11. Notes for stage 8 (from the stage 6–7 review)
+
+- `onEnded` can arrive on the RTMP thread (synchronously from `setVideoConfig`: "Too many video
+  sources"), a decoder thread, or the GL thread (the no-picture watchdog). Always post it; never
+  call `VideoPipeline.stop()`, `setPreviewSurface` or anything else that waits on the GL thread
+  from inside it.
+- After an end the pipeline shows black and the audio output sends silence until the app calls
+  `showIngestSource(null or another)` and `useIngestAudio(null)`.
+- Pass `videoDelayNanos` = the video pipeline's frame interval (1e9 / fps).
+- Call `showIngestSource` before `start()` on every new `VideoPipeline`, and `useIngestAudio`
+  again after every `AudioPipeline` re-creation (`stop()` forgets it).
+- `outputChannels` must equal the `AudioPipeline`'s channels; a channel-setting change means new
+  sources.
+- Close every source: the decoding registry is process-wide and each source owns two
+  HandlerThreads.
+- `ingestsSoftwareVideoDecoding` applies to new sources only.
+- A decoder that refuses `setOutputSurface` ends the source on pipeline re-creation: show the
+  reason to the user.
+- One source per publish session; config changes go through `setVideoConfig` (it recreates the
+  codec).

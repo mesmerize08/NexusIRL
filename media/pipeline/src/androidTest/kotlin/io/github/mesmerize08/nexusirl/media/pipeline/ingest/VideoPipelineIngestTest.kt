@@ -198,6 +198,7 @@ class VideoPipelineIngestTest {
     fun pipelineRecreationKeepsTheSource() {
         val stream = TestEncoder.encode(IngestVideoCodec.H264, WIDTH, HEIGHT, frames = 150)
         val first = VideoPipeline(context, settings, onError = { errors.add(it) })
+        first.sceneSwitchTransition = SceneSwitchTransitionKind.FREEZE
         var firstStopped = false
         cleanup += { if (!firstStopped) first.stop() }
         first.start()
@@ -247,6 +248,25 @@ class VideoPipelineIngestTest {
         assertTrue("no frames encoded after the source ended", sink.frames.get() > frames + 5)
     }
 
+    /** A source whose updateVideo throws does not stop the GL thread: black, and frames go on. */
+    @Test
+    fun throwingSourceShowsBlack() {
+        val stream = TestEncoder.encode(IngestVideoCodec.H264, WIDTH, HEIGHT, frames = 150)
+        val pipeline = pipeline()
+        pipeline.start()
+        val sink = pipeline.encoderSink()
+        val source = source()
+        pipeline.showIngestSource(source)
+        source.feed(stream)
+        assertTrue(pipeline.awaitLuminance(LATENCY / 1_000_000 + 1500) { it > 0.2 } > 0.2)
+        source.updateVideoFailureForTest = IllegalStateException("test")
+        val luminance = pipeline.awaitLuminance(1000) { it < 0.05 }
+        assertTrue("not black after the source threw: $luminance", luminance < 0.05)
+        val frames = sink.frames.get()
+        Thread.sleep(400)
+        assertTrue("no frames encoded after the source threw", sink.frames.get() > frames + 5)
+    }
+
     /** Back to the camera, which cannot open here (no permission, or none on CI): black, no crash. */
     @Test
     fun backToCamera() {
@@ -259,6 +279,8 @@ class VideoPipelineIngestTest {
         source.feed(stream)
         assertTrue(pipeline.awaitLuminance(LATENCY / 1_000_000 + 1500) { it > 0.2 } > 0.2)
         pipeline.showIngestSource(null, cameraIdWhenNull = null)
+        // A round trip through the GL thread: the detach has run before the last render is read.
+        pipeline.snapshot()
         if (!cameraUsable()) {
             val luminance = pipeline.awaitLuminance(1000) { it < 0.05 }
             assertTrue("not black without the source: $luminance", luminance < 0.05)
@@ -267,7 +289,8 @@ class VideoPipelineIngestTest {
         val frames = sink.frames.get()
         Thread.sleep(600)
         assertEquals("source still driven after detaching", rendered, source.lastRenderedPtsNanos)
-        assertTrue("no black frames encoded after detaching", sink.frames.get() > frames + 5)
+        // With a usable camera its frames (or black until its first) keep coming as well.
+        assertTrue("no frames encoded after detaching", sink.frames.get() > frames + 5)
         assertFalse("the pipeline closed the source", source.isEnded)
         assertNull("ended", ended.peek())
     }

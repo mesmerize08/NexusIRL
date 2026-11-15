@@ -64,6 +64,25 @@ class IngestJitterBuffer(
         return first
     }
 
+    /**
+     * A backlog (nothing took units for a while): drops every unit before the newest key frame
+     * whose DTS is at or before [limitDtsNanos], so decoding restarts there. Without such a key
+     * frame nothing is dropped. The key frame stays at the head, so the buffer does not wait for
+     * another one. Returns the number of units dropped.
+     */
+    fun dropBeforeNewestKeyFrameDue(limitDtsNanos: Long): Int {
+        val index = units.indexOfLast { it.isKeyFrame && it.dtsNanos <= limitDtsNanos }
+        if (index <= 0) return 0
+        repeat(index) { bytes -= units.removeFirst().data.size }
+        return index
+    }
+
+    /** The oldest DTS held, or null when empty. */
+    fun oldestDtsNanos(): Long? = units.firstOrNull()?.dtsNanos
+
+    /** The PTS of the oldest unit (the head), or null when empty. */
+    fun oldestPtsNanos(): Long? = units.firstOrNull()?.ptsNanos
+
     /** The largest PTS held (B-frames make it differ from the last added), or null when empty. */
     fun newestPtsNanos(): Long? = units.maxOfOrNull { it.ptsNanos }
 

@@ -146,4 +146,46 @@ class IngestJitterBufferTest {
             assertEquals(0, buffer.bytes)
         }
     }
+
+    /** A backlog: the units before the newest key frame that is due go, the rest stays in order. */
+    @Test
+    fun dropBeforeNewestKeyFrameDueSkipsToThatKeyFrame() {
+        val buffer = IngestJitterBuffer()
+        for (dts in 0L until 40L) buffer.add(unit(dts % 10 == 0L, dts, size = 10))
+        assertEquals(20, buffer.dropBeforeNewestKeyFrameDue(25))
+        assertEquals(20, buffer.size)
+        assertEquals(200, buffer.bytes)
+        val first = buffer.takeDue(25)
+        assertEquals(20, first?.dtsNanos)
+        assertTrue(first!!.isKeyFrame)
+        // Later units still go in order, and non-key units are still taken (not waiting for a key frame).
+        buffer.add(unit(false, 40, size = 10))
+        assertEquals(21, buffer.takeDue(Long.MAX_VALUE)?.dtsNanos)
+    }
+
+    @Test
+    fun dropBeforeNewestKeyFrameDueIgnoresKeyFramesNotDue() {
+        val buffer = IngestJitterBuffer()
+        buffer.add(unit(true, 0))
+        buffer.add(unit(false, 5))
+        buffer.add(unit(true, 10))
+        buffer.add(unit(false, 15))
+        buffer.add(unit(true, 30))
+        assertEquals(2, buffer.dropBeforeNewestKeyFrameDue(25))
+        assertEquals(10, buffer.takeDue(25)?.dtsNanos)
+    }
+
+    @Test
+    fun dropBeforeNewestKeyFrameDueWithoutOneDropsNothing() {
+        val buffer = IngestJitterBuffer()
+        buffer.add(unit(true, 0))
+        buffer.add(unit(false, 5))
+        buffer.add(unit(false, 10))
+        buffer.add(unit(true, 30))
+        buffer.takeDue(0)
+        // The head is not a key frame and no key frame is due: nothing to start from yet.
+        assertEquals(0, buffer.dropBeforeNewestKeyFrameDue(25))
+        assertEquals(3, buffer.size)
+        assertEquals(0, IngestJitterBuffer().dropBeforeNewestKeyFrameDue(Long.MAX_VALUE))
+    }
 }

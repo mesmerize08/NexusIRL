@@ -23,10 +23,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  * after its time makes the schedule decode further ahead. A decoder fed for 5 s without a picture
  * ends the source. When the decoder starts a new codec on its own (the software fallback) the
  * source drops what it buffered for the old one and waits for the next key frame, as it does on a
- * new config.
+ * new config. Units waiting more than a second past their decode time (nothing drove the source:
+ * not shown, parked, or the pipeline stopped) are a backlog: decoding restarts at the newest key
+ * frame due, and what was decoded before is dropped, so old pictures never play fast-forward.
  *
  * Audio: AAC goes through [IngestAudioDecoder] (48 kHz, [outputChannels], 1024-frame chunks) into
- * a [BufferedAudio]; [audioChunk] plays the chunk for the output time and silence in gaps.
+ * a [BufferedAudio]; [audioChunk] plays the chunk for the output time and silence in gaps. On the
+ * first call, and after more than a second without one, queued audio older than the output time
+ * minus the latency is dropped and the buffer syncs with the output again.
  *
  * At most [MAX_DECODING] sources in the process decode video: [setVideoConfig] of one more ends it
  * with "Too many video sources". Any decoder failure ends the source.
@@ -42,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class IngestSource(
     val name: String,
-    latencyNanos: Long,
+    private val latencyNanos: Long,
     softwareDecoding: Boolean,
     /** Channels of every [audioChunk]: the pipeline's channel count. */
     val outputChannels: Int,
@@ -91,6 +95,12 @@ class IngestSource(
     private var frameIntervalNanos = DEFAULT_FRAME_INTERVAL_NANOS
     private var lastAddNanos: Long? = null
 
+    /**
+     * After a backlog skip: decoded pictures before this PTS are leftovers of units queued before
+     * the skip and are dropped, until the first picture at or after it comes out.
+     */
+    private var skipDecodedBeforeNanos: Long? = null
+
     // Audio state, guarded by audioLock.
     private val audioLock = Any()
     private val audioDecoder = IngestAudioDecoder(name, outputChannels, AudioListener())
@@ -102,6 +112,9 @@ class IngestSource(
         presentationTimeStamp = { it.ptsNanos / 1e9 },
         log = { Log.i(TAG, it) },
     )
+
+    /** Host time of the last [audioChunk] call; null before the first. */
+    private var lastAudioCallNanos: Long? = null
 
     private class AudioChunk(val pcm: ShortArray, val ptsNanos: Long)
 
@@ -130,6 +143,13 @@ class IngestSource(
 
     /** Decoded frames not yet released (for tests). */
     internal val heldFrames: Int get() = videoDecoder.heldFrames
+
+    /** When set, [updateVideo] throws it (for tests of a caller that must survive that). */
+    @Volatile
+    internal var updateVideoFailureForTest: Throwable? = null
+
+    /** The source holds its own surface to decode into (see [detachSurface]; for tests). */
+    internal val hasParkingSurface: Boolean get() = synchronized(videoLock) { parking != null }
 
     /** Compressed units waiting in the jitter buffer (for tests). */
     internal val queuedUnits: Int get() = synchronized(videoLock) { jitter.size }
@@ -193,7 +213,8 @@ class IngestSource(
             if (!isActive) return
             this.surface = surface
             if (decoderConfigured) {
-                videoDecoder.setSurface(surface)
+                // Moved off the parking surface: nothing decodes into it any more.
+                if (videoDecoder.setSurface(surface)) releaseParking()
             } else {
                 val codec = videoCodec ?: return
                 configureDecoder(codec, checkNotNull(videoConfig), surface)
@@ -227,6 +248,7 @@ class IngestSource(
      * True when a new frame was rendered.
      */
     fun updateVideo(outputNanos: Long): Boolean {
+        updateVideoFailureForTest?.let { throw it }
         if (!isActive) return false
         var noPicture = false
         val rendered = synchronized(videoLock) {
@@ -254,7 +276,15 @@ class IngestSource(
     /** 1024 frames at 48 kHz for [outputNanos], zeros in gaps; null before the first chunk arrived. */
     fun audioChunk(outputNanos: Long): ShortArray? {
         if (!isActive) return null
-        val output = synchronized(audioLock) { audio.getFrame(outputNanos / 1e9) } ?: return null
+        val now = clock.nanoTime()
+        val output = synchronized(audioLock) {
+            // The first call, or the first after a pause in the output: what waited meanwhile is
+            // stale, and the chunk played is the one for this time, not the next one queued.
+            val last = lastAudioCallNanos
+            if (last == null || now - last > AUDIO_PAUSE_NANOS) audio.resync(dropBefore = (outputNanos - latencyNanos) / 1e9)
+            lastAudioCallNanos = now
+            audio.getFrame(outputNanos / 1e9)
+        } ?: return null
         if (output.silent) return ShortArray(CHUNK_FRAMES * outputChannels)
         lastAudioPtsNanos = output.frame.ptsNanos
         return output.frame.pcm
@@ -276,6 +306,14 @@ class IngestSource(
         handledGeneration = videoDecoder.currentGeneration
     }
 
+    private fun releaseParking() {
+        parking?.let { (texture, surface) ->
+            surface.release()
+            texture.release()
+        }
+        parking = null
+    }
+
     /** A new config: drops what was buffered; the decoder starts again at a key frame. */
     private fun restartVideo() {
         jitter.clear()
@@ -284,10 +322,31 @@ class IngestSource(
         watchdog.onRestart()
         newestDecodedPtsNanos = null
         lastDecodedPtsNanos = null
+        skipDecodedBeforeNanos = null
+    }
+
+    /**
+     * Nothing drove the source for a while (shown by no pipeline, parked, or the pipeline stopped)
+     * and units piled up: decoding restarts at the newest key frame due instead of playing seconds
+     * of old pictures fast-forward. What was decoded before is dropped too.
+     */
+    private fun skipBacklog(limitDtsNanos: Long) {
+        val oldest = jitter.oldestDtsNanos() ?: return
+        if (limitDtsNanos - oldest <= BACKLOG_NANOS) return
+        val dropped = jitter.dropBeforeNewestKeyFrameDue(limitDtsNanos)
+        if (dropped == 0) return
+        Log.i(TAG, "$name: skipped a backlog of $dropped video units")
+        video.clear()
+        inFlight.clear()
+        watchdog.onRestart()
+        newestDecodedPtsNanos = null
+        lastDecodedPtsNanos = null
+        skipDecodedBeforeNanos = jitter.oldestPtsNanos()
     }
 
     /** Queues due units while the decoder takes them and the held and in-flight bounds allow. */
     private fun feed(limitDtsNanos: Long, now: Long) {
+        skipBacklog(limitDtsNanos)
         while (videoDecoder.canQueue() && videoDecoder.heldFrames < MAX_HELD_FRAMES && inFlight.size < MAX_IN_FLIGHT) {
             val unit = jitter.takeDue(limitDtsNanos) ?: return
             inFlight.add(unit.ptsNanos)
@@ -305,6 +364,13 @@ class IngestSource(
     private fun onDecodedFrame(frame: IngestVideoDecoder.DecodedFrame) {
         val pts = frame.ptsNanos
         watchdog.onPicture()
+        skipDecodedBeforeNanos?.let { skipBefore ->
+            if (pts < skipBefore) {
+                videoDecoder.release(frame, render = false)
+                return
+            }
+            skipDecodedBeforeNanos = null
+        }
         inFlight.onPicture(pts)
         // A jump back of more than a second is a new timeline, not a reordered frame.
         val newest = newestDecodedPtsNanos
@@ -344,11 +410,7 @@ class IngestSource(
             video.clear()
             inFlight.clear()
             // The decoder is closed: nothing decodes into it any more.
-            parking?.let { (texture, surface) ->
-                surface.release()
-                texture.release()
-            }
-            parking = null
+            releaseParking()
         }
         synchronized(audioLock) { audio.clear() }
         place.give()
@@ -400,6 +462,12 @@ class IngestSource(
         private const val MAX_HELD_FRAMES = 6
         private const val MAX_IN_FLIGHT = 16
         private const val RESTART_GAP_NANOS = 1_000_000_000L
+
+        /** No [audioChunk] call for this long is a pause in the output. */
+        private const val AUDIO_PAUSE_NANOS = 1_000_000_000L
+
+        /** The oldest unit waiting further than this behind the decode limit is a backlog. */
+        private const val BACKLOG_NANOS = 1_000_000_000L
         private const val TIMELINE_JUMP_NANOS = 1_000_000_000L
         private const val DEFAULT_FRAME_INTERVAL_NANOS = 33_333_333L
         private const val MIN_FRAME_INTERVAL_NANOS = 1_000_000L

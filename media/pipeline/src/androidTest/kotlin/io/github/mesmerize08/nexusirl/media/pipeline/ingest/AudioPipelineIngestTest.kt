@@ -178,7 +178,7 @@ class AudioPipelineIngestTest {
         pipeline.start()
         val source = source()
         val start = System.nanoTime()
-        pipeline.useIngestAudio(source)
+        pipeline.useIngestAudio(source, videoDelayNanos = 0)
         val firstPts = start + LATENCY
         val lastPts = sendTone(source, firstPts)
         var loudest = -160f
@@ -216,7 +216,7 @@ class AudioPipelineIngestTest {
         pipeline.start()
         val source = source()
         val start = System.nanoTime()
-        pipeline.useIngestAudio(source)
+        pipeline.useIngestAudio(source, videoDelayNanos = 0)
         val firstPts = start + LATENCY
         val gap = firstPts + 800_000_000 until firstPts + 1_200_000_000
         val lastPts = sendTone(source, firstPts, gap = gap)
@@ -263,11 +263,11 @@ class AudioPipelineIngestTest {
         assumeTrue("the microphone (or its silence) delivered nothing", sink.frames.size >= 5)
         val source = source()
         val switched = System.nanoTime()
-        pipeline.useIngestAudio(source)
+        pipeline.useIngestAudio(source, videoDelayNanos = 0)
         sendTone(source, switched + LATENCY, seconds = 1.5)
         Thread.sleep(1_200)
         val switchedBack = System.nanoTime()
-        pipeline.useIngestAudio(null)
+        pipeline.useIngestAudio(null, videoDelayNanos = 0)
         Thread.sleep(200)
         assertTrue("the output thread still runs on the microphone", ingestThreads().isEmpty())
         Thread.sleep(600)
@@ -295,7 +295,7 @@ class AudioPipelineIngestTest {
         pipeline.start()
         val source = source()
         val start = System.nanoTime()
-        pipeline.useIngestAudio(source)
+        pipeline.useIngestAudio(source, videoDelayNanos = 0)
         val firstPts = start + LATENCY
         val lastPts = sendTone(source, firstPts, seconds = 1.0)
         var loudest = -160f
@@ -372,7 +372,7 @@ class AudioPipelineIngestTest {
     fun sourceWithOtherChannelsIsRefused() {
         val pipeline = pipeline(RecordingSink())
         val mono = source(channels = 1)
-        assertThrows(IllegalArgumentException::class.java) { pipeline.useIngestAudio(mono) }
+        assertThrows(IllegalArgumentException::class.java) { pipeline.useIngestAudio(mono, videoDelayNanos = 0) }
         assertTrue(ingestThreads().isEmpty())
     }
 

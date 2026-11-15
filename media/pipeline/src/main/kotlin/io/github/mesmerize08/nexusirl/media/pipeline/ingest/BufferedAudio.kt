@@ -54,6 +54,16 @@ class BufferedAudio<F>(
         latest = null
     }
 
+    /**
+     * Android's addition, for output that paused (nothing consumed for a while): drops queued
+     * frames before [dropBefore] and syncs with the output again, so the next [getFrame] gives the
+     * frame for its time instead of the next one queued.
+     */
+    fun resync(dropBefore: Double) {
+        while (frames.isNotEmpty() && presentationTimeStamp(frames.first()) < dropBefore) frames.removeFirst()
+        isSyncingWithOutput = true
+    }
+
     fun getFrame(outputPresentationTimeStamp: Double): BufferedAudioOutput<F>? {
         var candidate: F? = null
         var numberOfFramesConsumed = 0

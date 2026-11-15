@@ -180,6 +180,41 @@ class IngestSourceTest {
         assertTrue(offsets.count { it in -2_000_000..chunkNanos + 2_000_000 } >= offsets.size * 9 / 10)
     }
 
+    /** Audio not consumed for a while (output paused): the first chunk after is the one for its time, not stale. */
+    @Test
+    fun audioAfterAPauseIsNotStale() {
+        assumeTrue("no AAC encoder", AacTestEncoder.has())
+        val audio = AacTestEncoder.encode(48_000, 1, seconds = 4.0, startNanos = 0)
+        val source = source()
+        source.setAudioConfig(audio.audioSpecificConfig)
+        val firstPts = System.nanoTime() + LATENCY
+        val shift = firstPts - audio.frames.first().second
+        val frames = audio.frames.map { (data, pts) -> data to pts + shift }
+        val feeder = Thread {
+            for ((data, pts) in frames) {
+                sleepUntil(pts - LATENCY)
+                source.addAudio(pts, data)
+            }
+        }.apply { start() }
+        closeables += AutoCloseable { feeder.join() }
+        val chunkNanos = 1024 * 1_000_000_000L / 48_000
+        var t = firstPts
+        // Played on the grid for a second.
+        while (t < firstPts + 1_000_000_000) {
+            sleepUntil(t)
+            source.audioChunk(t)
+            t += chunkNanos
+        }
+        // Then nothing consumed for a second and a half.
+        t += 1_500_000_000
+        sleepUntil(t)
+        assertNotNull(source.audioChunk(t))
+        val age = t - source.lastAudioPtsNanos
+        Log.i(TAG, "first chunk after the pause: ${age / 1_000_000} ms old")
+        assertTrue("first chunk after the pause ${age / 1_000_000} ms old", age in -3 * chunkNanos..3 * chunkNanos)
+        assertNull("ended", ended.peek())
+    }
+
     /**
      * A pipeline re-created while the source decodes: the old surface is detached and released at
      * once, the decoder keeps decoding what it was given, and the new surface gets frames again.
@@ -195,6 +230,7 @@ class IngestSourceTest {
         source.add(units)
         drive(source, units[15].ptsNanos).let { assertTrue("rendered ${it.size}", it.isNotEmpty()) }
         source.detachSurface(first.surface)
+        assertTrue("not parked on a surface of its own", source.hasParkingSurface)
         first.close()
         // The decoder still busy: units fed now (a tick racing the detach) are decoded meanwhile.
         source.updateVideo(units[40].ptsNanos)
@@ -202,10 +238,74 @@ class IngestSourceTest {
         assertNull("ended after the detach", ended.peek())
         val second = sink()
         source.attachSurface(second.surface)
+        assertFalse("the parking surface is kept after re-attaching", source.hasParkingSurface)
         val rendered = drive(source, System.nanoTime() + 1_000_000_000)
         assertNull("ended", ended.peek())
         assertTrue("rendered ${rendered.size} after re-attaching", rendered.size >= 15)
         assertTrue("second sink got ${second.timestamps.size}", second.timestamps.size >= 10)
+    }
+
+    /** The longest distance between key frames of [units] (the GOP length). */
+    private fun gopNanos(units: List<IngestVideoAccessUnit>): Long =
+        units.filter { it.isKeyFrame }.map { it.ptsNanos }.zipWithNext { a, b -> b - a }.maxOrNull() ?: Long.MAX_VALUE
+
+    /**
+     * A backlog when a pipeline starts driving the source starts at the newest key frame due, not
+     * with seconds of old pictures fast-forwarded: every frame rendered is at most a GOP (and a
+     * frame) behind the output time it was rendered at.
+     */
+    private fun assertNoBacklogPlayed(rendered: List<Pair<Long, Long>>, attachNanos: Long, gopNanos: Long) {
+        Log.i(TAG, "after attach: output - pts (ms): ${rendered.map { (it.first - it.second) / 1_000_000 }}")
+        assertTrue("rendered only ${rendered.size}", rendered.size >= 10)
+        val (firstOutput, firstPts) = rendered.first()
+        assertTrue(
+            "first frame ${(firstOutput - firstPts) / 1_000_000} ms old (GOP ${gopNanos / 1_000_000} ms)",
+            firstOutput - firstPts <= gopNanos + FRAME_NANOS,
+        )
+        val old = rendered.filter { it.second < attachNanos - gopNanos - FRAME_NANOS }
+        assertTrue("${old.size} frames of the backlog rendered", old.isEmpty())
+    }
+
+    @Test
+    fun backlogBeforeTheFirstAttachIsSkipped() {
+        val stream = TestEncoder.encode(IngestVideoCodec.H264, 640, 360, frames = 180)
+        val source = source()
+        // Five seconds of units arrived before anything showed the source.
+        val units = shifted(stream.units, System.nanoTime() - 5_000_000_000)
+        val gop = gopNanos(units)
+        assumeTrue("GOP ${gop / 1_000_000} ms", gop <= 2_000_000_000)
+        source.setVideoConfig(stream.codec, stream.config)
+        source.add(units)
+        val sink = sink()
+        val attach = System.nanoTime()
+        source.attachSurface(sink.surface)
+        val rendered = drive(source, attach + 1_000_000_000)
+        assertNull("ended", ended.peek())
+        assertNoBacklogPlayed(rendered, attach, gop)
+    }
+
+    @Test
+    fun backlogWhileParkedIsSkipped() {
+        val stream = TestEncoder.encode(IngestVideoCodec.H264, 640, 360, frames = 300)
+        val first = TextureSink()
+        val source = source()
+        val units = shifted(stream.units, System.nanoTime() + LATENCY)
+        val gop = gopNanos(units)
+        assumeTrue("GOP ${gop / 1_000_000} ms", gop <= 2_000_000_000)
+        source.setVideoConfig(stream.codec, stream.config)
+        source.attachSurface(first.surface)
+        source.add(units)
+        drive(source, units[30].ptsNanos).let { assertTrue("rendered ${it.size}", it.isNotEmpty()) }
+        // No pipeline drives the source for three seconds (parked): the units become a backlog.
+        source.detachSurface(first.surface)
+        first.close()
+        Thread.sleep(3_000)
+        val second = sink()
+        val attach = System.nanoTime()
+        source.attachSurface(second.surface)
+        val rendered = drive(source, attach + 1_000_000_000)
+        assertNull("ended", ended.peek())
+        assertNoBacklogPlayed(rendered, attach, gop)
     }
 
     @Test

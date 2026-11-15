@@ -155,6 +155,9 @@ class VideoPipeline(
     /** The ingest texture holds a picture of the source (GL thread only). */
     private var ingestLatched = false
 
+    /** The shown source threw from updateVideo: treated as ended (GL thread only). */
+    private var ingestFailed = false
+
     /** Ids and rectangles to draw, in scene order (bitmap and surface overlays mixed). */
     private var drawOrder: List<Overlay> = emptyList()
     private var oesRectRenderer: OesRectRenderer? = null
@@ -786,11 +789,13 @@ class VideoPipeline(
         detachIngest()
         ingestSource = source
         val textureId = oes.createTexture()
-        val texture = SurfaceTexture(textureId).apply { setDefaultBufferSize(settings.width, settings.height) }
+        // No default buffer size: the decoder sets the buffers' size (the stream's) itself.
+        val texture = SurfaceTexture(textureId)
         val ingest = SurfaceOverlay(textureId, texture, Surface(texture))
         texture.setOnFrameAvailableListener({ ingest.frameAvailable = true }, glHandler)
         ingestTexture = ingest
         ingestLatched = false
+        ingestFailed = false
         // The last picture stays (with the scene switch transition) until the source's first frame.
         if (hasFrame) {
             transitionStartNanos = System.nanoTime()
@@ -809,6 +814,7 @@ class VideoPipeline(
         ingestTexture = null
         ingestSource = null
         ingestLatched = false
+        ingestFailed = false
     }
 
     /** Sets (or clears, with null) the on-screen preview surface. */
@@ -925,8 +931,8 @@ class VideoPipeline(
      */
     private fun renderIngest(source: IngestSource, texture: SurfaceOverlay, now: Long) {
         val outputNanos = frameClock.next(now)
-        if (source.isEnded) {
-            // Ended (a decoder failure) or closed: black, not a frozen picture.
+        if (source.isEnded || ingestFailed) {
+            // Ended (a decoder failure), closed or failed here: black, not a frozen picture.
             ingestLatched = false
             hasFrame = false
             transitionStartNanos = null
@@ -948,7 +954,13 @@ class VideoPipeline(
                 transitionStartNanos = null
             }
         }
-        source.updateVideo(outputNanos)
+        try {
+            source.updateVideo(outputNanos)
+        } catch (e: Throwable) {
+            // Nothing a source throws may stop the GL thread: it is treated as ended from now on.
+            android.util.Log.e(TAG, "Ingest source ${source.name} failed, showing black", e)
+            ingestFailed = true
+        }
         // The camera's last image is shown for the transition's duration only, then black (no
         // publisher may be connected for a long time).
         transitionStartNanos?.let { start ->

@@ -147,8 +147,11 @@ class AudioPipeline(
      * microphone. The output for time t is the source's chunk for t - [videoDelayNanos], so it
      * lines up with a picture shown that much after its selection time (the video pipeline's
      * one-frame latch lag). The source must have [channels] channels. [stop] forgets the source.
+     *
+     * @param videoDelayNanos the VIDEO PIPELINE's frame interval, 1e9 / its fps (the latch lag of
+     *   the picture the audio goes with); ignored with a null [source].
      */
-    fun useIngestAudio(source: IngestSource?, videoDelayNanos: Long = 0) {
+    fun useIngestAudio(source: IngestSource?, videoDelayNanos: Long) {
         require(source == null || source.outputChannels == channels) {
             "The ingest source has ${source?.outputChannels} audio channels, the pipeline $channels"
         }
@@ -324,6 +327,7 @@ class AudioPipeline(
 
         private fun run() {
             try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
                 loop()
             } catch (e: Throwable) {
                 // Nothing may escape this thread.

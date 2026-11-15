@@ -134,13 +134,16 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
     /**
      * Moves the output to [surface] (the pipeline was re-created) without restarting decoding. If
      * the decoder refuses it, the decoder ends ([Listener.onFailed]) and the source should end.
+     * True when nothing decodes into the previous surface any more (moved, or no codec running);
+     * false when the decoder failed or is closed.
      */
-    fun setSurface(surface: Surface) {
+    fun setSurface(surface: Surface): Boolean {
         synchronized(lock) {
-            if (failed || closed) return
+            if (failed || closed) return false
             this.surface = surface
-            val codec = codec ?: return
+            val codec = codec ?: return true
             guardedOrFail { codec.setOutputSurface(surface) }
+            return !failed
         }
     }
 
