@@ -15,12 +15,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * Video: compressed units wait in an [IngestJitterBuffer]. Each [updateVideo] feeds the decoder the
  * units whose `dts + drift ≤ output + decodeAhead` ([IngestDecodeSchedule], 150–500 ms) while it
- * takes input and fewer than six frames are held decoded or on their way (units queued whose
- * picture has not come out count too, so a burst of input cannot pass the bound; a decoder that
- * holds back frames, like the software ones, uses part of it). Decoded frames wait in a
- * [BufferedVideo], which picks the one to show; that one is released to the surface, the others
- * are dropped. A frame shown more than a frame interval after its time makes the schedule decode
- * further ahead. A decoder fed for 5 s without a picture ends the source.
+ * takes input, fewer than six frames are held decoded, and fewer than 16 units queued to it have
+ * not come out yet. Decoded frames wait in a [BufferedVideo], which picks the one to show; that
+ * one is released to the surface, the others are dropped. A frame shown more than a frame interval
+ * after its time makes the schedule decode further ahead. A decoder fed for 5 s without a picture
+ * ends the source. When the decoder starts a new codec on its own (the software fallback) the
+ * source drops what it buffered for the old one and waits for the next key frame, as it does on a
+ * new config.
  *
  * Audio: AAC goes through [IngestAudioDecoder] (48 kHz, [outputChannels], 1024-frame chunks) into
  * a [BufferedAudio]; [audioChunk] plays the chunk for the output time and silence in gaps.
@@ -53,7 +54,7 @@ class IngestSource(
 
     /** Held while [onEnded] runs, so [close] can wait for it. */
     private val endLock = Any()
-    private val registered = AtomicBoolean(false)
+    private val place = IngestDecodingPlace(registry)
 
     // Video state, guarded by videoLock.
     private val videoLock = Any()
@@ -76,13 +77,13 @@ class IngestSource(
     private var videoConfig: ByteArray? = null
     private var surface: Surface? = null
     private var decoderConfigured = false
+
+    /** The decoder generation whose start the video state already accounts for. */
+    private var handledGeneration = -1
     private var newestDecodedPtsNanos: Long? = null
     private var lastDecodedPtsNanos: Long? = null
     private var frameIntervalNanos = DEFAULT_FRAME_INTERVAL_NANOS
     private var lastAddNanos: Long? = null
-
-    /** When a unit was last queued or a picture last came out: the decoder's last sign of progress. */
-    private var lastProgressNanos = 0L
 
     // Audio state, guarded by audioLock.
     private val audioLock = Any()
@@ -124,18 +125,19 @@ class IngestSource(
     /** The avcC/hvcC record; a new one restarts decoding at the next key frame. */
     fun setVideoConfig(codec: IngestVideoCodec, config: ByteArray) {
         if (!isActive) return
-        if (!registered.get()) {
-            if (!acquireDecoding()) {
+        if (!place.isHeld) {
+            if (!place.take()) {
                 end("Too many video sources")
                 return
             }
-            registered.set(true)
+            // A close or end racing the take may give the place back too: give() counts once.
             if (!isActive) {
-                releaseDecoding()
+                place.give()
                 return
             }
         }
         synchronized(videoLock) {
+            if (!isActive) return
             if (codec == videoCodec && config.contentEquals(videoConfig)) return
             videoCodec = codec
             videoConfig = config.copyOf()
@@ -149,7 +151,8 @@ class IngestSource(
         if (!isActive) return
         val now = clock.nanoTime()
         synchronized(videoLock) {
-            if (!registered.get()) return
+            // Checked under the lock, so nothing is added after shutdown() cleared the buffer.
+            if (!isActive || !place.isHeld) return
             // Data again after a pause: whatever the decoder held back is not a dead decoder.
             lastAddNanos?.let { if (now - it > RESTART_GAP_NANOS) watchdog.onRestart() }
             lastAddNanos = now
@@ -173,6 +176,7 @@ class IngestSource(
     fun attachSurface(surface: Surface) {
         if (!isActive) return
         synchronized(videoLock) {
+            if (!isActive) return
             this.surface = surface
             if (decoderConfigured) {
                 videoDecoder.setSurface(surface)
@@ -201,7 +205,8 @@ class IngestSource(
                 return@synchronized false
             }
             val frame = video.updateFrame(outputNanos / 1e9) ?: return@synchronized false
-            videoDecoder.release(frame, render = true)
+            // A frame of a codec that is gone (recreated since) is not rendered.
+            if (!videoDecoder.release(frame, render = true)) return@synchronized false
             if (outputNanos - (frame.ptsNanos + driftNanos) > frameIntervalNanos) schedule.onLate()
             lastRenderedPtsNanos = frame.ptsNanos
             hasVideo = true
@@ -233,7 +238,7 @@ class IngestSource(
     private fun configureDecoder(codec: IngestVideoCodec, config: ByteArray, surface: Surface) {
         videoDecoder.configure(codec, config, surface)
         decoderConfigured = true
-        lastProgressNanos = clock.nanoTime()
+        handledGeneration = videoDecoder.currentGeneration
     }
 
     /** A new config: drops what was buffered; the decoder starts again at a key frame. */
@@ -246,17 +251,10 @@ class IngestSource(
         lastDecodedPtsNanos = null
     }
 
-    /** Queues due units while the decoder takes them and the held-frame bound allows. */
+    /** Queues due units while the decoder takes them and the held and in-flight bounds allow. */
     private fun feed(limitDtsNanos: Long, now: Long) {
-        while (videoDecoder.canQueue()) {
-            val held = videoDecoder.heldFrames
-            val room = held + inFlight.size < MAX_HELD_FRAMES
-            // A decoder that holds back more units than the bound before giving a picture would
-            // never start: when nothing is held and nothing moved for a while, give it one more.
-            val nudge = !room && held == 0 && now - lastProgressNanos >= NUDGE_NANOS
-            if (!room && !nudge) return
+        while (videoDecoder.canQueue() && videoDecoder.heldFrames < MAX_HELD_FRAMES && inFlight.size < MAX_IN_FLIGHT) {
             val unit = jitter.takeDue(limitDtsNanos) ?: return
-            lastProgressNanos = now
             inFlight.add(unit.ptsNanos)
             watchdog.onQueued(now)
             videoDecoder.queue(unit)
@@ -273,7 +271,6 @@ class IngestSource(
         val pts = frame.ptsNanos
         watchdog.onPicture()
         inFlight.onPicture(pts)
-        lastProgressNanos = clock.nanoTime()
         // A jump back of more than a second is a new timeline, not a reordered frame.
         val newest = newestDecodedPtsNanos
         if (newest == null || pts > newest || newest - pts > TIMELINE_JUMP_NANOS) newestDecodedPtsNanos = pts
@@ -312,13 +309,26 @@ class IngestSource(
             video.clear()
             inFlight.clear()
         }
-        if (registered.getAndSet(false)) releaseDecoding()
+        synchronized(audioLock) { audio.clear() }
+        place.give()
     }
 
     private inner class VideoListener : IngestVideoDecoder.Listener {
         override fun onFrame(frame: IngestVideoDecoder.DecodedFrame) {
             synchronized(videoLock) {
                 if (isActive) onDecodedFrame(frame) else videoDecoder.release(frame, render = false)
+            }
+        }
+
+        override fun onRestarted() {
+            synchronized(videoLock) {
+                if (!isActive) return
+                // A start that a new config caused was handled when it was configured; units
+                // added since are for the new codec and stay.
+                val generation = videoDecoder.currentGeneration
+                if (generation == handledGeneration) return
+                handledGeneration = generation
+                restartVideo()
             }
         }
 
@@ -346,29 +356,16 @@ class IngestSource(
         private const val TAG = "IngestSource"
         private const val CHUNK_FRAMES = 1024
         private const val MAX_HELD_FRAMES = 6
-        private const val NUDGE_NANOS = 500_000_000L
+        private const val MAX_IN_FLIGHT = 16
         private const val RESTART_GAP_NANOS = 1_000_000_000L
         private const val TIMELINE_JUMP_NANOS = 1_000_000_000L
         private const val DEFAULT_FRAME_INTERVAL_NANOS = 33_333_333L
         private const val MIN_FRAME_INTERVAL_NANOS = 1_000_000L
         private const val MAX_FRAME_INTERVAL_NANOS = 1_000_000_000L
 
-        private var decoding = 0
+        private val registry = IngestDecodingRegistry(MAX_DECODING)
 
         /** Sources that hold one of the [MAX_DECODING] places. */
-        internal val decodingSources: Int
-            @Synchronized get() = decoding
-
-        @Synchronized
-        private fun acquireDecoding(): Boolean {
-            if (decoding >= MAX_DECODING) return false
-            decoding++
-            return true
-        }
-
-        @Synchronized
-        private fun releaseDecoding() {
-            decoding--
-        }
+        internal val decodingSources: Int get() = registry.count
     }
 }

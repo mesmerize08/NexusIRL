@@ -7,6 +7,7 @@ import io.github.mesmerize08.nexusirl.media.mux.nal.NalUnitWriter
 import io.github.mesmerize08.nexusirl.media.mux.nal.writeRbspTrailingBits
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -23,6 +24,7 @@ class IngestVideoDecoderTest {
         val frames = LinkedBlockingQueue<IngestVideoDecoder.DecodedFrame>()
         val formats = LinkedBlockingQueue<Pair<Int, Int>>()
         val failures = LinkedBlockingQueue<String>()
+        val restarts = LinkedBlockingQueue<Unit>()
         val threads = LinkedBlockingQueue<String>()
 
         override fun onFrame(frame: IngestVideoDecoder.DecodedFrame) {
@@ -33,6 +35,11 @@ class IngestVideoDecoderTest {
         override fun onFormat(width: Int, height: Int) {
             threads.add(Thread.currentThread().name)
             formats.add(width to height)
+        }
+
+        override fun onRestarted() {
+            threads.add(Thread.currentThread().name)
+            restarts.add(Unit)
         }
 
         override fun onFailed(reason: String) {
@@ -183,6 +190,7 @@ class IngestVideoDecoderTest {
         val sink = sink()
         val decoder = decoder()
         decoder.configure(small.codec, small.config, sink.surface)
+        assertNotNull("no restart for the first codec", recorder.restarts.poll(5, TimeUnit.SECONDS))
         val smallFeeder = Feeder(decoder, small)
         smallFeeder.await(small.units.take(28), sink)
         // Two decoded frames stay held over the switch.
@@ -191,11 +199,13 @@ class IngestVideoDecoderTest {
         recorder.formats.clear()
         decoder.configure(large.codec, large.config, sink.surface)
         assertEquals(0, decoder.heldFrames)
+        // The codec was recreated, and the listener hears it.
+        assertNotNull("no restart for the new config", recorder.restarts.poll(5, TimeUnit.SECONDS))
         val decoded = Feeder(decoder, large).await(large.units, sink)
         assertEquals(large.units.map { it.ptsNanos }.sorted(), decoded.map { it.ptsNanos })
         assertEquals(1280 to 720, recorder.formats.poll())
-        decoder.release(old[0], render = true)
-        decoder.release(old[1], render = false)
+        assertFalse("an old frame rendered", decoder.release(old[0], render = true))
+        assertFalse(decoder.release(old[1], render = false))
         assertNull(sink.timestamps.poll(200, TimeUnit.MILLISECONDS))
         assertNull(recorder.failures.peek())
     }
@@ -209,11 +219,13 @@ class IngestVideoDecoderTest {
         val feeder = Feeder(decoder, stream)
         feeder.await(stream.units.take(20), sink)
         val held = feeder.await(listOf(stream.units[20]), sink = null).single()
+        recorder.restarts.clear()
         decoder.configure(stream.codec, stream.config.copyOf(), sink.surface)
+        assertNull(recorder.restarts.poll(200, TimeUnit.MILLISECONDS))
         // Same decoder: the held frame still renders (once), and decoding goes on without a key frame.
-        decoder.release(held, render = true)
+        assertTrue(decoder.release(held, render = true))
         assertEquals(stream.units[20].ptsNanos / 1000, sink.timestamps.poll(5, TimeUnit.SECONDS)!! / 1000)
-        decoder.release(held, render = true)
+        assertFalse("released twice", decoder.release(held, render = true))
         assertNull(sink.timestamps.poll(200, TimeUnit.MILLISECONDS))
         feeder.await(stream.units.drop(21), sink)
         assertNull(recorder.failures.peek())

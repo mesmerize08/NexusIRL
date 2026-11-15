@@ -48,6 +48,12 @@ class BufferedAudio<F>(
         hasFrameBeenAppended = true
     }
 
+    /** Android's addition: forgets every queued frame and the latest one. */
+    fun clear() {
+        frames.clear()
+        latest = null
+    }
+
     fun getFrame(outputPresentationTimeStamp: Double): BufferedAudioOutput<F>? {
         var candidate: F? = null
         var numberOfFramesConsumed = 0

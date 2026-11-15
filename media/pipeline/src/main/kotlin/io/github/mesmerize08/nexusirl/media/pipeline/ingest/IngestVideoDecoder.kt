@@ -30,6 +30,10 @@ enum class IngestVideoCodec(val mimeType: String) { H264("video/avc"), H265("vid
  * in either orientation or than the decoder supports, a [setSurface] the decoder refuses) ends the
  * decoder with [Listener.onFailed]; after that every call is a no-op.
  *
+ * Every time a codec starts (the first one, a new one for a new config, the software fallback)
+ * the listener hears [Listener.onRestarted] before any frame of that codec: what was queued to the
+ * one before is lost, and decoding goes on from the next key frame.
+ *
  * Threading: the public methods may be called from any thread (they are serialised internally).
  * Every [Listener] callback comes on the decoder's own thread, "ingest-video-<name>", and none
  * comes after [close] returns (close waits for a callback in progress, unless called from one).
@@ -41,6 +45,14 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
 
         /** The decoded picture size (cropped), when it is first known and whenever it changes. */
         fun onFormat(width: Int, height: Int)
+
+        /**
+         * A codec started (the first one, or a recreation for a new config or the software
+         * fallback): units queued before are lost, frames of the codec before are gone
+         * ([release] ignores them), and the next picture comes from a key frame. Comes before any
+         * frame of the new codec.
+         */
+        fun onRestarted()
 
         /** The decoder ended (codec error, size over 3840×2160, surface refused); the source should end. */
         fun onFailed(reason: String)
@@ -81,6 +93,10 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
     /** The name of the running codec, or null. */
     val codecName: String?
         get() = synchronized(lock) { guarded { codec?.name } }
+
+    /** Bumped whenever the codec stops or a new one starts: frames of an older value are dead. */
+    internal val currentGeneration: Int
+        get() = synchronized(lock) { generation }
 
     /** Decoded frames not yet released. */
     val heldFrames: Int
@@ -157,14 +173,22 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
         }
     }
 
-    /** Renders or drops a decoded frame. Idempotent; frames of an older generation are ignored. */
-    fun release(frame: DecodedFrame, render: Boolean) {
+    /**
+     * Renders or drops a decoded frame. Idempotent; frames of an older generation are ignored.
+     * True when the frame went back to the running codec (and, with [render], to the surface).
+     */
+    fun release(frame: DecodedFrame, render: Boolean): Boolean {
         synchronized(lock) {
-            if (frame.released || frame.generation != generation) return
+            if (frame.released || frame.generation != generation) return false
             frame.released = true
-            if (!held.remove(frame.index)) return
-            val codec = codec ?: return
-            guardedOrFail { codec.releaseOutputBuffer(frame.index, render) }
+            if (!held.remove(frame.index)) return false
+            val codec = codec ?: return false
+            var done = false
+            guardedOrFail {
+                codec.releaseOutputBuffer(frame.index, render)
+                done = true
+            }
+            return done
         }
     }
 
@@ -230,6 +254,8 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
             codec.configure(checkNotNull(format), checkNotNull(surface), null, 0)
             codec.start()
             Log.i(TAG, "$name: decoding ${type.mimeType} with ${codec.name}")
+            // Posted with the lock held, so before any callback of the new codec can run.
+            postToListener { listener.onRestarted() }
             null
         } catch (e: Throwable) {
             val tried = decoderName ?: guarded { created?.name }
@@ -278,6 +304,17 @@ class IngestVideoDecoder(private val name: String, private val softwareDecoding:
                 deliver { listener.onFailed(reason) }
             } catch (e: Throwable) {
                 Log.e(TAG, "$name: onFailed threw", e)
+            }
+        }
+    }
+
+    /** Runs [block] on the decoder thread through [deliver]; anything it throws ends the decoder. */
+    private fun postToListener(block: () -> Unit) {
+        handler.post {
+            try {
+                deliver(block)
+            } catch (e: Throwable) {
+                synchronized(lock) { fail("Listener: ${describe(e)}") }
             }
         }
     }
