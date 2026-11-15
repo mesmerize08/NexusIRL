@@ -23,6 +23,8 @@ data class RtmpServerLimits(
     val maxPartialBytes: Int = 16 * 1024 * 1024,
     val maxFailedKeys: Int = 5,
     val lockoutMs: Long = 60_000,
+    /** Media bytes one client may have waiting for the listener; past it, its reading waits. */
+    val maxQueuedMediaBytes: Long = 32L * 1024 * 1024,
 )
 
 // The media holding bytes compare them by content, like the FLV tags.

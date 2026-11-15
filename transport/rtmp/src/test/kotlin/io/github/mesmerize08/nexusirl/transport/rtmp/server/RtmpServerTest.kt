@@ -37,6 +37,10 @@ class RtmpServerTest {
         val media: MutableList<RtmpIngestMedia> = Collections.synchronizedList(ArrayList())
         val threads: MutableSet<String> = Collections.synchronizedSet(HashSet())
 
+        /** When set, onMedia waits for it: a stalled consumer. */
+        @Volatile
+        var gate: CountDownLatch? = null
+
         override fun onPublishStart(streamId: UUID) {
             threads += Thread.currentThread().name
             events += "start $streamId"
@@ -49,6 +53,7 @@ class RtmpServerTest {
 
         override fun onMedia(streamId: UUID, media: RtmpIngestMedia) {
             threads += Thread.currentThread().name
+            gate?.await(10, TimeUnit.SECONDS)
             this.media += media
         }
 
@@ -117,6 +122,12 @@ class RtmpServerTest {
                 }
                 total += count
             }
+        }
+
+        /** An AVC frame of [size] bytes whose first byte is [index]. */
+        fun video(index: Int, size: Int) {
+            val body = byteArrayOf(0x27, 1, 0, 0, 0) + ByteArray(size) { if (it == 0) index.toByte() else 7 }
+            write(encodeChunks(0, 6, RtmpMessage(RtmpMessageType.VIDEO, 1, index * 33L, body), 128).reduce { a, b -> a + b })
         }
 
         fun firstByte(timeoutMs: Int): Int {
@@ -255,7 +266,7 @@ class RtmpServerTest {
             client.write(byteArrayOf(3) + ByteArray(1536))
             assertEquals(3, client.firstByte(3_000), "S0 again")
         }
-        assertTrue(logLines.isNotEmpty())
+        assertTrue(logLines.any { "Locking out /127.0.0.1" in it }, "$logLines")
     }
 
     @Test
@@ -384,7 +395,75 @@ class RtmpServerTest {
         assertTrue(lines.none { KEY in it || WRONG_KEY in it }, "$lines")
     }
 
+    /** A publisher sends far more than the budget while the listener is stalled. */
+    private fun publishPastTheBudget(server: RtmpServer, client: RawClient): Thread {
+        client.publish(KEY)
+        assertEquals("start ${stream.id}", recorder.next())
+        return Thread {
+            try {
+                repeat(FRAMES) { client.video(it, FRAME_SIZE) }
+            } catch (e: IOException) {
+                // Closed by the server.
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    @Test
+    fun mediaBackPressureBlocksAndDrains() = withServer(RtmpServerLimits(maxQueuedMediaBytes = BUDGET)) { server ->
+        val release = CountDownLatch(1)
+        recorder.gate = release
+        RawClient(server.port).use { client ->
+            val writer = publishPastTheBudget(server, client)
+            assertTrue(waitUntil(5_000) { server.peakQueuedMediaBytes() > BUDGET - FRAME_SIZE }, "the budget fills")
+            Thread.sleep(300)
+            assertTrue(server.peakQueuedMediaBytes() <= BUDGET, "peak ${server.peakQueuedMediaBytes()}")
+            assertEquals(0, recorder.media.size, "the listener is stalled")
+            assertEquals(1, server.numberOfClients(), "the publisher waits, it is not closed")
+            release.countDown()
+            assertTrue(waitUntil(10_000) { recorder.videoFrames().size == FRAMES }, "all frames, got ${recorder.videoFrames().size}")
+            assertEquals((0 until FRAMES).toList(), recorder.videoFrames().map { it.data[0].toInt() }, "in order, none dropped")
+            assertTrue(server.peakQueuedMediaBytes() <= BUDGET, "peak ${server.peakQueuedMediaBytes()}")
+            writer.join(5_000)
+            assertEquals(1, server.numberOfClients())
+        }
+    }
+
+    @Test
+    fun stopWhileMediaBlockedEndsPromptly() {
+        val release = CountDownLatch(1)
+        recorder.gate = release
+        val server = RtmpServer(
+            RtmpServerSettings(0, listOf(stream)),
+            recorder,
+            { _, _ -> true },
+            RtmpServerLimits(maxQueuedMediaBytes = BUDGET),
+            HostClock.system,
+        )
+        server.start()
+        try {
+            RawClient(server.port).use { client ->
+                publishPastTheBudget(server, client)
+                assertTrue(waitUntil(5_000) { server.peakQueuedMediaBytes() > BUDGET - FRAME_SIZE }, "the budget fills")
+                val started = System.nanoTime()
+                server.stop()
+                // The stalled listener holds the executor for the stop's bounded wait.
+                assertTrue((System.nanoTime() - started) / 1_000_000 < 5_000, "stop returns promptly")
+                assertTrue(client.bytesUntilClosed(2_000) != null, "the publisher is closed")
+            }
+            assertTrue(waitUntil(2_000) { serverThreads().isEmpty() }, "threads still alive: ${serverThreads().map { it.name }}")
+        } finally {
+            release.countDown()
+            server.stop()
+        }
+    }
+
     private companion object {
+        const val BUDGET = 200_000L
+        const val FRAME_SIZE = 50_000
+        const val FRAMES = 40
         const val KEY = "secret-key-4711"
         const val WRONG_KEY = "wrong-key-0815"
     }
