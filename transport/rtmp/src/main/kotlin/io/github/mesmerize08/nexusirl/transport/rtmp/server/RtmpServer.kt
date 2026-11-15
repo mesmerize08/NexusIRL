@@ -113,6 +113,9 @@ class RtmpServer(
     /** Runs in [start] right after the bind, with the bound port (for tests). */
     internal var afterBind: (Int) -> Unit = {}
 
+    /** Runs in a media message's worker right before it is posted to the executor (for tests). */
+    internal var beforeMediaPost: () -> Unit = {}
+
     /** The bound port: [RtmpServerSettings.port], or the one the system chose for 0. */
     val port: Int
         get() = serverSocket?.localPort ?: requestedPort
@@ -212,6 +215,9 @@ class RtmpServer(
 
     /** The most media bytes all clients together had waiting for the listener (for tests). */
     internal fun peakQueuedMediaBytes(): Long = peakQueuedMediaBytes.get()
+
+    /** The media bytes all clients have waiting for the listener right now (for tests). */
+    internal fun queuedMediaBytesNow(): Long = budget.withLock { queuedMediaBytes }
 
     private fun acceptLoop(server: ServerSocket) {
         while (running) {
@@ -540,17 +546,28 @@ class RtmpServer(
                 queuedMediaBytes += size
                 peakQueuedMediaBytes.accumulateAndGet(queuedMediaBytes, ::maxOf)
             }
-            executor.execute {
-                try {
-                    if (running && publishers[id] === this) {
-                        listener.onMedia(id, media)
-                    }
-                } finally {
-                    budget.withLock {
-                        queuedMediaBytes -= size
-                        budgetFreed.signalAll()
+            try {
+                beforeMediaPost()
+                executor.execute {
+                    try {
+                        if (running && publishers[id] === this) {
+                            listener.onMedia(id, media)
+                        }
+                    } finally {
+                        releaseBudget(size)
                     }
                 }
+            } catch (e: Throwable) {
+                // The task never ran (e.g. OutOfMemoryError wrapping it): give the bytes back.
+                releaseBudget(size)
+                throw e
+            }
+        }
+
+        private fun releaseBudget(size: Long) {
+            budget.withLock {
+                queuedMediaBytes -= size
+                budgetFreed.signalAll()
             }
         }
 

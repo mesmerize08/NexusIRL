@@ -23,6 +23,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -602,6 +603,31 @@ class RtmpServerTest {
         } finally {
             release.countDown()
             server.stop()
+        }
+    }
+
+    @Test
+    fun budgetIsNotLeakedWhenPostingFails() = withServer(RtmpServerLimits(maxQueuedMediaBytes = BUDGET)) { server ->
+        val failures = AtomicInteger(1)
+        server.beforeMediaPost = {
+            if (failures.getAndDecrement() > 0) {
+                throw OutOfMemoryError("fake")
+            }
+        }
+        RawClient(server.port).use { client ->
+            client.publish(KEY)
+            assertEquals("start ${stream.id}", recorder.next())
+            client.video(0, FRAME_SIZE)
+            assertTrue(waitUntil(5_000) { server.peakQueuedMediaBytes() >= FRAME_SIZE }, "the message was counted")
+            assertTrue(waitUntil(5_000) { server.queuedMediaBytesNow() == 0L }, "queued ${server.queuedMediaBytesNow()}")
+            assertTrue(recorder.next().startsWith("stop ${stream.id} "), "the failed session is closed")
+        }
+        RawClient(server.port).use { client ->
+            client.publish(KEY)
+            assertEquals("start ${stream.id}", recorder.next())
+            client.video(1, FRAME_SIZE)
+            assertTrue(waitUntil(5_000) { recorder.videoFrames().size == 1 }, "a later message is delivered")
+            assertEquals(0L, server.queuedMediaBytesNow())
         }
     }
 
