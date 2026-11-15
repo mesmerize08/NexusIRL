@@ -24,11 +24,15 @@ class PcmResampler(
     private val framesPerChunk: Int = 1024,
 ) {
     init {
-        require(inputRate > 0 && outputRate > 0 && framesPerChunk > 0)
-        require(inputChannels in 1..2 && outputChannels in 1..2)
+        require(inputRate > 0 && outputRate > 0 && framesPerChunk > 0) {
+            "rates and framesPerChunk must be positive: $inputRate, $outputRate, $framesPerChunk"
+        }
+        require(inputChannels in 1..2 && outputChannels in 1..2) {
+            "only mono and stereo are supported: $inputChannels in, $outputChannels out"
+        }
     }
 
-    private val chunk = ShortArray(framesPerChunk * outputChannels)
+    private var chunk = ShortArray(framesPerChunk * outputChannels)
     private var chunkFrames = 0
     private var chunkPtsNanos = 0L
 
@@ -47,9 +51,10 @@ class PcmResampler(
 
     /**
      * [pcm] interleaved 16-bit, [frames] frames, the first one at [ptsNanos]. [emit] gets each
-     * completed chunk with its pts; the array is reused afterwards.
+     * completed chunk with its pts; each chunk is a new array the receiver may keep.
      */
     fun process(pcm: ShortArray, frames: Int, ptsNanos: Long, emit: (chunk: ShortArray, ptsNanos: Long) -> Unit) {
+        require(frames * inputChannels <= pcm.size) { "pcm holds ${pcm.size} samples, $frames frames of $inputChannels channels need more" }
         if (frames <= 0) return
         val expected = anchorPtsNanos + inputConsumed * NANOS / inputRate
         if (!anchored || abs(ptsNanos - expected) > GAP_NANOS) {
@@ -57,6 +62,7 @@ class PcmResampler(
             anchored = true
             anchorPtsNanos = ptsNanos
         }
+        rebase()
         val end = inputConsumed + frames
         while (true) {
             val position = outputIndex * inputRate
@@ -80,12 +86,28 @@ class PcmResampler(
             chunkFrames++
             if (chunkFrames == framesPerChunk) {
                 chunkFrames = 0
-                emit(chunk, chunkPtsNanos)
+                val done = chunk
+                chunk = ShortArray(framesPerChunk * outputChannels)
+                emit(done, chunkPtsNanos)
             }
         }
         for (channel in 0 until inputChannels) previous[channel] = pcm[(frames - 1) * inputChannels + channel].toInt()
         hasPrevious = true
         inputConsumed = end
+    }
+
+    /**
+     * Moves the anchor forward by whole seconds once both counters pass them, so the nanosecond
+     * products stay far from overflowing and pts stays exact (a whole second is an integer number
+     * of frames at both rates).
+     */
+    private fun rebase() {
+        val seconds = REBASE_SECONDS
+        if (outputIndex >= seconds * outputRate && inputConsumed >= seconds * inputRate) {
+            anchorPtsNanos += seconds * NANOS
+            outputIndex -= seconds * outputRate
+            inputConsumed -= seconds * inputRate
+        }
     }
 
     /** Forgets the anchor, the interpolation history and any partly filled chunk. */
@@ -117,6 +139,7 @@ class PcmResampler(
 
     private companion object {
         const val NANOS = 1_000_000_000L
+        const val REBASE_SECONDS = 3_600L
         const val GAP_NANOS = 100_000_000L
     }
 }

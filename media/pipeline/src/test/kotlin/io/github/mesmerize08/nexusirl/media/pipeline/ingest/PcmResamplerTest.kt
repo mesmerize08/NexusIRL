@@ -7,6 +7,7 @@ import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class PcmResamplerTest {
@@ -100,5 +101,58 @@ class PcmResamplerTest {
         run(resampler, input, 1024, 500_000_000L + 21_333_333L, out)
         assertEquals(2, out.size)
         assertEquals(521_333_333L, out[1].pts)
+    }
+
+    @Test
+    fun emittedChunksAreIndependentArrays() {
+        val resampler = PcmResampler(48_000, 1, 1)
+        val input = ShortArray(2048) { (it + 1).toShort() }
+        val chunks = mutableListOf<ShortArray>()
+        resampler.process(input, 2048, 0) { chunk, _ -> chunks += chunk }
+        assertEquals(2, chunks.size)
+        assertTrue(chunks[0] !== chunks[1])
+        assertContentEquals(input.copyOfRange(0, 1024), chunks[0])
+    }
+
+    @Test
+    fun rejectsFramesBeyondTheArray() {
+        val resampler = PcmResampler(48_000, 2, 2)
+        var emitted = 0
+        assertFailsWith<IllegalArgumentException> { resampler.process(ShortArray(100), 100, 0) { _, _ -> emitted++ } }
+        assertEquals(0, emitted)
+    }
+
+    @Test
+    fun interpolationIsContinuousAcrossCalls() {
+        val input = sine(44_100, 20_000)
+        val whole = mutableListOf<Out>()
+        run(PcmResampler(44_100, 1, 1), input, input.size, 0, whole)
+        val split = mutableListOf<Out>()
+        val resampler = PcmResampler(44_100, 1, 1)
+        var offset = 0
+        while (offset < input.size) {
+            val n = minOf(1000, input.size - offset)
+            run(resampler, input.copyOfRange(offset, offset + n), n, offset * 1_000_000_000L / 44_100, split)
+            offset += n
+        }
+        assertEquals(whole.size, split.size)
+        whole.indices.forEach { assertContentEquals(whole[it].samples, split[it].samples, "chunk $it") }
+    }
+
+    @Test
+    fun ptsStaysExactAcrossReanchoring() {
+        // 5 hours at 48 kHz in 4800-frame reads; the anchor moves forward every hour.
+        val resampler = PcmResampler(48_000, 1, 1)
+        val input = ShortArray(4800)
+        var chunks = 0L
+        var last = 0L
+        for (read in 0 until 5 * 3600 * 10L) {
+            resampler.process(input, 4800, read * 100_000_000L) { _, p ->
+                assertEquals(chunks * 1024 * 1_000_000_000L / 48_000, p)
+                chunks++
+                last = p
+            }
+        }
+        assertTrue(last > 17_990_000_000_000L)
     }
 }
