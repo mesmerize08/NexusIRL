@@ -23,6 +23,7 @@ import org.junit.runner.RunWith
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
 /**
@@ -35,6 +36,9 @@ class AudioPipelineIngestTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val ended = LinkedBlockingQueue<String>()
     private val cleanup = ArrayList<() -> Unit>()
+
+    /** The PTS (microseconds) of every chunk queued to the test pipeline's encoder. */
+    private val encoderInputs = CopyOnWriteArrayList<Long>()
 
     /** Every encoded audio frame with its PTS (microseconds), and the config. */
     private class RecordingSink : MediaSink {
@@ -73,10 +77,12 @@ class AudioPipelineIngestTest {
         return source
     }
 
-    private fun pipeline(sink: MediaSink): AudioPipeline {
+    private fun pipeline(sink: MediaSink, format: AudioEncoderFormat = AudioEncoderFormat.AAC): AudioPipeline {
         val pipeline = AudioPipeline(channels = CHANNELS)
-        pipeline.addEncoder(AudioEncoderKey(AudioEncoderFormat.AAC, 128_000), sink)
         cleanup += { pipeline.stop() }
+        pipeline.encoderInputListener = { _, ptsNanos, _ -> encoderInputs += ptsNanos / 1000 }
+        val encoded = pipeline.addEncoder(AudioEncoderKey(format, 128_000), sink)
+        assumeTrue("no $format encoder", encoded.format == format)
         return pipeline
     }
 
@@ -234,9 +240,24 @@ class AudioPipelineIngestTest {
     }
 
     @Test
-    fun switchBackToMicrophone() {
+    fun switchBackToMicrophone() = switchBackToMicrophone(AudioEncoderFormat.AAC)
+
+    /** Opus is fed in 960-frame chunks, so a chunk overlapping the last one would step its pts back. */
+    @Test
+    fun switchBackToMicrophoneOpus() = switchBackToMicrophone(AudioEncoderFormat.OPUS)
+
+    /** Each frame starts at or after the end of the one before (1 ms tolerance), and pts strictly increase. */
+    private fun assertNoOverlap(pts: List<Long>, frameMicros: Long) {
+        assertStrictlyIncreasing(pts)
+        for (i in 1 until pts.size) {
+            val overlap = pts[i - 1] + frameMicros - pts[i]
+            assertTrue("frame $i overlaps the one before by $overlap µs", overlap <= 1_000)
+        }
+    }
+
+    private fun switchBackToMicrophone(format: AudioEncoderFormat) {
         val sink = RecordingSink()
-        val pipeline = pipeline(sink)
+        val pipeline = pipeline(sink, format)
         pipeline.start()
         Thread.sleep(500)
         assumeTrue("the microphone (or its silence) delivered nothing", sink.frames.size >= 5)
@@ -251,14 +272,17 @@ class AudioPipelineIngestTest {
         assertTrue("the output thread still runs on the microphone", ingestThreads().isEmpty())
         Thread.sleep(600)
         pipeline.stop()
+        val frameMicros = format.framesPerChunk * 1_000_000L / 48_000
+        // What the codec was given (an encoder may count its output times from its first input).
+        assertNoOverlap(encoderInputs, frameMicros)
         val pts = sink.frames.map { it.second }
-        assertStrictlyIncreasing(pts)
+        assertNoOverlap(pts, frameMicros)
         val after = pts.filter { it > switchedBack / 1000 }
         assertTrue("only ${after.size} frames after switching back", after.size >= 20)
         val steps = (1 until pts.size).map { pts[it - 1] to pts[it] - pts[it - 1] }
         val toIngest = steps.filter { it.first in switched / 1000 - 200_000..switched / 1000 + 100_000 }.maxOf { it.second }
         val back = steps.filter { it.first in switchedBack / 1000 - 100_000..switchedBack / 1000 + 300_000 }.maxOf { it.second }
-        Log.i(TAG, "microphone ${pipeline.microphoneAvailable}: longest step into ingest $toIngest µs, back $back µs")
+        Log.i(TAG, "$format, microphone ${pipeline.microphoneAvailable}: longest step into ingest $toIngest µs, back $back µs")
         assertTrue("a $back µs hole switching back", back <= 50_000)
         assertTrue("a $toIngest µs hole switching to the source", toIngest <= 100_000)
     }
@@ -308,6 +332,40 @@ class AudioPipelineIngestTest {
         Log.i(TAG, "asked ${asked.size}, ${pts.size} frames, $matched matched, distances (µs) $nearest")
         assertTrue("only ${asked.size} chunks asked for", asked.size >= 35)
         assertTrue("only $matched of ${asked.size} frames at the time asked + 33 ms", matched >= asked.size * 8 / 10)
+    }
+
+    /**
+     * A source that throws an Error kills the output thread: the microphone (or its silence)
+     * takes over at once, and asking for the same source again restarts the output.
+     */
+    @Test
+    fun deadOutputGivesTheMicrophoneBack() {
+        val sink = RecordingSink()
+        val pipeline = pipeline(sink)
+        pipeline.start()
+        Thread.sleep(500)
+        assumeTrue("the microphone (or its silence) delivered nothing", sink.frames.size >= 5)
+        val calls = AtomicInteger()
+        val chunks: (Long) -> ShortArray? = {
+            if (calls.incrementAndGet() == 1) throw AssertionError("test: the source breaks")
+            ShortArray(1024 * CHANNELS)
+        }
+        val died = System.nanoTime()
+        pipeline.useIngestChunks(chunks)
+        Thread.sleep(500)
+        assertEquals(1, calls.get())
+        assertTrue("the dead output thread is still there", ingestThreads().isEmpty())
+        assertNoOverlap(encoderInputs, 21_333)
+        val pts = sink.frames.map { it.second }
+        assertNoOverlap(pts, 21_333)
+        val after = pts.filter { it > died / 1000 }
+        assertTrue("only ${after.size} frames after the output died", after.size >= 15)
+        val steps = (1 until pts.size).filter { pts[it] > died / 1000 - 100_000 }.map { pts[it] - pts[it - 1] }
+        assertTrue("a ${steps.max()} µs hole after the output died", steps.max() <= 100_000)
+        pipeline.useIngestChunks(chunks)
+        Thread.sleep(300)
+        assertTrue("the same source again did not restart: ${calls.get()} calls", calls.get() >= 10)
+        assertEquals(1, ingestThreads().size)
     }
 
     @Test
