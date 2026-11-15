@@ -107,6 +107,13 @@ class FlvTagParserTest {
         assertEquals("Unsupported video frame type 0", videoFailure(extended(0x81, hvc1)))
     }
 
+    /** Frame type 5 is a video command (ffmpeg sends one); its bytes after the control byte are no fourCC. */
+    @Test
+    fun extendedVideoCommandFrameIsIgnored() {
+        assertIs<FlvVideoTag.Ignored>(FlvTagParser.parseVideo(bytes(0xD0, 0, 0, 0, 0)))
+        assertIs<FlvVideoTag.Ignored>(FlvTagParser.parseVideo(bytes(0xD1, 1, 2, 3, 4)))
+    }
+
     @Test
     fun extendedUnsupportedPacketTypeIsRejected() {
         assertEquals("Unsupported video packet type 4", videoFailure(extended(0x94, hvc1)))

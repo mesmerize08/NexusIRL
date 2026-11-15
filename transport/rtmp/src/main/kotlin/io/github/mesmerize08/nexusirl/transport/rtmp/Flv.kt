@@ -15,6 +15,7 @@ object Flv {
     const val AVC_PACKET_TYPE_NAL = 1
     const val FRAME_TYPE_KEY = 1
     const val FRAME_TYPE_INTER = 2
+    const val FRAME_TYPE_VIDEO_COMMAND = 5
     const val VIDEO_CODEC_AVC = 7
     const val VIDEO_CODEC_HEVC = 12
     const val AUDIO_CODEC_EX_HEADER = 9
