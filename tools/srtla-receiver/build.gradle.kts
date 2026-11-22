@@ -27,4 +27,5 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("receiver.classpath", sourceSets["main"].runtimeClasspath.asPath)
 }

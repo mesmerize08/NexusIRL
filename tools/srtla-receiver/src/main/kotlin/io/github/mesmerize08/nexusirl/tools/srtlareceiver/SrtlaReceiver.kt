@@ -4,6 +4,8 @@ import io.github.mesmerize08.nexusirl.core.clock.HostClock
 import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServer
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServerPathStatistics
+import java.net.InetAddress
+import java.net.UnknownHostException
 import kotlin.system.exitProcess
 
 /**
@@ -12,26 +14,34 @@ import kotlin.system.exitProcess
  * OBS, or srt-live-transmit). Uses the SRTLA relay ported from Moblin.
  */
 fun main(args: Array<String>) {
-    val options = args.toList().chunked(2).filter { it.size == 2 }.associate { it[0].removePrefix("--") to it[1] }
-    if ("help" in args.map { it.removePrefix("--") } || options["srt-port"] == null) {
+    val help = "--help" in args
+    if (help || args.isEmpty()) {
         println(
             """
             srtla-receiver - receive SRTLA bonded streams and relay them to a local SRT listener
 
-            Usage: srtla-receiver --srt-port PORT [--srtla-port 5000]
+            Usage: srtla-receiver --srt-port PORT [--srtla-port 5000] [--bind ADDRESS]
 
               --srt-port PORT     UDP port of the SRT listener on 127.0.0.1 to relay to.
               --srtla-port PORT   UDP port to accept SRTLA on (default 5000).
+              --bind ADDRESS     Local SRTLA bind address (default all interfaces).
             """.trimIndent(),
         )
-        exitProcess(if (options["srt-port"] == null) 2 else 0)
+        exitProcess(if (help) 0 else 2)
     }
-    val srtPort = options.getValue("srt-port").toInt()
-    val srtlaPort = options["srtla-port"]?.toInt() ?: 5000
+    val (srtPort, srtlaPort, bindAddress) = try {
+        parseOptions(args)
+    } catch (error: IllegalArgumentException) {
+        System.err.println("${error.message} See --help.")
+        exitProcess(2)
+    }
     val executor = SerialExecutor.create("srtla-receiver")
-    val server = SrtlaServer(srtlaPort, srtPort, executor, HostClock.system)
+    val server = SrtlaServer(srtlaPort, srtPort, executor, HostClock.system, bindAddress)
     server.start()
-    println("srtla-receiver: listening for SRTLA on UDP ${server.localPort}, relaying to SRT 127.0.0.1:$srtPort")
+    println(
+        "srtla-receiver: listening for SRTLA on UDP ${server.localPort} (${server.localAddress?.hostAddress}), " +
+            "relaying to SRT 127.0.0.1:$srtPort",
+    )
     Runtime.getRuntime().addShutdownHook(Thread { server.stop() })
     // Per path every 5 s while streaming: enough to analyse a field test from the logs afterwards.
     var previous = emptyMap<String, SrtlaServerPathStatistics>()
@@ -56,6 +66,29 @@ fun main(args: Array<String>) {
         }
         previous = paths.associateBy { it.endpoint }
     }
+}
+
+internal data class ReceiverOptions(val srtPort: Int, val srtlaPort: Int, val bindAddress: InetAddress?)
+
+internal fun parseOptions(args: Array<String>): ReceiverOptions {
+    val values = mutableMapOf<String, String>()
+    for (pair in args.toList().chunked(2)) {
+        val name = pair[0].removePrefix("--")
+        require(name in setOf("srt-port", "srtla-port", "bind")) { "Unknown option: ${pair[0]}." }
+        val value = pair.getOrNull(1)
+        require(!value.isNullOrBlank() && !value.startsWith("--")) { "--$name requires a value." }
+        require(values.putIfAbsent(name, value) == null) { "--$name was supplied more than once." }
+    }
+    val srtPort = values["srt-port"]?.toIntOrNull()
+    require(srtPort != null && srtPort in 1..65535) { "--srt-port must be in 1..65535." }
+    val srtlaPort = (values["srtla-port"] ?: "5000").toIntOrNull()
+    require(srtlaPort != null && srtlaPort in 0..65535) { "--srtla-port must be in 0..65535." }
+    val bindAddress = try {
+        values["bind"]?.let { InetAddress.getByName(it) }
+    } catch (error: UnknownHostException) {
+        throw IllegalArgumentException("--bind could not be resolved.", error)
+    }
+    return ReceiverOptions(srtPort, srtlaPort, bindAddress)
 }
 
 private const val REPORT_MILLIS = 5_000L
