@@ -16,10 +16,14 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.URI
 import java.nio.ByteBuffer
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -100,6 +104,116 @@ class RemoteControlAssistantTest {
             assistant.stop()
         }
     }
+
+    @Test
+    fun shutdownLeavesAssistantAvailableWhileWaitingForSocket() {
+        val port = freePort()
+        val events = Events()
+        val peerClosed = LinkedBlockingQueue<Unit>()
+        val assistant = RemoteControlAssistant(port, "secret", events, bindAddress = loopback)
+        val streamer = RemoteControlStreamer(
+            "ws://127.0.0.1:$port",
+            "secret",
+            "S",
+            object : RemoteControlStreamerDelegate {
+                override fun disconnected() {
+                    peerClosed += Unit
+                }
+
+                override fun getStatus() = RemoteControlResponse.GetStatus(
+                    topLeft = RemoteControlStatusTopLeft(),
+                    topRight = RemoteControlStatusTopRight(),
+                )
+
+                override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
+            },
+        )
+        val stopped = Thread { assistant.stop() }.apply { isDaemon = true }
+        try {
+            assistant.start()
+            streamer.start()
+            assertEquals("connected", events.queue.poll(10, TimeUnit.SECONDS))
+            val socket = RemoteControlAssistant::class.java.getDeclaredField("streamer")
+                .apply { isAccessible = true }.get(assistant)
+            assertNotNull(socket)
+            // Java-WebSocket calls back under this monitor. Pause shutdown at the same
+            // monitor and check that an operation taking the assistant lock can still finish.
+            synchronized(socket) {
+                stopped.start()
+                waitUntil { stopped.state == Thread.State.BLOCKED }
+                assertEquals(Thread.State.BLOCKED, stopped.state)
+                val completed = CompletableFuture<RemoteControlResult>()
+                CompletableFuture.runAsync {
+                    assistant.request(RemoteControlRequest.GetStatus) { result, _ -> completed.complete(result) }
+                }
+                assertEquals(RemoteControlResult.ERROR, completed.get(2, TimeUnit.SECONDS))
+            }
+            stopped.join(5_000)
+            assertFalse(stopped.isAlive)
+            assertNotNull(peerClosed.poll(5, TimeUnit.SECONDS))
+        } finally {
+            streamer.stop()
+            if (stopped.state == Thread.State.NEW) assistant.stop() else stopped.join(5_000)
+        }
+        assertFalse(assistant.isConnected)
+        assertEquals("disconnected", events.queue.poll(5, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun replacementStateFollowsItsConnectionNotification() {
+        val port = freePort()
+        val events = Events()
+        val assistant = RemoteControlAssistant(port, "secret", events, bindAddress = loopback)
+        val first = testPeer(port, CountDownLatch(1))
+        val nextConnected = CountDownLatch(1)
+        val next = testPeer(port, nextConnected)
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        var firstStopped = false
+        try {
+            assistant.start()
+            first.start()
+            assertEquals("connected", events.queue.poll(10, TimeUnit.SECONDS))
+            val timer = RemoteControlAssistant::class.java.getDeclaredField("timer")
+                .apply { isAccessible = true }.get(assistant) as ScheduledExecutorService
+            timer.execute {
+                entered.countDown()
+                release.await(15, TimeUnit.SECONDS)
+            }
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            firstStopped = true
+            first.stop()
+            next.start()
+            assertTrue(nextConnected.await(10, TimeUnit.SECONDS))
+            next.stateChanged(RemoteControlAssistantStreamerState(torchOn = true))
+            assertNull(events.queue.poll(1, TimeUnit.SECONDS), "replacement state bypassed the lifecycle queue")
+            release.countDown()
+            assertEquals("disconnected", events.queue.poll(5, TimeUnit.SECONDS))
+            assertEquals("connected", events.queue.poll(5, TimeUnit.SECONDS))
+            assertEquals("state torch=true", events.queue.poll(5, TimeUnit.SECONDS))
+        } finally {
+            release.countDown()
+            next.stop()
+            if (!firstStopped) first.stop()
+            assistant.stop()
+        }
+    }
+
+    private fun testPeer(port: Int, connected: CountDownLatch) = RemoteControlStreamer(
+        "ws://127.0.0.1:$port",
+        "secret",
+        "S",
+        object : RemoteControlStreamerDelegate {
+            override fun connected() = connected.countDown()
+
+            override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
+
+            override fun getStatus() = RemoteControlResponse.GetStatus(
+                topLeft = RemoteControlStatusTopLeft(),
+                topRight = RemoteControlStatusTopRight(),
+            )
+        },
+    )
 
     private fun connectRaw(port: Int, onText: (WebSocket, String) -> Unit): LinkedBlockingQueue<String> {
         val closed = LinkedBlockingQueue<String>()

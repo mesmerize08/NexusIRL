@@ -5,6 +5,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Fixed
+- Stopping the remote control assistant no longer hangs when its streamer is closing the connection.
+
 ## [0.5.1] - 2026-11-14
 
 ### Added
