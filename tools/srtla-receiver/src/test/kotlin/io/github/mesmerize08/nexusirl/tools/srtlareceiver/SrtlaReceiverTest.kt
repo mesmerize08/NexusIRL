@@ -1,11 +1,34 @@
 package io.github.mesmerize08.nexusirl.tools.srtlareceiver
 
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServerPathStatistics
+import java.io.File
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class SrtlaReceiverTest {
+    @Test
+    fun receiverProcessListensOnTheRequestedAddress() {
+        val java = File(System.getProperty("java.home"), "bin/java").path
+        val process = ProcessBuilder(
+            java, "-cp", System.getProperty("receiver.classpath"),
+            "io.github.mesmerize08.nexusirl.tools.srtlareceiver.SrtlaReceiverKt",
+            "--srt-port", "4001", "--srtla-port", "0", "--bind", "127.0.0.1",
+        ).redirectErrorStream(true).start()
+        try {
+            val line = CompletableFuture.supplyAsync { process.inputReader().readLine() }.get(10, TimeUnit.SECONDS)
+            val listener = Regex("""^srtla-receiver: listening for SRTLA on UDP [1-9]\d* \(127\.0\.0\.1\),""")
+            assertTrue(listener.containsMatchIn(assertNotNull(line)), line)
+        } finally {
+            process.destroy()
+            if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly()
+        }
+    }
+
     @Test
     fun parsesBindAddressAndPreservesDefaults() {
         assertEquals(ReceiverOptions(4001, 5000, null), parseOptions(arrayOf("--srt-port", "4001")))
