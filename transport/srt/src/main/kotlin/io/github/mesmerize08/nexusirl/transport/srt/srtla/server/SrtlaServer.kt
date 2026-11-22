@@ -65,6 +65,7 @@ class SrtlaServer(
     private val srtPort: Int,
     private val executor: SerialExecutor,
     private val clock: HostClock,
+    private val bindAddress: InetAddress? = null,
 ) {
     private var socket: DatagramSocket? = null
     private val clients = HashMap<GroupId, SrtlaServerClient>()
@@ -76,6 +77,9 @@ class SrtlaServer(
     var localPort: Int = 0
         private set
 
+    val localAddress: InetAddress?
+        get() = socket?.localAddress
+
     val numberOfClients: Int
         get() = clients.size
 
@@ -85,9 +89,13 @@ class SrtlaServer(
     }
 
     fun start() {
-        val socket = DatagramSocket(null).apply {
-            reuseAddress = true
-            bind(InetSocketAddress(srtlaPort))
+        val socket = DatagramSocket(null)
+        try {
+            socket.reuseAddress = true
+            socket.bind(InetSocketAddress(bindAddress, srtlaPort))
+        } catch (error: Exception) {
+            socket.close()
+            throw error
         }
         this.socket = socket
         localPort = socket.localPort

@@ -19,6 +19,7 @@ import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServer
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.File
 import java.net.DatagramSocket
+import java.net.InetAddress
 import java.nio.file.Files
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -54,7 +55,8 @@ class SrtlaInteropTest {
             "-c", "copy", "-f", "mpegts", File(directory, "received.ts").path,
         )
         val serverExecutor = SerialExecutor.create("srtla-server")
-        val server = SrtlaServer(0, srtPort, serverExecutor, HostClock.system)
+        val bindAddress = InetAddress.getByName("127.0.0.1")
+        val server = SrtlaServer(0, srtPort, serverExecutor, HostClock.system, bindAddress)
         server.start()
         Thread.sleep(1_000)
         val executor = SerialExecutor.create("srtla-client")
@@ -73,6 +75,7 @@ class SrtlaInteropTest {
         stream.setInterfaces(listOf(DefaultRoute))
         stream.start()
         try {
+            assertEquals(bindAddress, server.localAddress)
             assertTrue(connected.await(10, TimeUnit.SECONDS), "SRTLA over the default route did not connect")
         } finally {
             stream.stop()

@@ -5,6 +5,9 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+### Added
+- The desktop SRTLA receiver accepts `--bind ADDRESS`. Use `--bind 127.0.0.1` for local tests.
+
 ## [0.5.1] - 2026-11-14
 
 ### Added

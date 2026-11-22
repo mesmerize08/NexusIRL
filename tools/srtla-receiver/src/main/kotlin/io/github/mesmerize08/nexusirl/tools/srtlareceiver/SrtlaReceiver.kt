@@ -4,6 +4,7 @@ import io.github.mesmerize08.nexusirl.core.clock.HostClock
 import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServer
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServerPathStatistics
+import java.net.InetAddress
 import kotlin.system.exitProcess
 
 /**
@@ -12,26 +13,41 @@ import kotlin.system.exitProcess
  * OBS, or srt-live-transmit). Uses the SRTLA relay ported from Moblin.
  */
 fun main(args: Array<String>) {
-    val options = args.toList().chunked(2).filter { it.size == 2 }.associate { it[0].removePrefix("--") to it[1] }
-    if ("help" in args.map { it.removePrefix("--") } || options["srt-port"] == null) {
+    val help = "--help" in args
+    val pairs = args.toList().chunked(2)
+    if (!help && pairs.any { it.size != 2 || it[1].isBlank() || it[1].startsWith("--") }) {
+        System.err.println("Each option requires a value. See --help.")
+        exitProcess(2)
+    }
+    val options = if (help) emptyMap() else pairs.associate { it[0].removePrefix("--") to it[1] }
+    if (options.keys.any { it !in setOf("srt-port", "srtla-port", "bind") }) {
+        System.err.println("Unknown option. See --help.")
+        exitProcess(2)
+    }
+    if (help || options["srt-port"] == null) {
         println(
             """
             srtla-receiver - receive SRTLA bonded streams and relay them to a local SRT listener
 
-            Usage: srtla-receiver --srt-port PORT [--srtla-port 5000]
+            Usage: srtla-receiver --srt-port PORT [--srtla-port 5000] [--bind ADDRESS]
 
               --srt-port PORT     UDP port of the SRT listener on 127.0.0.1 to relay to.
               --srtla-port PORT   UDP port to accept SRTLA on (default 5000).
+              --bind ADDRESS     Local SRTLA bind address (default all interfaces).
             """.trimIndent(),
         )
-        exitProcess(if (options["srt-port"] == null) 2 else 0)
+        exitProcess(if (help) 0 else 2)
     }
     val srtPort = options.getValue("srt-port").toInt()
     val srtlaPort = options["srtla-port"]?.toInt() ?: 5000
+    val bindAddress = options["bind"]?.let { InetAddress.getByName(it) }
     val executor = SerialExecutor.create("srtla-receiver")
-    val server = SrtlaServer(srtlaPort, srtPort, executor, HostClock.system)
+    val server = SrtlaServer(srtlaPort, srtPort, executor, HostClock.system, bindAddress)
     server.start()
-    println("srtla-receiver: listening for SRTLA on UDP ${server.localPort}, relaying to SRT 127.0.0.1:$srtPort")
+    println(
+        "srtla-receiver: listening for SRTLA on UDP ${server.localPort} (${server.localAddress?.hostAddress}), " +
+            "relaying to SRT 127.0.0.1:$srtPort",
+    )
     Runtime.getRuntime().addShutdownHook(Thread { server.stop() })
     // Per path every 5 s while streaming: enough to analyse a field test from the logs afterwards.
     var previous = emptyMap<String, SrtlaServerPathStatistics>()
