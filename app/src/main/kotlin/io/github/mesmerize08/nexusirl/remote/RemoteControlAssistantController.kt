@@ -57,6 +57,7 @@ object RemoteControlAssistantController {
     private var store: SettingsStore? = null
     private var scope: CoroutineScope? = null
     private var assistant: RemoteControlAssistant? = null
+    private var activeDelegate: Delegate? = null
 
     private val mutableView = MutableStateFlow<RemoteStreamerView?>(null)
 
@@ -84,6 +85,7 @@ object RemoteControlAssistantController {
     }
 
     private fun reload(config: Config) {
+        activeDelegate = null
         assistant?.stop()
         assistant = null
         val password = store?.remoteControlPassword().orEmpty()
@@ -92,12 +94,12 @@ object RemoteControlAssistantController {
             return
         }
         mutableView.value = RemoteStreamerView()
-        assistant = RemoteControlAssistant(config.port, password, Delegate(), acceptLocalAddress = ::isAllowedLocalAddress)
-            .also { it.start() }
-    }
-
-    private fun update(transform: (RemoteStreamerView) -> RemoteStreamerView) {
-        handler.post { mutableView.value?.let { mutableView.value = transform(it) } }
+        val delegate = Delegate()
+        val current = RemoteControlAssistant(config.port, password, delegate, acceptLocalAddress = ::isAllowedLocalAddress)
+        delegate.owner = current
+        activeDelegate = delegate
+        assistant = current
+        current.start()
     }
 
     /**
@@ -153,14 +155,23 @@ object RemoteControlAssistantController {
     }
 
     private class Delegate : RemoteControlAssistantDelegate {
+        lateinit var owner: RemoteControlAssistant
+
+        private fun update(transform: (RemoteStreamerView) -> RemoteStreamerView) {
+            handler.post {
+                if (activeDelegate === this) {
+                    mutableView.value?.let { mutableView.value = transform(it) }
+                }
+            }
+        }
+
         override fun connected() {
             update { it.copy(connected = true) }
-            val current = assistant ?: return
-            current.request(RemoteControlRequest.GetSettings) { _, data ->
+            owner.request(RemoteControlRequest.GetSettings) { _, data ->
                 (data as? RemoteControlResponse.GetSettings)?.let { settings -> update { it.copy(settings = settings.data) } }
             }
-            current.request(RemoteControlRequest.StartStatus(1, RemoteControlStartStatusFilter()))
-            current.request(RemoteControlRequest.StartPreview)
+            owner.request(RemoteControlRequest.StartStatus(1, RemoteControlStartStatusFilter()))
+            owner.request(RemoteControlRequest.StartPreview)
         }
 
         override fun disconnected() = update { RemoteStreamerView() }

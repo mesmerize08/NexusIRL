@@ -104,15 +104,20 @@ class RemoteControlAssistantTest {
     }
 
     @Test
-    fun stopsWhileThePeerDisconnects() {
+    fun shutdownLeavesAssistantAvailableWhileWaitingForSocket() {
         val port = freePort()
         val events = Events()
+        val peerClosed = LinkedBlockingQueue<Unit>()
         val assistant = RemoteControlAssistant(port, "secret", events, bindAddress = loopback)
         val streamer = RemoteControlStreamer(
             "ws://127.0.0.1:$port",
             "secret",
             "S",
             object : RemoteControlStreamerDelegate {
+                override fun disconnected() {
+                    peerClosed += Unit
+                }
+
                 override fun getStatus() = RemoteControlResponse.GetStatus(
                     topLeft = RemoteControlStatusTopLeft(),
                     topRight = RemoteControlStatusTopRight(),
@@ -121,15 +126,32 @@ class RemoteControlAssistantTest {
                 override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
             },
         )
+        val stopped = Thread { assistant.stop() }.apply { isDaemon = true }
         try {
             assistant.start()
             streamer.start()
             assertEquals("connected", events.queue.poll(10, TimeUnit.SECONDS))
+            val socket = RemoteControlAssistant::class.java.getDeclaredField("streamer")
+                .apply { isAccessible = true }.get(assistant)
+            assertNotNull(socket)
+            // Java-WebSocket calls back under this monitor. Pause shutdown at the same
+            // monitor and check that an operation taking the assistant lock can still finish.
+            synchronized(socket) {
+                stopped.start()
+                waitUntil { stopped.state == Thread.State.BLOCKED }
+                assertEquals(Thread.State.BLOCKED, stopped.state)
+                val completed = CompletableFuture<RemoteControlResult>()
+                CompletableFuture.runAsync {
+                    assistant.request(RemoteControlRequest.GetStatus) { result, _ -> completed.complete(result) }
+                }
+                assertEquals(RemoteControlResult.ERROR, completed.get(2, TimeUnit.SECONDS))
+            }
+            stopped.join(5_000)
+            assertFalse(stopped.isAlive)
+            assertNotNull(peerClosed.poll(5, TimeUnit.SECONDS))
         } finally {
-            CompletableFuture.allOf(
-                CompletableFuture.runAsync { streamer.stop() },
-                CompletableFuture.runAsync { assistant.stop() },
-            ).get(5, TimeUnit.SECONDS)
+            streamer.stop()
+            if (stopped.state == Thread.State.NEW) assistant.stop() else stopped.join(5_000)
         }
         assertFalse(assistant.isConnected)
         assertEquals("disconnected", events.queue.poll(5, TimeUnit.SECONDS))
