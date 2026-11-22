@@ -14,7 +14,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
-/** What the assistant shows (upstream `RemoteControlAssistantDelegate`). Called on the server's threads. */
+/**
+ * What the assistant shows (upstream `RemoteControlAssistantDelegate`).
+ * Notifications run in order on the assistant's callback executor. Handlers must return without
+ * waiting for another callback, including a response to [RemoteControlAssistant.request].
+ * Notifications already queued can finish after [RemoteControlAssistant.stop] returns.
+ */
 interface RemoteControlAssistantDelegate {
     fun connected() {}
 
@@ -124,6 +129,9 @@ class RemoteControlAssistant(
     /**
      * Upstream `performRequest`: sends [data] to the streamer; [onResult] gets the result and any
      * response data (ERROR when not connected or disconnected meanwhile).
+     * A request rejected immediately calls [onResult] on the caller's thread. Matched responses
+     * and disconnect results run on the callback executor and can finish after [stop] returns.
+     * Do not wait for these callbacks from a delegate handler.
      */
     fun request(data: RemoteControlRequest, onResult: (RemoteControlResult, RemoteControlResponse?) -> Unit = { _, _ -> }) {
         val request = synchronized(lock) {
