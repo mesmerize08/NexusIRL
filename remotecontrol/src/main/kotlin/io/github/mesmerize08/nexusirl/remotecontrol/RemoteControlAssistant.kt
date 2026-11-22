@@ -167,20 +167,22 @@ class RemoteControlAssistant(
                 synchronized(lock) { if (streamer === socket) gotPing = true }
                 send(socket, RemoteControlMessageToStreamer.Pong)
             }
-            else -> {
-                if (!synchronized(lock) { identified && streamer === socket }) {
-                    return
-                }
+            else -> synchronized(lock) {
+                if (!identified || streamer !== socket) return
+                // Queue these under the same lock as connection transitions. In particular,
+                // a replacement streamer's first event must follow the previous disconnect.
                 when (message) {
-                    is RemoteControlMessageToAssistant.Response -> synchronized(
-                        lock,
-                    ) { requests.remove(message.id) }?.invoke(message.result, message.data)
-                    is RemoteControlMessageToAssistant.Event -> when (val event = message.data) {
-                        is RemoteControlEvent.State -> delegate.stateChanged(event.data)
-                        is RemoteControlEvent.Log -> delegate.log(event.entry)
-                        is RemoteControlEvent.Status -> delegate.status(event.general, event.topLeft, event.topRight)
+                    is RemoteControlMessageToAssistant.Response -> requests.remove(message.id)?.let { callback ->
+                        timer.execute { callback(message.result, message.data) }
                     }
-                    is RemoteControlMessageToAssistant.Preview -> delegate.preview(message.preview)
+                    is RemoteControlMessageToAssistant.Event -> timer.execute {
+                        when (val event = message.data) {
+                            is RemoteControlEvent.State -> delegate.stateChanged(event.data)
+                            is RemoteControlEvent.Log -> delegate.log(event.entry)
+                            is RemoteControlEvent.Status -> delegate.status(event.general, event.topLeft, event.topRight)
+                        }
+                    }
+                    is RemoteControlMessageToAssistant.Preview -> timer.execute { delegate.preview(message.preview) }
                     else -> Unit
                 }
             }
