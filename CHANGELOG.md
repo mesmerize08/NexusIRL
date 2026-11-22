@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org) (0.x: anything may
 
 ## [Unreleased]
 
+- Ignore replies for old Moblink tunnels after switching or stopping a stream.
+
 ## [0.5.1] - 2026-11-14
 
 ### Added
