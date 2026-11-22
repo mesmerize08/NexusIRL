@@ -68,24 +68,32 @@ class RemoteControlAssistant(
     fun start() = startServer()
 
     fun stop() {
-        synchronized(lock) {
+        val stoppedServer = synchronized(lock) {
             retry?.cancel(false)
             keepAlive?.cancel(false)
-            try {
-                server?.stop(1000)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-            }
+            timer.shutdownNow()
+            val current = server
             server = null
             streamer = null
-            setConnected(false)
+            identified = false
             requests.clear()
+            setConnected(false)
+            current
         }
-        timer.shutdownNow()
+        // The WebSocket library can hold its connection lock while calling onClose.
+        // Give that callback access to our lock before closing sockets and joining the server.
+        try {
+            stoppedServer?.stop(1000)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 
     private fun startServer() {
         synchronized(lock) {
+            if (timer.isShutdown) {
+                return
+            }
             val newServer = Server(InetSocketAddress(bindAddress, port))
             server = newServer
             newServer.isReuseAddr = true
@@ -144,11 +152,13 @@ class RemoteControlAssistant(
         gotPing = false
         keepAlive = try {
             timer.scheduleWithFixedDelay({
-                synchronized(lock) {
-                    if (streamer === socket && !gotPing) {
-                        socket.close()
-                    }
+                val shouldClose = synchronized(lock) {
+                    val stale = streamer === socket && !gotPing
                     gotPing = false
+                    stale
+                }
+                if (shouldClose) {
+                    socket.close()
                 }
             }, 60, 60, TimeUnit.SECONDS)
         } catch (e: java.util.concurrent.RejectedExecutionException) {
@@ -200,11 +210,18 @@ class RemoteControlAssistant(
         // Constant time, so the comparison leaks nothing about the hash.
         if (MessageDigest.isEqual(expected.toByteArray(), authentication.toByteArray())) {
             synchronized(lock) {
+                if (streamer !== socket) {
+                    return
+                }
                 identified = true
                 lockout.recordSuccess(host)
             }
             send(socket, RemoteControlMessageToStreamer.Identified(RemoteControlResult.OK))
-            setConnected(true)
+            synchronized(lock) {
+                if (streamer === socket && identified) {
+                    setConnected(true)
+                }
+            }
         } else {
             lockout.recordFailure(host)
             send(socket, RemoteControlMessageToStreamer.Identified(RemoteControlResult.WRONG_PASSWORD))
@@ -224,6 +241,9 @@ class RemoteControlAssistant(
             }
             val previous: WebSocket?
             synchronized(lock) {
+                if (server !== this) {
+                    return
+                }
                 // One streamer at a time, as upstream: a new connection replaces the old one.
                 previous = streamer
                 streamer = socket

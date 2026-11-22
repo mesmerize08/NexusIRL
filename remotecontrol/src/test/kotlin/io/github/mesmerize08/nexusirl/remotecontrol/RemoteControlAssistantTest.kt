@@ -16,10 +16,12 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.URI
 import java.nio.ByteBuffer
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -99,6 +101,38 @@ class RemoteControlAssistantTest {
             streamer.stop()
             assistant.stop()
         }
+    }
+
+    @Test
+    fun stopsWhileThePeerDisconnects() {
+        val port = freePort()
+        val events = Events()
+        val assistant = RemoteControlAssistant(port, "secret", events, bindAddress = loopback)
+        val streamer = RemoteControlStreamer(
+            "ws://127.0.0.1:$port",
+            "secret",
+            "S",
+            object : RemoteControlStreamerDelegate {
+                override fun getStatus() = RemoteControlResponse.GetStatus(
+                    topLeft = RemoteControlStatusTopLeft(),
+                    topRight = RemoteControlStatusTopRight(),
+                )
+
+                override fun getSettings() = RemoteControlSettings(emptyList(), emptyList())
+            },
+        )
+        try {
+            assistant.start()
+            streamer.start()
+            assertEquals("connected", events.queue.poll(10, TimeUnit.SECONDS))
+        } finally {
+            CompletableFuture.allOf(
+                CompletableFuture.runAsync { streamer.stop() },
+                CompletableFuture.runAsync { assistant.stop() },
+            ).get(5, TimeUnit.SECONDS)
+        }
+        assertFalse(assistant.isConnected)
+        assertEquals("disconnected", events.queue.poll(5, TimeUnit.SECONDS))
     }
 
     private fun connectRaw(port: Int, onText: (WebSocket, String) -> Unit): LinkedBlockingQueue<String> {
