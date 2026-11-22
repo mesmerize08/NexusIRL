@@ -29,7 +29,7 @@ class MoblinkStreamerTest {
         override fun bind(socket: DatagramSocket) = Unit
     }
 
-    private class Events : MoblinkStreamerListener {
+    private class Events(private val onRemoved: () -> Unit = {}) : MoblinkStreamerListener {
         val added = LinkedBlockingQueue<MoblinkTunnel>()
         val removed = LinkedBlockingQueue<MoblinkTunnel>()
         val changed = LinkedBlockingQueue<Unit>()
@@ -40,6 +40,7 @@ class MoblinkStreamerTest {
 
         override fun tunnelRemoved(tunnel: MoblinkTunnel) {
             removed += tunnel
+            onRemoved()
         }
 
         override fun relaysChanged() {
@@ -105,26 +106,8 @@ class MoblinkStreamerTest {
         val events = Events()
         val streamer = MoblinkStreamer(port, "1234", events).also { it.start() }
         val requests = LinkedBlockingQueue<MoblinkMessageToRelay.Request>()
-        val relayId = UUID.randomUUID()
-        var relay: WebSocket? = null
+        val relay = connectRelay(port, requests)
         try {
-            Thread.sleep(300)
-            relay = ReconnectingWebSocket.LOCAL_NETWORK_CLIENT.newWebSocket(
-                Request.Builder().url("ws://127.0.0.1:$port").build(),
-                object : WebSocketListener() {
-                    override fun onMessage(webSocket: WebSocket, text: String) {
-                        when (val message = MoblinkMessageToRelay.fromJson(text)) {
-                            is MoblinkMessageToRelay.Hello -> {
-                                val auth = message.authentication
-                                val hash = remoteControlHashPassword(auth.challenge, auth.salt, "1234")
-                                webSocket.send(MoblinkMessageToStreamer.Identify(relayId, "Relay", hash).toJson())
-                            }
-                            is MoblinkMessageToRelay.Request -> requests += message
-                            else -> Unit
-                        }
-                    }
-                },
-            )
             streamer.startTunnels("127.0.0.1", 15000)
             fun nextTunnel(): MoblinkMessageToRelay.Request {
                 while (true) {
@@ -132,24 +115,75 @@ class MoblinkStreamerTest {
                     if (request.data is MoblinkRequest.StartTunnel) return request
                 }
             }
-            fun reply(request: MoblinkMessageToRelay.Request, port: Int) {
-                relay.send(MoblinkMessageToStreamer.Response(request.id, MoblinkResult.OK, MoblinkResponse.StartTunnel(port)).toJson())
-            }
             val old = nextTunnel()
             streamer.stopTunnels()
             streamer.startTunnels("127.0.0.1", 15001)
             val current = nextTunnel()
 
             // The current reply follows the stale reply on the same socket.
-            reply(old, 16000)
-            reply(current, 16001)
+            replyToTunnel(relay, old, 16000)
+            replyToTunnel(relay, current, 16001)
             assertEquals(16001, assertNotNull(events.added.poll(5, TimeUnit.SECONDS)).port)
             streamer.stopTunnels()
             assertEquals(16001, assertNotNull(events.removed.poll(5, TimeUnit.SECONDS)).port)
         } finally {
-            relay?.cancel()
+            relay.cancel()
             streamer.stop()
         }
+    }
+
+    @Test
+    fun stoppingFromRemovalCallbackCancelsReplacement() {
+        val port = ServerSocket(0).use { it.localPort }
+        lateinit var streamer: MoblinkStreamer
+        val events = Events { streamer.stopTunnels() }
+        streamer = MoblinkStreamer(port, "1234", events).also { it.start() }
+        val requests = LinkedBlockingQueue<MoblinkMessageToRelay.Request>()
+        // Set the destination before identifying so the first request is the tunnel.
+        streamer.startTunnels("127.0.0.1", 15000)
+        val relay = connectRelay(port, requests)
+        try {
+            val initial = assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+            assertEquals(MoblinkRequest.StartTunnel("127.0.0.1", 15000), initial.data)
+            replyToTunnel(relay, initial, 16000)
+            val tunnel = assertNotNull(events.added.poll(5, TimeUnit.SECONDS))
+            assertEquals(MoblinkRequest.Status, requests.poll(5, TimeUnit.SECONDS)?.data)
+
+            streamer.startTunnels("127.0.0.1", 15001)
+            assertEquals(tunnel, events.removed.poll(5, TimeUnit.SECONDS))
+            // This request gives us a barrier on the same socket. Any replacement
+            // sent after the removal callback would arrive before the status.
+            streamer.updateStatus()
+            assertEquals(MoblinkRequest.Status, requests.poll(5, TimeUnit.SECONDS)?.data)
+        } finally {
+            relay.cancel()
+            streamer.stop()
+        }
+    }
+
+    private fun connectRelay(port: Int, requests: LinkedBlockingQueue<MoblinkMessageToRelay.Request>): WebSocket {
+        Thread.sleep(300)
+        val relayId = UUID.randomUUID()
+        return ReconnectingWebSocket.LOCAL_NETWORK_CLIENT.newWebSocket(
+            Request.Builder().url("ws://127.0.0.1:$port").build(),
+            object : WebSocketListener() {
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    when (val message = MoblinkMessageToRelay.fromJson(text)) {
+                        is MoblinkMessageToRelay.Hello -> {
+                            val auth = message.authentication
+                            val hash = remoteControlHashPassword(auth.challenge, auth.salt, "1234")
+                            webSocket.send(MoblinkMessageToStreamer.Identify(relayId, "Relay", hash).toJson())
+                        }
+                        is MoblinkMessageToRelay.Request -> requests += message
+                        else -> Unit
+                    }
+                }
+            },
+        )
+    }
+
+    private fun replyToTunnel(relay: WebSocket, request: MoblinkMessageToRelay.Request, port: Int) {
+        relay.send(MoblinkMessageToStreamer.Response(request.id, MoblinkResult.OK, MoblinkResponse.StartTunnel(port)).toJson())
     }
 
     @Test

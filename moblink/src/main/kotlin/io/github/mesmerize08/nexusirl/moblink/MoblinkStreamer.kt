@@ -54,7 +54,10 @@ class MoblinkStreamer(
     private val relays = LinkedHashMap<WebSocket, Relay>()
     private val lockout = PasswordLockout(clock)
     private var server: Server? = null
-    private var destination: Pair<String, Int>? = null
+    private var destination: Destination? = null
+
+    // Each start has a distinct identity, even when the address and port are reused.
+    private data class Destination(val address: String, val port: Int)
 
     private inner class Relay(val socket: WebSocket) {
         val challenge = newChallenge()
@@ -118,8 +121,9 @@ class MoblinkStreamer(
     /** Upstream `startTunnels`: called when an SRTLA stream knows its server address. */
     fun startTunnels(address: String, port: Int) {
         synchronized(lock) {
-            destination = address to port
-            relays.values.filter { it.identified }.forEach(::startTunnel)
+            val next = Destination(address, port)
+            destination = next
+            relays.values.filter { it.identified }.forEach { startTunnel(it, next) }
         }
     }
 
@@ -159,9 +163,12 @@ class MoblinkStreamer(
     }
 
     // Call with lock held so replacement and stop can invalidate the pending reply.
-    private fun startTunnel(relay: Relay) {
-        val (address, destinationPort) = destination ?: return
+    private fun startTunnel(relay: Relay, target: Destination) {
+        if (destination !== target || relays[relay.socket] !== relay) return
         relay.clearTunnel()
+        // A removal listener can synchronously stop or replace this start.
+        if (destination !== target || relays[relay.socket] !== relay) return
+        val (address, destinationPort) = target
         relay.tunnelRequestId = relay.request(MoblinkRequest.StartTunnel(address, destinationPort)) { result, data ->
             relay.tunnelRequestId = null
             val tunnelPort = (data as? MoblinkResponse.StartTunnel)?.port
@@ -202,7 +209,7 @@ class MoblinkStreamer(
             relay.identified = true
             listener.log("Relay ${relay.name} at $host: connected" + if (destination == null) ", tunnel when live with SRTLA" else "")
             relay.send(MoblinkMessageToRelay.Identified(MoblinkResult.OK))
-            startTunnel(relay)
+            destination?.let { startTunnel(relay, it) }
             previous
         }
         replaced?.socket?.close()
