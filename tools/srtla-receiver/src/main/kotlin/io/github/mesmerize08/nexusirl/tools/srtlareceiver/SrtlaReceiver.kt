@@ -5,6 +5,7 @@ import io.github.mesmerize08.nexusirl.core.clock.SerialExecutor
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServer
 import io.github.mesmerize08.nexusirl.transport.srt.srtla.server.SrtlaServerPathStatistics
 import java.net.InetAddress
+import java.net.UnknownHostException
 import kotlin.system.exitProcess
 
 /**
@@ -14,17 +15,7 @@ import kotlin.system.exitProcess
  */
 fun main(args: Array<String>) {
     val help = "--help" in args
-    val pairs = args.toList().chunked(2)
-    if (!help && pairs.any { it.size != 2 || it[1].isBlank() || it[1].startsWith("--") }) {
-        System.err.println("Each option requires a value. See --help.")
-        exitProcess(2)
-    }
-    val options = if (help) emptyMap() else pairs.associate { it[0].removePrefix("--") to it[1] }
-    if (options.keys.any { it !in setOf("srt-port", "srtla-port", "bind") }) {
-        System.err.println("Unknown option. See --help.")
-        exitProcess(2)
-    }
-    if (help || options["srt-port"] == null) {
+    if (help || args.isEmpty()) {
         println(
             """
             srtla-receiver - receive SRTLA bonded streams and relay them to a local SRT listener
@@ -38,9 +29,12 @@ fun main(args: Array<String>) {
         )
         exitProcess(if (help) 0 else 2)
     }
-    val srtPort = options.getValue("srt-port").toInt()
-    val srtlaPort = options["srtla-port"]?.toInt() ?: 5000
-    val bindAddress = options["bind"]?.let { InetAddress.getByName(it) }
+    val (srtPort, srtlaPort, bindAddress) = try {
+        parseOptions(args)
+    } catch (error: IllegalArgumentException) {
+        System.err.println("${error.message} See --help.")
+        exitProcess(2)
+    }
     val executor = SerialExecutor.create("srtla-receiver")
     val server = SrtlaServer(srtlaPort, srtPort, executor, HostClock.system, bindAddress)
     server.start()
@@ -72,6 +66,29 @@ fun main(args: Array<String>) {
         }
         previous = paths.associateBy { it.endpoint }
     }
+}
+
+internal data class ReceiverOptions(val srtPort: Int, val srtlaPort: Int, val bindAddress: InetAddress?)
+
+internal fun parseOptions(args: Array<String>): ReceiverOptions {
+    val values = mutableMapOf<String, String>()
+    for (pair in args.toList().chunked(2)) {
+        val name = pair[0].removePrefix("--")
+        require(name in setOf("srt-port", "srtla-port", "bind")) { "Unknown option: ${pair[0]}." }
+        val value = pair.getOrNull(1)
+        require(!value.isNullOrBlank() && !value.startsWith("--")) { "--$name requires a value." }
+        require(values.putIfAbsent(name, value) == null) { "--$name was supplied more than once." }
+    }
+    val srtPort = values["srt-port"]?.toIntOrNull()
+    require(srtPort != null && srtPort in 1..65535) { "--srt-port must be in 1..65535." }
+    val srtlaPort = (values["srtla-port"] ?: "5000").toIntOrNull()
+    require(srtlaPort != null && srtlaPort in 0..65535) { "--srtla-port must be in 0..65535." }
+    val bindAddress = try {
+        values["bind"]?.let { InetAddress.getByName(it) }
+    } catch (error: UnknownHostException) {
+        throw IllegalArgumentException("--bind could not be resolved.", error)
+    }
+    return ReceiverOptions(srtPort, srtlaPort, bindAddress)
 }
 
 private const val REPORT_MILLIS = 5_000L
