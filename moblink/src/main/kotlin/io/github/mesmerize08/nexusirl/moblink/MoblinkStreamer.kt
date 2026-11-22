@@ -65,6 +65,7 @@ class MoblinkStreamer(
         var batteryPercentage: Int? = null
         var thermalState: MoblinkThermalState? = null
         var tunnel: MoblinkTunnel? = null
+        var tunnelRequestId: Int? = null
         var nextId = 0
         val requests = HashMap<Int, (MoblinkResult, MoblinkResponse?) -> Unit>()
 
@@ -76,10 +77,19 @@ class MoblinkStreamer(
             }
         }
 
-        fun request(data: MoblinkRequest, onResult: (MoblinkResult, MoblinkResponse?) -> Unit) {
+        fun request(data: MoblinkRequest, onResult: (MoblinkResult, MoblinkResponse?) -> Unit): Int {
             val id = ++nextId
             requests[id] = onResult
             send(MoblinkMessageToRelay.Request(id, data))
+            return id
+        }
+
+        fun clearTunnel() {
+            tunnelRequestId?.let(requests::remove)
+            tunnelRequestId = null
+            val previous = tunnel
+            tunnel = null
+            previous?.let(listener::tunnelRemoved)
         }
     }
 
@@ -92,12 +102,11 @@ class MoblinkStreamer(
     }
 
     fun stop() {
-        val removed = synchronized(lock) {
-            val tunnels = relays.values.mapNotNull { it.tunnel }
+        synchronized(lock) {
+            destination = null
+            relays.values.forEach { it.clearTunnel() }
             relays.clear()
-            tunnels
         }
-        removed.forEach(listener::tunnelRemoved)
         try {
             server?.stop(1000)
         } catch (e: InterruptedException) {
@@ -108,20 +117,18 @@ class MoblinkStreamer(
 
     /** Upstream `startTunnels`: called when an SRTLA stream knows its server address. */
     fun startTunnels(address: String, port: Int) {
-        val ready = synchronized(lock) {
+        synchronized(lock) {
             destination = address to port
-            relays.values.filter { it.identified }
+            relays.values.filter { it.identified }.forEach(::startTunnel)
         }
-        ready.forEach { startTunnel(it) }
     }
 
     /** Upstream `stopTunnels`: the stream ended. */
     fun stopTunnels() {
-        val removed = synchronized(lock) {
+        synchronized(lock) {
             destination = null
-            relays.values.mapNotNull { relay -> relay.tunnel.also { relay.tunnel = null } }
+            relays.values.forEach { it.clearTunnel() }
         }
-        removed.forEach(listener::tunnelRemoved)
     }
 
     /** Upstream `updateStatus` + `getStatuses`: asks every relay for battery and thermal state. */
@@ -151,27 +158,23 @@ class MoblinkStreamer(
         }
     }
 
+    // Call with lock held so replacement and stop can invalidate the pending reply.
     private fun startTunnel(relay: Relay) {
-        val (address, destinationPort) = synchronized(lock) { destination } ?: return
-        val old = synchronized(lock) { relay.tunnel.also { relay.tunnel = null } }
-        old?.let(listener::tunnelRemoved)
-        synchronized(lock) {
-            relay.request(MoblinkRequest.StartTunnel(address, destinationPort)) { result, data ->
-                val tunnelPort = (data as? MoblinkResponse.StartTunnel)?.port
-                val host = relay.socket.remoteSocketAddress?.address?.hostAddress
-                if (result != MoblinkResult.OK || tunnelPort == null || host == null) {
-                    listener.log("Relay ${relay.name}: tunnel to $address:$destinationPort failed ($result)")
-                    return@request
-                }
-                // The tunnel is at the relay's address, on the port it answered with.
-                val tunnel = MoblinkTunnel(host.substringBefore('%'), tunnelPort, relay.relayId ?: return@request, relay.name)
-                val stillWanted = synchronized(lock) { relays[relay.socket] === relay && destination != null }
-                if (stillWanted) {
-                    synchronized(lock) { relay.tunnel = tunnel }
-                    listener.log("Relay ${relay.name}: tunnel at ${tunnel.host}:${tunnel.port}")
-                    listener.tunnelAdded(tunnel)
-                }
+        val (address, destinationPort) = destination ?: return
+        relay.clearTunnel()
+        relay.tunnelRequestId = relay.request(MoblinkRequest.StartTunnel(address, destinationPort)) { result, data ->
+            relay.tunnelRequestId = null
+            val tunnelPort = (data as? MoblinkResponse.StartTunnel)?.port
+            val host = relay.socket.remoteSocketAddress?.address?.hostAddress
+            if (result != MoblinkResult.OK || tunnelPort == null || host == null) {
+                listener.log("Relay ${relay.name}: tunnel to $address:$destinationPort failed ($result)")
+                return@request
             }
+            // The tunnel is at the relay's address, on the port it answered with.
+            val tunnel = MoblinkTunnel(host.substringBefore('%'), tunnelPort, relay.relayId ?: return@request, relay.name)
+            relay.tunnel = tunnel
+            listener.log("Relay ${relay.name}: tunnel at ${tunnel.host}:${tunnel.port}")
+            listener.tunnelAdded(tunnel)
         }
     }
 
@@ -187,19 +190,22 @@ class MoblinkStreamer(
         }
         // Upstream: a relay that reconnects replaces its old connection.
         val replaced = synchronized(lock) {
+            if (relays[relay.socket] !== relay) return
             lockout.recordSuccess(host)
             val previous = relays.values.firstOrNull { it !== relay && it.relayId == message.id }
-            previous?.let { relays.remove(it.socket) }
+            previous?.let {
+                relays.remove(it.socket)
+                it.clearTunnel()
+            }
             relay.relayId = message.id
             relay.name = message.name.substringBefore('\n').trim().take(30)
             relay.identified = true
+            listener.log("Relay ${relay.name} at $host: connected" + if (destination == null) ", tunnel when live with SRTLA" else "")
+            relay.send(MoblinkMessageToRelay.Identified(MoblinkResult.OK))
+            startTunnel(relay)
             previous
         }
-        replaced?.tunnel?.let(listener::tunnelRemoved)
         replaced?.socket?.close()
-        listener.log("Relay ${relay.name} at $host: connected" + if (destination == null) ", tunnel when live with SRTLA" else "")
-        relay.send(MoblinkMessageToRelay.Identified(MoblinkResult.OK))
-        startTunnel(relay)
         updateStatus()
         listener.relaysChanged()
     }
@@ -224,9 +230,8 @@ class MoblinkStreamer(
         }
 
         override fun onClose(socket: WebSocket, code: Int, reason: String?, remote: Boolean) {
-            val relay = synchronized(lock) { relays.remove(socket) } ?: return
+            val relay = synchronized(lock) { relays.remove(socket)?.also { it.clearTunnel() } } ?: return
             listener.log("Relay ${relay.name.ifEmpty { "(not identified)" }}: disconnected")
-            relay.tunnel?.let(listener::tunnelRemoved)
             listener.relaysChanged()
         }
 
@@ -242,8 +247,11 @@ class MoblinkStreamer(
             when (parsed) {
                 is MoblinkMessageToStreamer.Identify -> handleIdentify(relay, parsed)
                 is MoblinkMessageToStreamer.Response -> {
-                    val callback = synchronized(lock) { if (relay.identified) relay.requests.remove(parsed.id) else null }
-                    callback?.invoke(parsed.result, parsed.data)
+                    synchronized(lock) {
+                        if (relays[socket] === relay && relay.identified) {
+                            relay.requests.remove(parsed.id)?.invoke(parsed.result, parsed.data)
+                        }
+                    }
                 }
             }
         }

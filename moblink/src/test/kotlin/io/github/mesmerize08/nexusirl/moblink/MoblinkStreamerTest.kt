@@ -1,6 +1,7 @@
 package io.github.mesmerize08.nexusirl.moblink
 
 import io.github.mesmerize08.nexusirl.core.websocket.ReconnectingWebSocket
+import io.github.mesmerize08.nexusirl.remotecontrol.remoteControlHashPassword
 import io.github.mesmerize08.nexusirl.transport.srt.net.BondingInterface
 import io.github.mesmerize08.nexusirl.transport.srt.net.InterfaceType
 import okhttp3.Request
@@ -95,6 +96,59 @@ class MoblinkStreamerTest {
             relay.stop()
             streamer.stop()
             server.close()
+        }
+    }
+
+    @Test
+    fun delayedTunnelReplyCannotReplaceCurrentDestination() {
+        val port = ServerSocket(0).use { it.localPort }
+        val events = Events()
+        val streamer = MoblinkStreamer(port, "1234", events).also { it.start() }
+        val requests = LinkedBlockingQueue<MoblinkMessageToRelay.Request>()
+        val relayId = UUID.randomUUID()
+        var relay: WebSocket? = null
+        try {
+            Thread.sleep(300)
+            relay = ReconnectingWebSocket.LOCAL_NETWORK_CLIENT.newWebSocket(
+                Request.Builder().url("ws://127.0.0.1:$port").build(),
+                object : WebSocketListener() {
+                    override fun onMessage(webSocket: WebSocket, text: String) {
+                        when (val message = MoblinkMessageToRelay.fromJson(text)) {
+                            is MoblinkMessageToRelay.Hello -> {
+                                val auth = message.authentication
+                                val hash = remoteControlHashPassword(auth.challenge, auth.salt, "1234")
+                                webSocket.send(MoblinkMessageToStreamer.Identify(relayId, "Relay", hash).toJson())
+                            }
+                            is MoblinkMessageToRelay.Request -> requests += message
+                            else -> Unit
+                        }
+                    }
+                },
+            )
+            streamer.startTunnels("127.0.0.1", 15000)
+            fun nextTunnel(): MoblinkMessageToRelay.Request {
+                while (true) {
+                    val request = assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                    if (request.data is MoblinkRequest.StartTunnel) return request
+                }
+            }
+            fun reply(request: MoblinkMessageToRelay.Request, port: Int) {
+                relay.send(MoblinkMessageToStreamer.Response(request.id, MoblinkResult.OK, MoblinkResponse.StartTunnel(port)).toJson())
+            }
+            val old = nextTunnel()
+            streamer.stopTunnels()
+            streamer.startTunnels("127.0.0.1", 15001)
+            val current = nextTunnel()
+
+            // The current reply follows the stale reply on the same socket.
+            reply(old, 16000)
+            reply(current, 16001)
+            assertEquals(16001, assertNotNull(events.added.poll(5, TimeUnit.SECONDS)).port)
+            streamer.stopTunnels()
+            assertEquals(16001, assertNotNull(events.removed.poll(5, TimeUnit.SECONDS)).port)
+        } finally {
+            relay?.cancel()
+            streamer.stop()
         }
     }
 
